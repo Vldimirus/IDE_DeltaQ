@@ -106,6 +106,46 @@ target_link_libraries(test_BreakpointMarkers PRIVATE
 set_target_properties(test_BreakpointMarkers PROPERTIES AUTOMOC ON)
 add_test(NAME test_BreakpointMarkers COMMAND test_BreakpointMarkers)
 
+# Тесты блочного редактора
+add_executable(test_BlockScene blockEditor/test_BlockScene.cpp)
+target_link_libraries(test_BlockScene PRIVATE
+    dq_block_editor
+    dq_core
+    Qt6::Test
+    Qt6::Widgets
+)
+set_target_properties(test_BlockScene PROPERTIES AUTOMOC ON)
+add_test(NAME test_BlockScene COMMAND test_BlockScene)
+
+add_executable(test_GraphCommands blockEditor/test_GraphCommands.cpp)
+target_link_libraries(test_GraphCommands PRIVATE
+    dq_block_editor
+    dq_core
+    Qt6::Test
+    Qt6::Widgets
+)
+set_target_properties(test_GraphCommands PROPERTIES AUTOMOC ON)
+add_test(NAME test_GraphCommands COMMAND test_GraphCommands)
+
+# Тесты компилятора графов
+add_executable(test_IR codegen/test_IR.cpp)
+target_link_libraries(test_IR PRIVATE
+    dq_codegen
+    Qt6::Test
+)
+set_target_properties(test_IR PROPERTIES AUTOMOC ON)
+add_test(NAME test_IR COMMAND test_IR)
+
+add_executable(test_GraphCompiler codegen/test_GraphCompiler.cpp)
+target_link_libraries(test_GraphCompiler PRIVATE
+    dq_codegen
+    dq_core
+    Qt6::Test
+    Qt6::Widgets
+)
+set_target_properties(test_GraphCompiler PROPERTIES AUTOMOC ON)
+add_test(NAME test_GraphCompiler COMMAND test_GraphCompiler)
+
 # Тесты popup автодополнения
 add_executable(test_CompletionPopup editor/test_CompletionPopup.cpp)
 target_link_libraries(test_CompletionPopup PRIVATE

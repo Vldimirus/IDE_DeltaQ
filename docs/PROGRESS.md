@@ -1,6 +1,6 @@
 # DeltaQ IDE — Прогресс разработки
 
-> Последнее обновление: 2026-02-28 (Фаза 2.9)
+> Последнее обновление: 2026-02-28 (Фаза 3)
 
 ---
 
@@ -9,15 +9,15 @@
 ```
 Фаза 0: Планирование         [████████████████████] 100%  ✓ утверждено
 Фаза 1: Ядро + Редактор кода  [████████████████████] 100%  ✓ завершена
-Фаза 2: Блочный редактор      [░░░░░░░░░░░░░░░░░░░░]   0%
+Фаза 2: Блочный редактор      [████████████████████] 100%  ✓ завершена
 Фаза 3: Дизайнер UI           [░░░░░░░░░░░░░░░░░░░░]   0%
 Фаза 4: Обработчик библиотек  [░░░░░░░░░░░░░░░░░░░░]   0%
 Фаза 5: Интеграция             [░░░░░░░░░░░░░░░░░░░░]   0%
 ─────────────────────────────────────────────────────
-Общий прогресс проекта:                                ~35%
+Общий прогресс проекта:                                ~50%
 ```
 
-**Текущая фаза:** 2 — Блочный редактор (следующая)
+**Текущая фаза:** 3 — Дизайнер UI (следующая)
 
 ---
 
@@ -49,6 +49,7 @@
 | 19 | Фаза 2.7: Маркеры отладки + breakpoints в margin | LineNumberArea расширена на 16px для маркеров. Красный кружок — breakpoint, жёлтая стрелка — текущая строка отладки. Клик в margin → toggle breakpoint → DebugManager. Зелёный фон строки при останове. breakpointAdded/Removed → синхронизация маркеров. debugStopped → clearDebugLineInAllTabs. |
 | 20 | Фаза 2.8: Popup автодополнения | CompletionPopup: QFrame + QListWidget, цветные иконки по kind (F=функция, V=переменная, C=класс, E=enum, K=keyword, S=snippet). Фильтрация по prefix (case-insensitive). EventFilter: Enter/Tab=вставка, Esc=скрыть, ↑↓=навигация. Триггеры: «.», «->», «::», Ctrl+Space (через completionRequested). |
 | 21 | Фаза 2.9: Rename + Formatting + Undo/Redo + ProjectTreeView | LSPClient: rename() и formatting() запросы, парсинг WorkspaceEdit и TextEdit[]. LSPTypes: LSPTextEdit + WorkspaceEdit структуры. CodeEditorWidget: renameSymbol (QInputDialog + LSP rename), formatDocument (LSP formatting), применение edits в обратном порядке. ActionManager: edit.rename (F2), edit.format (Ctrl+Shift+I). Undo/redo: делегирование — фокус в CodeEditor → QPlainTextEdit, иначе → UndoManager. ProjectTreeView: DiagnosticDelegate с цветными бейджами ошибок/предупреждений. 4 новых теста (~30 тест-кейсов), всего 20 тестов — все проходят. |
+| 22 | Фаза 3: Блочный редактор (полностью) | **3.1 Графовый редактор (ядро):** BlockScene (QGraphicsScene — узлы, соединения, drag&drop, валидация), NodeItem (QGraphicsObject — прямоугольник с заголовком, цвет по категории, адаптивная высота по числу портов), PortItem (QGraphicsEllipseItem — кружок с подписью, цвет по типу данных, hover-эффект), ConnectionItem (QGraphicsPathItem — кривая Безье, расширенная зона клика). BlockEditorWidget: QGraphicsView + toolbar (зум +/-, fit), Ctrl+колесо масштабирование, Ctrl+0 fitInView, Ctrl+A выделить всё. **3.2 Палитра модулей:** ModulePalette (QTreeWidget по категориям из ModuleRegistry, QLineEdit поиск, drag&drop MIME "application/x-dqmodule", цветные иконки по категории, tooltip с описанием и портами). QSplitter: палитра слева, холст справа. Автообновление при moduleRegistered/Updated/Unregistered. **3.3 Команды графа (Undo/Redo):** AddNodeCommand, RemoveNodeCommand (с сохранением и восстановлением соединений), MoveNodeCommand (с mergeWith для объединения последовательных перемещений), ConnectCommand, DisconnectCommand, ChangePropertyCommand. Все операции через CommandBus. **3.4 Компилятор графов:** IR (IRInstruction: Call, Assign, TypeConvert, DeclareVar, Comment, Return; фабричные методы; emitCCode). GraphCompiler: валидация узлов/портов/типов, топологическая сортировка (алгоритм Кана, обнаружение циклов), генерация IR, неявные преобразования типов (int→float/double, float→double, bool→int), CompilationResult с sourceMap (строка→nodeId). **3.5 Интеграция со сборкой:** onBuild: если активен BlockEditor → GraphCompiler::compile → сохранение .c в generated/ → CMakeGenerator учитывает generated/. Подсветка ошибочных узлов на холсте. **3.6 Визуальная отладка:** GraphDebugger: маппинг строк кода→узлов через sourceMap, onBreakpointHit→highlightNode, onStepped→completed+highlight, onDebugStopped→clearDebugState, onVariablesUpdated→tooltip на портах с текущими значениями. Визуальные состояния: серая рамка (обычный), жёлтая (текущий), зелёная (выполненный), красная (ошибка). 4 новых теста (~34 тест-кейса), всего 24 теста — все проходят. |
 
 > **Черновики** (п. 5–6) были созданы до утверждения планов и доработаны при первой сборке.
 
@@ -72,21 +73,24 @@
 - [x] Фаза 2.7: Маркеры отладки + breakpoints в margin
 - [x] Фаза 2.8: Popup автодополнения
 - [x] Фаза 2.9: Rename + Formatting + Undo/Redo + ProjectTreeView
+- [x] Фаза 3: Блочный редактор (полностью — 6 подэтапов, 18 новых файлов, 7 модифицированных)
 
 ---
 
 ## Что дальше
 
 **Фаза 1 (Редактор кода) — завершена на 100%.**
+**Фаза 2 (Блочный редактор) — завершена на 100%.**
 
-Все задачи по редактору кода выполнены:
-- Редактор: QPlainTextEdit с нумерацией строк, подсветкой синтаксиса, парными скобками
-- LSP: JSON-RPC клиент, диагностика с WaveUnderline, hover-подсказки, definition, references, rename, formatting
-- Автодополнение: popup с иконками и фильтрацией
-- Отладка: GDB/MI, breakpoints в margin, текущая строка отладки
-- Система сборки: CMake генератор, парсер ошибок, навигация
+Реализовано:
+- Графовый редактор: BlockScene, NodeItem, PortItem, ConnectionItem
+- Палитра модулей: ModulePalette с поиском и drag&drop
+- Undo/Redo: 6 команд через CommandBus
+- Компилятор графов: IR → C-код, топологическая сортировка, валидация типов
+- Интеграция со сборкой: генерация .c, CMake, подсветка ошибок
+- Визуальная отладка: GraphDebugger, маппинг строк→узлов
 
-**Фазы 2–5** — см. детальные планы в `docs/plan/09_roadmap.md`
+**Фазы 3–5** — см. детальные планы в `docs/plan/09_roadmap.md`
 
 ---
 

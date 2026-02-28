@@ -1,29 +1,60 @@
-// Модуль 2: Визуальный блочный редактор — заглушка
-// TODO: реализация в Фазе 2
+// Модуль 2: Визуальный блочный редактор — QGraphicsView + BlockScene + toolbar
 #pragma once
 
 #include <QWidget>
-#include <QLabel>
-#include <QVBoxLayout>
-#include <QCoreApplication>
+
+class QGraphicsView;
+class QSplitter;
+class QToolBar;
 
 namespace DeltaQ {
 
 class ModuleRegistry;
 class CommandBus;
+class GraphStore;
+class BlockScene;
+class ModulePalette;
 
 class BlockEditorWidget : public QWidget {
+    Q_OBJECT
+
 public:
     explicit BlockEditorWidget(ModuleRegistry *registry, CommandBus *bus,
-                                QWidget *parent = nullptr)
-        : QWidget(parent)
-    {
-        auto *layout = new QVBoxLayout(this);
-        auto *label = new QLabel(QCoreApplication::translate("BlockEditorWidget",
-            "Block Editor\n\n(will be implemented in Phase 2)"), this);
-        label->setAlignment(Qt::AlignCenter);
-        layout->addWidget(label);
-    }
+                               QWidget *parent = nullptr);
+
+    // Загрузка графа по id
+    void loadGraph(const QString &graphId, GraphStore *store);
+    void saveGraph(GraphStore *store);
+
+    // Доступ к сцене
+    BlockScene *scene() const { return m_scene; }
+
+    // Палитра (добавляется в 3.2)
+    void setPalette(ModulePalette *palette);
+
+    // Масштабирование
+    void zoomIn();
+    void zoomOut();
+    void zoomFit();
+
+protected:
+    void wheelEvent(QWheelEvent *event) override;
+    void keyPressEvent(QKeyEvent *event) override;
+
+private:
+    void setupToolBar();
+
+    ModuleRegistry *m_registry;
+    CommandBus *m_commandBus;
+    BlockScene *m_scene = nullptr;
+    QGraphicsView *m_view = nullptr;
+    QToolBar *m_toolbar = nullptr;
+    QSplitter *m_splitter = nullptr;
+
+    qreal m_currentZoom = 1.0;
+    static constexpr qreal MinZoom = 0.1;
+    static constexpr qreal MaxZoom = 5.0;
+    static constexpr qreal ZoomStep = 1.15;
 };
 
 } // namespace DeltaQ

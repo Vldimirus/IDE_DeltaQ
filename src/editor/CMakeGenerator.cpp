@@ -58,6 +58,18 @@ QStringList CMakeGenerator::collectSources(const QString &projectDir) const
         sources.append(relPath);
     }
 
+    // Добавляем сгенерированные файлы из generated/
+    QDir genDir(projectDir + "/generated");
+    if (genDir.exists()) {
+        QDirIterator genIt(genDir.absolutePath(), filters, QDir::Files);
+        while (genIt.hasNext()) {
+            genIt.next();
+            QString relPath = QDir(projectDir).relativeFilePath(genIt.filePath());
+            if (!sources.contains(relPath))
+                sources.append(relPath);
+        }
+    }
+
     sources.sort();
     return sources;
 }

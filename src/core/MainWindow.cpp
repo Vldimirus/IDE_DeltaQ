@@ -17,11 +17,19 @@
 #include "../debug/DebugManager.h"
 #include "../debug/DebugTypes.h"
 #include "../blockEditor/BlockEditorWidget.h"
+#include "../blockEditor/BlockScene.h"
+#include "../blockEditor/ModulePalette.h"
+#include "../blockEditor/GraphCommands.h"
+#include "../blockEditor/NodeItem.h"
+#include "../blockEditor/GraphDebugger.h"
+#include "../codegen/GraphCompiler.h"
 #include "../uiDesigner/UIDesignerWidget.h"
 #include "../libProcessor/LibProcessorWidget.h"
 
 #include <QApplication>
 #include <QCloseEvent>
+#include <QDir>
+#include <QFile>
 #include <QFileDialog>
 #include <QInputDialog>
 #include <QMessageBox>
@@ -76,6 +84,9 @@ void MainWindow::setupCoreServices()
     m_debugManager = new DebugManager(this);
 
     m_actionManager->setupStandardActions();
+
+    // GraphDebugger создаётся после setupUI, инициализируем nullptr
+    m_graphDebugger = nullptr;
 }
 
 void MainWindow::setupUI()
@@ -90,6 +101,8 @@ void MainWindow::setupUI()
 
     // Module 2: Block Editor
     m_blockEditor = new BlockEditorWidget(m_moduleRegistry, m_commandBus, this);
+    m_modulePalette = new ModulePalette(m_moduleRegistry, this);
+    m_blockEditor->setPalette(m_modulePalette);
     m_centralStack->addWidget(m_blockEditor);
 
     // Module 3: UI Designer
@@ -504,6 +517,41 @@ void MainWindow::setupConnections()
         });
     }
 
+    // Блочный редактор: визуальная отладка
+    auto *blockScene = m_blockEditor->scene();
+    m_graphDebugger = new GraphDebugger(blockScene, m_debugManager, this);
+
+    // Блочный редактор: соединение через CommandBus
+
+    // Перетаскивание модуля из палитры → создание узла через AddNodeCommand
+    connect(blockScene, &BlockScene::nodeDropped, this,
+            [this, blockScene](const QString &moduleId, const QPointF &scenePos) {
+        Graph *graph = m_graphStore->findGraph(blockScene->currentGraphId());
+        if (!graph) return;
+        auto node = GraphNode::create(moduleId, scenePos);
+        m_commandBus->execute(std::make_unique<AddNodeCommand>(blockScene, graph, node));
+    });
+
+    // Соединение портов через ConnectCommand
+    connect(blockScene, &BlockScene::connectionRequested, this,
+            [this, blockScene](const QString &fromNodeId, const QString &fromPort,
+                               const QString &toNodeId, const QString &toPort) {
+        Graph *graph = m_graphStore->findGraph(blockScene->currentGraphId());
+        if (!graph) return;
+        GraphConnection conn;
+        conn.from = {fromNodeId, fromPort};
+        conn.to = {toNodeId, toPort};
+        m_commandBus->execute(std::make_unique<ConnectCommand>(blockScene, graph, conn));
+    });
+
+    // Перемещение узла → MoveNodeCommand
+    connect(blockScene, &BlockScene::nodeMovedByUser, this,
+            [this, blockScene](const QString &nodeId, const QPointF &oldPos, const QPointF &newPos) {
+        Graph *graph = m_graphStore->findGraph(blockScene->currentGraphId());
+        if (!graph) return;
+        m_commandBus->execute(std::make_unique<MoveNodeCommand>(blockScene, graph, nodeId, oldPos, newPos));
+    });
+
     // Загрузка реестра модулей при открытии проекта
     connect(m_projectManager, &ProjectManager::projectOpened, this, [this]() {
         m_moduleRegistry->loadRegistry(m_projectManager->projectDir());
@@ -515,16 +563,21 @@ void MainWindow::setupConnections()
         m_moduleRegistry->clear();
     });
 
-    // Уведомление о регистрации модуля из аннотаций
+    // Уведомление о регистрации модуля из аннотаций + обновление палитры
     connect(m_moduleRegistry, &ModuleRegistry::moduleRegistered, this, [this](const QString &id) {
         auto *mod = m_moduleRegistry->findModule(id);
         if (mod)
             statusBar()->showMessage(tr("Module '%1' registered").arg(mod->name), 3000);
+        m_modulePalette->rebuildTree();
     });
     connect(m_moduleRegistry, &ModuleRegistry::moduleUpdated, this, [this](const QString &id) {
         auto *mod = m_moduleRegistry->findModule(id);
         if (mod)
             statusBar()->showMessage(tr("Module '%1' updated").arg(mod->name), 3000);
+        m_modulePalette->rebuildTree();
+    });
+    connect(m_moduleRegistry, &ModuleRegistry::moduleUnregistered, this, [this]() {
+        m_modulePalette->rebuildTree();
     });
 
     // LSP: запуск при открытии проекта
@@ -636,6 +689,56 @@ void MainWindow::onBuild()
         statusBar()->showMessage(tr("No project open"), 3000);
         return;
     }
+
+    // Если активен блочный редактор — компилируем граф в C-код
+    if (m_centralStack->currentWidget() == m_blockEditor) {
+        auto *scene = m_blockEditor->scene();
+        QString graphId = scene->currentGraphId();
+        Graph *graph = m_graphStore->findGraph(graphId);
+        if (!graph) {
+            statusBar()->showMessage(tr("No graph loaded"), 3000);
+            return;
+        }
+
+        GraphCompiler compiler(m_moduleRegistry);
+        CompilationResult result = compiler.compile(*graph);
+
+        if (!result.success) {
+            m_buildOutput->clear();
+            for (const auto &err : result.errors)
+                m_buildOutput->append("ERROR: " + err);
+            m_outputTabs->setCurrentWidget(m_buildOutput);
+            m_outputDock->show();
+            statusBar()->showMessage(tr("Graph compilation failed"), 3000);
+
+            // Подсветка ошибочных узлов
+            for (auto it = result.sourceMap.begin(); it != result.sourceMap.end(); ++it) {
+                auto *node = scene->nodeItem(it.value());
+                if (node)
+                    node->setError(true, tr("Compilation error"));
+            }
+            return;
+        }
+
+        // Сохраняем сгенерированный код
+        QString genDir = m_projectManager->projectDir() + "/generated";
+        QDir().mkpath(genDir);
+        QString genPath = genDir + "/" + graph->name + ".c";
+        QFile f(genPath);
+        if (f.open(QIODevice::WriteOnly | QIODevice::Text)) {
+            f.write(result.generatedCode.toUtf8());
+            f.close();
+        }
+
+        m_buildOutput->clear();
+        m_buildOutput->append(tr("=== Graph '%1' compiled to %2 ===\n").arg(graph->name, genPath));
+        m_outputTabs->setCurrentWidget(m_buildOutput);
+        m_outputDock->show();
+
+        // Передаём sourceMap для визуальной отладки
+        m_graphDebugger->setSourceMap(result.sourceMap);
+    }
+
     m_buildManager->build(m_projectManager->projectDir(),
                           m_projectManager->currentProject().name,
                           m_projectManager->currentProject().build.standard);

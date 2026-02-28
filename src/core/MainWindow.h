@@ -23,12 +23,14 @@ class ActionManager;
 class UndoManager;
 class CodeEditorWidget;
 class BlockEditorWidget;
+class ModulePalette;
 class UIDesignerWidget;
 class LibProcessorWidget;
 class ProjectTreeView;
 class BuildManager;
 class LSPClient;
 class DebugManager;
+class GraphDebugger;
 
 class MainWindow : public QMainWindow {
     Q_OBJECT
@@ -86,11 +88,13 @@ private:
     BuildManager *m_buildManager = nullptr;
     LSPClient *m_lspClient = nullptr;
     DebugManager *m_debugManager = nullptr;
+    GraphDebugger *m_graphDebugger = nullptr;
 
     // UI
     QStackedWidget *m_centralStack = nullptr;
     CodeEditorWidget *m_codeEditor = nullptr;
     BlockEditorWidget *m_blockEditor = nullptr;
+    ModulePalette *m_modulePalette = nullptr;
     UIDesignerWidget *m_uiDesigner = nullptr;
     LibProcessorWidget *m_libProcessor = nullptr;
 
