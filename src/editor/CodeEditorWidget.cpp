@@ -1,9 +1,11 @@
 #include "CodeEditorWidget.h"
 #include "CodeEditorTab.h"
+#include "FindReplaceBar.h"
 #include "BuildManager.h"
 
 #include <QFileInfo>
 #include <QMessageBox>
+#include <QInputDialog>
 
 namespace DeltaQ {
 
@@ -21,6 +23,10 @@ CodeEditorWidget::CodeEditorWidget(CommandBus *bus, ModuleRegistry *registry,
     m_tabWidget->setMovable(true);
     m_tabWidget->setDocumentMode(true);
     layout->addWidget(m_tabWidget);
+
+    // Панель поиска и замены (под вкладками)
+    m_findBar = new FindReplaceBar(this);
+    layout->addWidget(m_findBar);
 
     connect(m_tabWidget, &QTabWidget::tabCloseRequested, this, &CodeEditorWidget::closeTab);
     connect(m_tabWidget, &QTabWidget::currentChanged, this, &CodeEditorWidget::onTabChanged);
@@ -137,7 +143,49 @@ void CodeEditorWidget::closeTab(int index)
 
 void CodeEditorWidget::onTabChanged(int /*index*/)
 {
+    // Обновляем редактор в панели поиска при смене вкладки
+    auto *tab = currentTab();
+    m_findBar->setEditor(tab ? tab->editor() : nullptr);
     emit currentTabChanged();
+}
+
+void CodeEditorWidget::showFind()
+{
+    auto *tab = currentTab();
+    if (tab) {
+        m_findBar->setEditor(tab->editor());
+        m_findBar->showFind();
+    }
+}
+
+void CodeEditorWidget::showReplace()
+{
+    auto *tab = currentTab();
+    if (tab) {
+        m_findBar->setEditor(tab->editor());
+        m_findBar->showReplace();
+    }
+}
+
+void CodeEditorWidget::goToLine()
+{
+    auto *tab = currentTab();
+    if (!tab) return;
+
+    auto *editor = tab->editor();
+    int maxLine = editor->blockCount();
+    bool ok = false;
+    int line = QInputDialog::getInt(this, tr("Go to Line"),
+        tr("Line number (1–%1):").arg(maxLine),
+        editor->textCursor().blockNumber() + 1,
+        1, maxLine, 1, &ok);
+
+    if (ok) {
+        QTextCursor cursor(editor->document()->findBlockByNumber(line - 1));
+        editor->setTextCursor(cursor);
+        editor->centerCursor();
+        editor->setFocus();
+    }
 }
 
 CodeEditorTab *CodeEditorWidget::findTabForFile(const QString &path) const

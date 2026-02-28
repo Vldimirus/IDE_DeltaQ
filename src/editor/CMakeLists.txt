@@ -1,6 +1,7 @@
 set(EDITOR_SOURCES
     CodeEditorWidget.cpp
     CodeEditorTab.cpp
+    FindReplaceBar.cpp
     ProjectTreeView.cpp
     BuildManager.cpp
     AnnotationParser.cpp

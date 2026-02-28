@@ -109,6 +109,9 @@ void MainWindow::setupMenus()
     editMenu->addAction(m_actionManager->action("edit.paste"));
     editMenu->addSeparator();
     editMenu->addAction(m_actionManager->action("edit.find"));
+    editMenu->addAction(m_actionManager->action("edit.replace"));
+    editMenu->addSeparator();
+    editMenu->addAction(m_actionManager->action("edit.goToLine"));
 
     auto *viewMenu = menuBar()->addMenu(tr("&View"));
     viewMenu->addAction(m_actionManager->action("view.codeEditor"));
@@ -239,6 +242,10 @@ void MainWindow::setupConnections()
 
     connect(am->undoAction(), &QAction::triggered, m_undoManager, &UndoManager::undo);
     connect(am->redoAction(), &QAction::triggered, m_undoManager, &UndoManager::redo);
+
+    connect(am->action("edit.find"), &QAction::triggered, m_codeEditor, &CodeEditorWidget::showFind);
+    connect(am->action("edit.replace"), &QAction::triggered, m_codeEditor, &CodeEditorWidget::showReplace);
+    connect(am->action("edit.goToLine"), &QAction::triggered, m_codeEditor, &CodeEditorWidget::goToLine);
 
     connect(am->buildAction(), &QAction::triggered, this, &MainWindow::onBuild);
     connect(am->action("build.clean"), &QAction::triggered, this, &MainWindow::onClean);

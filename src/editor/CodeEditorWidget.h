@@ -10,6 +10,7 @@ namespace DeltaQ {
 class CommandBus;
 class ModuleRegistry;
 class CodeEditorTab;
+class FindReplaceBar;
 
 class CodeEditorWidget : public QWidget {
     Q_OBJECT
@@ -27,6 +28,11 @@ public:
     QString currentFilePath() const;
     QStringList openFilePaths() const;
 
+    // Поиск и замена
+    void showFind();
+    void showReplace();
+    void goToLine();
+
 signals:
     void fileSaved(const QString &path);
     void buildRequested(const QString &projectDir);
@@ -41,6 +47,7 @@ private:
     CodeEditorTab *findTabForFile(const QString &path) const;
 
     QTabWidget *m_tabWidget;
+    FindReplaceBar *m_findBar;
     CommandBus *m_commandBus;
     ModuleRegistry *m_moduleRegistry;
     QMap<QString, int> m_openFiles; // path -> tab index

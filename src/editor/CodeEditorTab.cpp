@@ -172,7 +172,104 @@ void CodeEditorTab::highlightCurrentLine()
         extraSelections.append(selection);
     }
 
+    // Подсветка парных скобок
+    highlightMatchingBrackets(extraSelections);
+
     m_editor->setExtraSelections(extraSelections);
+}
+
+void CodeEditorTab::highlightMatchingBrackets(QList<QTextEdit::ExtraSelection> &selections)
+{
+    QTextCursor cursor = m_editor->textCursor();
+    QTextDocument *doc = m_editor->document();
+
+    // Проверяем символ под курсором и перед курсором
+    int pos = cursor.position();
+    QChar charAtCursor, charBeforeCursor;
+    if (pos < doc->characterCount())
+        charAtCursor = doc->characterAt(pos);
+    if (pos > 0)
+        charBeforeCursor = doc->characterAt(pos - 1);
+
+    // Определяем тип скобки и направление поиска
+    static const QString openBrackets = "({[";
+    static const QString closeBrackets = ")}]";
+
+    QChar bracket;
+    QChar matchBracket;
+    int searchPos = -1;
+    int direction = 0; // 1 = вперёд, -1 = назад
+
+    if (openBrackets.contains(charAtCursor)) {
+        bracket = charAtCursor;
+        matchBracket = closeBrackets[openBrackets.indexOf(bracket)];
+        searchPos = pos;
+        direction = 1;
+    } else if (closeBrackets.contains(charAtCursor)) {
+        bracket = charAtCursor;
+        matchBracket = openBrackets[closeBrackets.indexOf(bracket)];
+        searchPos = pos;
+        direction = -1;
+    } else if (openBrackets.contains(charBeforeCursor)) {
+        bracket = charBeforeCursor;
+        matchBracket = closeBrackets[openBrackets.indexOf(bracket)];
+        searchPos = pos - 1;
+        direction = 1;
+    } else if (closeBrackets.contains(charBeforeCursor)) {
+        bracket = charBeforeCursor;
+        matchBracket = openBrackets[closeBrackets.indexOf(bracket)];
+        searchPos = pos - 1;
+        direction = -1;
+    }
+
+    if (direction == 0)
+        return;
+
+    // Ищем парную скобку
+    int depth = 0;
+    int matchPos = -1;
+    int i = searchPos + direction;
+    int limit = (direction > 0) ? doc->characterCount() : -1;
+
+    while (i != limit) {
+        QChar ch = doc->characterAt(i);
+        if (ch == bracket)
+            ++depth;
+        else if (ch == matchBracket) {
+            if (depth == 0) {
+                matchPos = i;
+                break;
+            }
+            --depth;
+        }
+        i += direction;
+    }
+
+    // Подсвечиваем обе скобки
+    QTextCharFormat bracketFormat;
+    bracketFormat.setBackground(QColor(180, 220, 255));
+    bracketFormat.setFontWeight(QFont::Bold);
+
+    if (matchPos < 0) {
+        // Парная скобка не найдена — красная подсветка
+        bracketFormat.setBackground(QColor(255, 180, 180));
+    }
+
+    QTextEdit::ExtraSelection sel1;
+    sel1.format = bracketFormat;
+    sel1.cursor = QTextCursor(doc);
+    sel1.cursor.setPosition(searchPos);
+    sel1.cursor.movePosition(QTextCursor::Right, QTextCursor::KeepAnchor);
+    selections.append(sel1);
+
+    if (matchPos >= 0) {
+        QTextEdit::ExtraSelection sel2;
+        sel2.format = bracketFormat;
+        sel2.cursor = QTextCursor(doc);
+        sel2.cursor.setPosition(matchPos);
+        sel2.cursor.movePosition(QTextCursor::Right, QTextCursor::KeepAnchor);
+        selections.append(sel2);
+    }
 }
 
 } // namespace DeltaQ

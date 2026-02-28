@@ -50,14 +50,37 @@ QVector<Module> AnnotationParser::parseAnnotations(const QString &source, const 
     if (versionMatch.hasMatch())
         mod.version = versionMatch.captured(1);
 
-    // TODO: поле category будет добавлено в Module позже
-    // auto categoryMatch = categoryRx.match(source);
-
     auto descMatch = descRx.match(source);
     if (descMatch.hasMatch())
         mod.description = descMatch.captured(1);
 
-    // TODO: парсить @dqport аннотации для портов
+    // Парсинг @dqport аннотаций
+    // Формат: @dqport direction=input name=portName type=int default=0
+    //         @dqport direction=output name=portName type=float
+    QRegularExpression portRx(
+        "@dqport\\s+"
+        "direction=(input|output)\\s+"
+        "name=(\\w+)\\s+"
+        "type=(\\w+)"
+        "(?:\\s+default=(?:\"([^\"]*)\"|([^\\s]*)))?"
+    );
+    auto portIt = portRx.globalMatch(source);
+    while (portIt.hasNext()) {
+        auto pm = portIt.next();
+        Port port;
+        port.name = pm.captured(2);
+        port.type = pm.captured(3);
+        // default может быть в кавычках или без
+        if (!pm.captured(4).isEmpty())
+            port.defaultValue = pm.captured(4);
+        else if (!pm.captured(5).isEmpty())
+            port.defaultValue = pm.captured(5);
+
+        if (pm.captured(1) == "input")
+            mod.inputs.append(port);
+        else
+            mod.outputs.append(port);
+    }
 
     result.append(mod);
     return result;

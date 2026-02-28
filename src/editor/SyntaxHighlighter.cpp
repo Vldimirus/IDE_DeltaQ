@@ -74,6 +74,37 @@ SyntaxHighlighter::SyntaxHighlighter(QTextDocument *parent)
         m_rules.append(rule);
     }
 
+    // Имена функций (идентификатор перед скобкой)
+    QTextCharFormat functionFormat;
+    functionFormat.setForeground(QColor("#DCDCAA"));
+    {
+        HighlightRule rule;
+        rule.pattern = QRegularExpression("\\b([a-zA-Z_]\\w*)\\s*(?=\\()");
+        rule.format = functionFormat;
+        m_rules.append(rule);
+    }
+
+    // Аннотации DeltaQ: @dqmodule, @dqport
+    QTextCharFormat annotationFormat;
+    annotationFormat.setForeground(QColor("#D7BA7D"));
+    annotationFormat.setFontWeight(QFont::Bold);
+    {
+        HighlightRule rule;
+        rule.pattern = QRegularExpression("@dq(module|port)\\b");
+        rule.format = annotationFormat;
+        m_rules.append(rule);
+    }
+
+    // Параметры аннотаций: name=..., type=..., version=..., description="..."
+    QTextCharFormat annotationParamFormat;
+    annotationParamFormat.setForeground(QColor("#9CDCFE"));
+    {
+        HighlightRule rule;
+        rule.pattern = QRegularExpression("\\b(name|type|version|description|default|direction)\\s*=");
+        rule.format = annotationParamFormat;
+        m_rules.append(rule);
+    }
+
     // Однострочные комментарии
     m_commentFormat.setForeground(QColor("#6A9955"));
     {

@@ -3,6 +3,7 @@
 
 #include <QWidget>
 #include <QPlainTextEdit>
+#include <QTextEdit>
 #include <QTextBlock>
 #include <QString>
 
@@ -68,6 +69,8 @@ private slots:
 private:
     void setupEditor();
     int lineNumberAreaWidth() const;
+    // Подсветка парных скобок
+    void highlightMatchingBrackets(QList<QTextEdit::ExtraSelection> &selections);
 
     QString m_filePath;
     CodePlainTextEdit *m_editor;
