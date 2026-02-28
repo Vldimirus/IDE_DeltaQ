@@ -12,9 +12,20 @@ class SessionManager : public QObject {
 public:
     explicit SessionManager(QObject *parent = nullptr);
 
+    // Тестовый конструктор — изолированные QSettings
+    SessionManager(const QString &org, const QString &app, QObject *parent = nullptr);
+
     QStringList recentProjects() const;
     void addRecentProject(const QString &path);
     void clearRecentProjects();
+
+    // Открытые вкладки
+    QStringList openTabs() const;
+    void setOpenTabs(const QStringList &tabs);
+
+    // Последний открытый проект
+    QString lastOpenedProject() const;
+    void setLastOpenedProject(const QString &path);
 
     // Window geometry
     QByteArray windowGeometry() const;

@@ -2,6 +2,7 @@
 
 #include <QObject>
 #include <QMap>
+#include <QSet>
 #include <QAction>
 #include <QString>
 #include <QKeySequence>
@@ -16,8 +17,20 @@ public:
 
     QAction *registerAction(const QString &id, const QString &text,
                             const QKeySequence &shortcut = {});
+
+    // Регистрация действия с привязкой к группе
+    QAction *registerAction(const QString &id, const QString &text,
+                            const QKeySequence &shortcut,
+                            const QString &group);
+
     QAction *action(const QString &id) const;
     QList<QAction *> allActions() const;
+
+    // Группы действий
+    void addToGroup(const QString &actionId, const QString &groupId);
+    void enableGroup(const QString &groupId);
+    void disableGroup(const QString &groupId);
+    QList<QAction *> actionsInGroup(const QString &groupId) const;
 
     // Standard actions
     void setupStandardActions();
@@ -32,6 +45,7 @@ public:
 
 private:
     QMap<QString, QAction *> m_actions;
+    QMap<QString, QSet<QString>> m_groups;
 };
 
 } // namespace DeltaQ

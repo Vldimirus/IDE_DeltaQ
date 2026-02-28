@@ -17,6 +17,15 @@ QAction *ActionManager::registerAction(const QString &id, const QString &text,
     return act;
 }
 
+QAction *ActionManager::registerAction(const QString &id, const QString &text,
+                                        const QKeySequence &shortcut,
+                                        const QString &group)
+{
+    auto *act = registerAction(id, text, shortcut);
+    addToGroup(id, group);
+    return act;
+}
+
 QAction *ActionManager::action(const QString &id) const
 {
     return m_actions.value(id, nullptr);
@@ -27,30 +36,68 @@ QList<QAction *> ActionManager::allActions() const
     return m_actions.values();
 }
 
+void ActionManager::addToGroup(const QString &actionId, const QString &groupId)
+{
+    m_groups[groupId].insert(actionId);
+}
+
+void ActionManager::enableGroup(const QString &groupId)
+{
+    const auto &ids = m_groups.value(groupId);
+    for (const auto &id : ids) {
+        if (auto *act = action(id))
+            act->setEnabled(true);
+    }
+}
+
+void ActionManager::disableGroup(const QString &groupId)
+{
+    const auto &ids = m_groups.value(groupId);
+    for (const auto &id : ids) {
+        if (auto *act = action(id))
+            act->setEnabled(false);
+    }
+}
+
+QList<QAction *> ActionManager::actionsInGroup(const QString &groupId) const
+{
+    QList<QAction *> result;
+    const auto &ids = m_groups.value(groupId);
+    for (const auto &id : ids) {
+        if (auto *act = action(id))
+            result.append(act);
+    }
+    return result;
+}
+
 void ActionManager::setupStandardActions()
 {
-    registerAction("file.newProject", tr("New Project..."), QKeySequence("Ctrl+Shift+N"));
-    registerAction("file.openProject", tr("Open Project..."), QKeySequence::Open);
-    registerAction("file.save", tr("Save"), QKeySequence::Save);
-    registerAction("file.saveAll", tr("Save All"), QKeySequence("Ctrl+Shift+S"));
-    registerAction("file.close", tr("Close"), QKeySequence::Close);
-    registerAction("file.quit", tr("Quit"), QKeySequence::Quit);
+    // Группа "file"
+    registerAction("file.newProject", tr("New Project..."), QKeySequence("Ctrl+Shift+N"), "file");
+    registerAction("file.openProject", tr("Open Project..."), QKeySequence::Open, "file");
+    registerAction("file.save", tr("Save"), QKeySequence::Save, "file");
+    registerAction("file.saveAll", tr("Save All"), QKeySequence("Ctrl+Shift+S"), "file");
+    registerAction("file.close", tr("Close"), QKeySequence::Close, "file");
+    registerAction("file.quit", tr("Quit"), QKeySequence::Quit, "file");
 
-    registerAction("edit.undo", tr("Undo"), QKeySequence::Undo);
-    registerAction("edit.redo", tr("Redo"), QKeySequence::Redo);
-    registerAction("edit.cut", tr("Cut"), QKeySequence::Cut);
-    registerAction("edit.copy", tr("Copy"), QKeySequence::Copy);
-    registerAction("edit.paste", tr("Paste"), QKeySequence::Paste);
-    registerAction("edit.find", tr("Find..."), QKeySequence::Find);
+    // Группа "edit"
+    registerAction("edit.undo", tr("Undo"), QKeySequence::Undo, "edit");
+    registerAction("edit.redo", tr("Redo"), QKeySequence::Redo, "edit");
+    registerAction("edit.cut", tr("Cut"), QKeySequence::Cut, "edit");
+    registerAction("edit.copy", tr("Copy"), QKeySequence::Copy, "edit");
+    registerAction("edit.paste", tr("Paste"), QKeySequence::Paste, "edit");
+    registerAction("edit.find", tr("Find..."), QKeySequence::Find, "edit");
 
-    registerAction("build.build", tr("Build"), QKeySequence("Ctrl+B"));
-    registerAction("build.run", tr("Run"), QKeySequence("Ctrl+R"));
-    registerAction("build.clean", tr("Clean"), QKeySequence("Ctrl+Shift+B"));
+    // Группа "build"
+    registerAction("build.build", tr("Build"), QKeySequence("Ctrl+B"), "build");
+    registerAction("build.run", tr("Run"), QKeySequence("Ctrl+R"), "build");
+    registerAction("build.clean", tr("Clean"), QKeySequence("Ctrl+Shift+B"), "build");
 
-    registerAction("view.codeEditor", tr("Code Editor"), QKeySequence("Ctrl+1"));
-    registerAction("view.blockEditor", tr("Block Editor"), QKeySequence("Ctrl+2"));
-    registerAction("view.uiDesigner", tr("UI Designer"), QKeySequence("Ctrl+3"));
-    registerAction("view.libProcessor", tr("Library Processor"), QKeySequence("Ctrl+4"));
+    // Группа "view"
+    registerAction("view.codeEditor", tr("Code Editor"), QKeySequence("Ctrl+1"), "view");
+    registerAction("view.blockEditor", tr("Block Editor"), QKeySequence("Ctrl+2"), "view");
+    registerAction("view.uiDesigner", tr("UI Designer"), QKeySequence("Ctrl+3"), "view");
+    registerAction("view.libProcessor", tr("Library Processor"), QKeySequence("Ctrl+4"), "view");
 }
 
 } // namespace DeltaQ

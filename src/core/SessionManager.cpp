@@ -8,6 +8,12 @@ SessionManager::SessionManager(QObject *parent)
 {
 }
 
+SessionManager::SessionManager(const QString &org, const QString &app, QObject *parent)
+    : QObject(parent)
+    , m_settings(org, app)
+{
+}
+
 QStringList SessionManager::recentProjects() const
 {
     return m_settings.value("session/recentProjects").toStringList();
@@ -26,6 +32,26 @@ void SessionManager::addRecentProject(const QString &path)
 void SessionManager::clearRecentProjects()
 {
     m_settings.remove("session/recentProjects");
+}
+
+QStringList SessionManager::openTabs() const
+{
+    return m_settings.value("session/openTabs").toStringList();
+}
+
+void SessionManager::setOpenTabs(const QStringList &tabs)
+{
+    m_settings.setValue("session/openTabs", tabs);
+}
+
+QString SessionManager::lastOpenedProject() const
+{
+    return m_settings.value("session/lastOpenedProject").toString();
+}
+
+void SessionManager::setLastOpenedProject(const QString &path)
+{
+    m_settings.setValue("session/lastOpenedProject", path);
 }
 
 QString SessionManager::language() const
