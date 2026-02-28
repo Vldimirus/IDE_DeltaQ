@@ -20,6 +20,7 @@ public:
                             QObject *parent = nullptr);
 
     bool createProject(const QString &name, const QString &dir);
+    bool createProject(const QString &name, const QString &dir, const QString &type);
     bool openProject(const QString &dqprojPath);
     bool saveProject();
     bool closeProject();

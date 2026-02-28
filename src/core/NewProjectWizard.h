@@ -1,0 +1,41 @@
+// Мастер создания нового проекта (QWizard с 3 страницами)
+#pragma once
+
+#include <QWizard>
+
+class QListWidget;
+class QLineEdit;
+class QLabel;
+
+namespace DeltaQ {
+
+class NewProjectWizard : public QWizard {
+    Q_OBJECT
+
+public:
+    explicit NewProjectWizard(QWidget *parent = nullptr);
+
+    QString projectName() const;
+    QString projectDir() const;
+    QString projectType() const;  // "console" / "desktop"
+
+private:
+    QWizardPage *createTypePage();
+    QWizardPage *createNamePage();
+    QWizardPage *createSummaryPage();
+
+    void updateSummary();
+
+    // Страница 1 — тип проекта
+    QListWidget *m_typeList = nullptr;
+
+    // Страница 2 — имя и расположение
+    QLineEdit *m_nameEdit = nullptr;
+    QLineEdit *m_dirEdit = nullptr;
+    QLabel *m_fullPathLabel = nullptr;
+
+    // Страница 3 — сводка
+    QLabel *m_summaryLabel = nullptr;
+};
+
+} // namespace DeltaQ

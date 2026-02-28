@@ -25,6 +25,7 @@ public:
                                QWidget *parent = nullptr);
 
     void openFile(const QString &path);
+    void closeAllTabs();
     void saveCurrentFile();
     bool hasUnsavedChanges() const;
     void buildProject(const QString &projectDir);

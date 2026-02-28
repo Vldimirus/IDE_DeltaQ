@@ -48,6 +48,7 @@ struct Project {
     QString version;
     QString projectFilePath;
     QString projectDir;
+    QString projectType;          // "console", "desktop"
     QStringList moduleGlobs;
     QStringList graphGlobs;
     QStringList uiLayoutGlobs;
@@ -68,6 +69,8 @@ struct Project {
         obj["modules"] = toArr(moduleGlobs);
         obj["graphs"] = toArr(graphGlobs);
         obj["ui_layouts"] = toArr(uiLayoutGlobs);
+        if (!projectType.isEmpty())
+            obj["type"] = projectType;
         obj["build"] = build.toJson();
         return obj;
     }
@@ -87,6 +90,7 @@ struct Project {
         p.moduleGlobs = toList(obj["modules"].toArray());
         p.graphGlobs = toList(obj["graphs"].toArray());
         p.uiLayoutGlobs = toList(obj["ui_layouts"].toArray());
+        p.projectType = obj["type"].toString("console");
         p.build = BuildConfig::fromJson(obj["build"].toObject());
         return p;
     }

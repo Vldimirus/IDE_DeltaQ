@@ -42,6 +42,12 @@ CodeEditorWidget::CodeEditorWidget(CommandBus *bus, ModuleRegistry *registry,
     connect(m_tabWidget, &QTabWidget::currentChanged, this, &CodeEditorWidget::onTabChanged);
 }
 
+void CodeEditorWidget::closeAllTabs()
+{
+    while (m_tabWidget->count() > 0)
+        closeTab(0);
+}
+
 void CodeEditorWidget::openFile(const QString &path)
 {
     // Check if already open

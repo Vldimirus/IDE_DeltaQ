@@ -50,6 +50,7 @@ protected:
 private slots:
     void onNewProject();
     void onOpenProject();
+    void onCloseProject();
     void onSaveFile();
     void onBuild();
     void onClean();
@@ -75,6 +76,7 @@ private:
     void setupConnections();
     void restoreSession();
     void saveSession();
+    void updateRecentProjectsMenu();
 
     // Core services
     CommandBus *m_commandBus = nullptr;
@@ -103,6 +105,9 @@ private:
     ProjectTreeView *m_projectTree = nullptr;
     QDockWidget *m_outputDock = nullptr;
     QTabWidget *m_outputTabs = nullptr;
+
+    // Menus
+    QMenu *m_recentProjectsMenu = nullptr;
 
     // Toolbar
     QToolBar *m_mainToolBar = nullptr;

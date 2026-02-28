@@ -1,28 +1,43 @@
-// Модуль 4: Обработчик библиотек — заглушка
-// TODO: реализация в Фазе 4
+// Модуль 4: Обработчик библиотек — полный виджет
 #pragma once
 
 #include <QWidget>
-#include <QLabel>
-#include <QVBoxLayout>
-#include <QCoreApplication>
+
+class QSplitter;
+class QToolBar;
+class QTreeWidget;
+class QTextEdit;
 
 namespace DeltaQ {
 
 class ModuleRegistry;
+class GraphStore;
 
 class LibProcessorWidget : public QWidget {
+    Q_OBJECT
+
 public:
     explicit LibProcessorWidget(ModuleRegistry *registry,
-                                 QWidget *parent = nullptr)
-        : QWidget(parent)
-    {
-        auto *layout = new QVBoxLayout(this);
-        auto *label = new QLabel(QCoreApplication::translate("LibProcessorWidget",
-            "Library Processor\n\n(will be implemented in Phase 4)"), this);
-        label->setAlignment(Qt::AlignCenter);
-        layout->addWidget(label);
-    }
+                                 QWidget *parent = nullptr);
+
+    void setGraphStore(GraphStore *store) { m_graphStore = store; }
+
+private slots:
+    void onImportLibrary();
+    void onModuleSelected();
+
+private:
+    void setupUI();
+    void setupToolBar();
+    void refreshLibraryTree();
+
+    ModuleRegistry *m_registry;
+    GraphStore *m_graphStore = nullptr;
+
+    QToolBar *m_toolbar = nullptr;
+    QSplitter *m_splitter = nullptr;
+    QTreeWidget *m_libraryTree = nullptr;
+    QTextEdit *m_moduleDetails = nullptr;
 };
 
 } // namespace DeltaQ

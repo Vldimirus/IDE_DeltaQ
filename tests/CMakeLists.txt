@@ -156,3 +156,82 @@ target_link_libraries(test_CompletionPopup PRIVATE
 )
 set_target_properties(test_CompletionPopup PROPERTIES AUTOMOC ON)
 add_test(NAME test_CompletionPopup COMMAND test_CompletionPopup)
+
+# Тесты UI Designer
+add_executable(test_WidgetItem uiDesigner/test_WidgetItem.cpp)
+target_link_libraries(test_WidgetItem PRIVATE
+    dq_ui_designer
+    dq_core
+    Qt6::Test
+    Qt6::Widgets
+)
+set_target_properties(test_WidgetItem PROPERTIES AUTOMOC ON)
+add_test(NAME test_WidgetItem COMMAND test_WidgetItem)
+
+add_executable(test_DesignScene uiDesigner/test_DesignScene.cpp)
+target_link_libraries(test_DesignScene PRIVATE
+    dq_ui_designer
+    dq_core
+    Qt6::Test
+    Qt6::Widgets
+)
+set_target_properties(test_DesignScene PROPERTIES AUTOMOC ON)
+add_test(NAME test_DesignScene COMMAND test_DesignScene)
+
+add_executable(test_UICommands uiDesigner/test_UICommands.cpp)
+target_link_libraries(test_UICommands PRIVATE
+    dq_ui_designer
+    dq_core
+    Qt6::Test
+    Qt6::Widgets
+)
+set_target_properties(test_UICommands PROPERTIES AUTOMOC ON)
+add_test(NAME test_UICommands COMMAND test_UICommands)
+
+add_executable(test_LayoutEngine uiDesigner/test_LayoutEngine.cpp)
+target_link_libraries(test_LayoutEngine PRIVATE
+    dq_ui_designer
+    dq_core
+    Qt6::Test
+    Qt6::Widgets
+)
+set_target_properties(test_LayoutEngine PROPERTIES AUTOMOC ON)
+add_test(NAME test_LayoutEngine COMMAND test_LayoutEngine)
+
+add_executable(test_SDL2CodeGenerator uiDesigner/test_SDL2CodeGenerator.cpp)
+target_link_libraries(test_SDL2CodeGenerator PRIVATE
+    dq_ui_designer
+    dq_core
+    Qt6::Test
+    Qt6::Widgets
+)
+set_target_properties(test_SDL2CodeGenerator PROPERTIES AUTOMOC ON)
+add_test(NAME test_SDL2CodeGenerator COMMAND test_SDL2CodeGenerator)
+
+# Тесты Library Processor
+add_executable(test_LibclangTypes libProcessor/test_LibclangTypes.cpp)
+target_link_libraries(test_LibclangTypes PRIVATE
+    dq_lib_processor
+    dq_core
+    Qt6::Test
+)
+set_target_properties(test_LibclangTypes PROPERTIES AUTOMOC ON)
+add_test(NAME test_LibclangTypes COMMAND test_LibclangTypes)
+
+add_executable(test_LibraryDecomposer libProcessor/test_LibraryDecomposer.cpp)
+target_link_libraries(test_LibraryDecomposer PRIVATE
+    dq_lib_processor
+    dq_core
+    Qt6::Test
+)
+set_target_properties(test_LibraryDecomposer PROPERTIES AUTOMOC ON)
+add_test(NAME test_LibraryDecomposer COMMAND test_LibraryDecomposer)
+
+add_executable(test_WrapperGenerator libProcessor/test_WrapperGenerator.cpp)
+target_link_libraries(test_WrapperGenerator PRIVATE
+    dq_lib_processor
+    dq_core
+    Qt6::Test
+)
+set_target_properties(test_WrapperGenerator PROPERTIES AUTOMOC ON)
+add_test(NAME test_WrapperGenerator COMMAND test_WrapperGenerator)

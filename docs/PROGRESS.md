@@ -1,6 +1,6 @@
 # DeltaQ IDE — Прогресс разработки
 
-> Последнее обновление: 2026-02-28 (Фаза 3)
+> Последнее обновление: 2026-02-28 (Фаза 5.2 — Close Project + Recent Projects + пустой запуск)
 
 ---
 
@@ -10,14 +10,13 @@
 Фаза 0: Планирование         [████████████████████] 100%  ✓ утверждено
 Фаза 1: Ядро + Редактор кода  [████████████████████] 100%  ✓ завершена
 Фаза 2: Блочный редактор      [████████████████████] 100%  ✓ завершена
-Фаза 3: Дизайнер UI           [░░░░░░░░░░░░░░░░░░░░]   0%
-Фаза 4: Обработчик библиотек  [░░░░░░░░░░░░░░░░░░░░]   0%
-Фаза 5: Интеграция             [░░░░░░░░░░░░░░░░░░░░]   0%
+Фаза 3: Дизайнер UI + Библ.    [████████████████████] 100%  ✓ завершена
+Фаза 4: Интеграция             [████░░░░░░░░░░░░░░░░]  20%
 ─────────────────────────────────────────────────────
-Общий прогресс проекта:                                ~50%
+Общий прогресс проекта:                                ~77%
 ```
 
-**Текущая фаза:** 3 — Дизайнер UI (следующая)
+**Текущая фаза:** 4 — Интеграция (следующая)
 
 ---
 
@@ -50,6 +49,9 @@
 | 20 | Фаза 2.8: Popup автодополнения | CompletionPopup: QFrame + QListWidget, цветные иконки по kind (F=функция, V=переменная, C=класс, E=enum, K=keyword, S=snippet). Фильтрация по prefix (case-insensitive). EventFilter: Enter/Tab=вставка, Esc=скрыть, ↑↓=навигация. Триггеры: «.», «->», «::», Ctrl+Space (через completionRequested). |
 | 21 | Фаза 2.9: Rename + Formatting + Undo/Redo + ProjectTreeView | LSPClient: rename() и formatting() запросы, парсинг WorkspaceEdit и TextEdit[]. LSPTypes: LSPTextEdit + WorkspaceEdit структуры. CodeEditorWidget: renameSymbol (QInputDialog + LSP rename), formatDocument (LSP formatting), применение edits в обратном порядке. ActionManager: edit.rename (F2), edit.format (Ctrl+Shift+I). Undo/redo: делегирование — фокус в CodeEditor → QPlainTextEdit, иначе → UndoManager. ProjectTreeView: DiagnosticDelegate с цветными бейджами ошибок/предупреждений. 4 новых теста (~30 тест-кейсов), всего 20 тестов — все проходят. |
 | 22 | Фаза 3: Блочный редактор (полностью) | **3.1 Графовый редактор (ядро):** BlockScene (QGraphicsScene — узлы, соединения, drag&drop, валидация), NodeItem (QGraphicsObject — прямоугольник с заголовком, цвет по категории, адаптивная высота по числу портов), PortItem (QGraphicsEllipseItem — кружок с подписью, цвет по типу данных, hover-эффект), ConnectionItem (QGraphicsPathItem — кривая Безье, расширенная зона клика). BlockEditorWidget: QGraphicsView + toolbar (зум +/-, fit), Ctrl+колесо масштабирование, Ctrl+0 fitInView, Ctrl+A выделить всё. **3.2 Палитра модулей:** ModulePalette (QTreeWidget по категориям из ModuleRegistry, QLineEdit поиск, drag&drop MIME "application/x-dqmodule", цветные иконки по категории, tooltip с описанием и портами). QSplitter: палитра слева, холст справа. Автообновление при moduleRegistered/Updated/Unregistered. **3.3 Команды графа (Undo/Redo):** AddNodeCommand, RemoveNodeCommand (с сохранением и восстановлением соединений), MoveNodeCommand (с mergeWith для объединения последовательных перемещений), ConnectCommand, DisconnectCommand, ChangePropertyCommand. Все операции через CommandBus. **3.4 Компилятор графов:** IR (IRInstruction: Call, Assign, TypeConvert, DeclareVar, Comment, Return; фабричные методы; emitCCode). GraphCompiler: валидация узлов/портов/типов, топологическая сортировка (алгоритм Кана, обнаружение циклов), генерация IR, неявные преобразования типов (int→float/double, float→double, bool→int), CompilationResult с sourceMap (строка→nodeId). **3.5 Интеграция со сборкой:** onBuild: если активен BlockEditor → GraphCompiler::compile → сохранение .c в generated/ → CMakeGenerator учитывает generated/. Подсветка ошибочных узлов на холсте. **3.6 Визуальная отладка:** GraphDebugger: маппинг строк кода→узлов через sourceMap, onBreakpointHit→highlightNode, onStepped→completed+highlight, onDebugStopped→clearDebugState, onVariablesUpdated→tooltip на портах с текущими значениями. Визуальные состояния: серая рамка (обычный), жёлтая (текущий), зелёная (выполненный), красная (ошибка). 4 новых теста (~34 тест-кейса), всего 24 теста — все проходят. |
+| 23 | Фаза 4: Дизайнер UI + Обработчик библиотек (полностью) | UI Designer + SDL2 Code Generator + LibProcessor + UIPreview. 29 новых файлов, 7 модифицированных, 8 тестов (~52 тест-кейса), всего 32 теста. |
+| 24 | Фаза 5.1: NewProjectWizard | Мастер создания проекта (QWizard, 3 страницы: тип/имя/сводка). ProjectTemplates: генерация шаблонных файлов (Console — hello world, Desktop — SDL2 + UILayout + 5 C-файлов). Project.h: поле projectType. ProjectManager: перегрузка createProject(name, dir, type). MainWindow: onNewProject → NewProjectWizard + автооткрытие main.c. 4 новых файла, 5 модифицированных, все 32 теста проходят. |
+| 25 | Фаза 5.2: Close Project + Recent Projects + пустой запуск | restoreSession/saveSession: убрано автооткрытие проекта и вкладок (пустой запуск). onCloseProject: закрытие проекта + вкладок + очистка дерева. File → Recent Projects: подменю из SessionManager::recentProjects(), клик → открытие, Clear History. updateRecentProjectsMenu() вызывается при New/Open/Recent. CodeEditorWidget::closeAllTabs(). 4 файла изменены, все 32 теста проходят. |
 
 > **Черновики** (п. 5–6) были созданы до утверждения планов и доработаны при первой сборке.
 
@@ -74,23 +76,34 @@
 - [x] Фаза 2.8: Popup автодополнения
 - [x] Фаза 2.9: Rename + Formatting + Undo/Redo + ProjectTreeView
 - [x] Фаза 3: Блочный редактор (полностью — 6 подэтапов, 18 новых файлов, 7 модифицированных)
+- [x] Фаза 4: Дизайнер UI + Обработчик библиотек (полностью — 8 подэтапов, 29 новых файлов, 7 модифицированных)
+- [x] Фаза 5.1: NewProjectWizard (мастер создания проекта с шаблонами Console/Desktop)
+- [x] Фаза 5.2: Close Project + Recent Projects + пустой запуск
 
 ---
 
 ## Что дальше
 
-**Фаза 1 (Редактор кода) — завершена на 100%.**
-**Фаза 2 (Блочный редактор) — завершена на 100%.**
+**Фазы 1–3 — завершены на 100%.**
+
+**Фаза 4 (Дизайнер UI + Обработчик библиотек) — завершена на 100%.**
+
+**Фаза 5 (Интеграция) — начата (20%).**
 
 Реализовано:
-- Графовый редактор: BlockScene, NodeItem, PortItem, ConnectionItem
-- Палитра модулей: ModulePalette с поиском и drag&drop
-- Undo/Redo: 6 команд через CommandBus
-- Компилятор графов: IR → C-код, топологическая сортировка, валидация типов
-- Интеграция со сборкой: генерация .c, CMake, подсветка ошибок
-- Визуальная отладка: GraphDebugger, маппинг строк→узлов
+- UI Designer: DesignScene, WidgetItem (12 типов), WidgetPalette (23 типа, 4 категории), PropertyEditor
+- UICommands: 7 команд undo/redo (Add/Remove/Move/Resize/ChangeProperty/ChangeLayout/BindEvent)
+- LayoutEngine: HBox, VBox, Grid, Flow компоновки
+- SDL2 Code Generator: 5 файлов C-кода из UILayout
+- EventBindingDialog: привязка событий (Module Function / Graph Trigger / Custom)
+- UIPreview: генерация → gcc → запуск SDL2-приложения
+- LibclangParser: парсинг C/C++ заголовков через libclang (#ifdef DQ_HAS_LIBCLANG)
+- LibraryDecomposer: функции→модули, классы→модули (create/destroy/methods)
+- WrapperGenerator: extern "C" обёртки для C++ классов
+- LibraryImportWizard: 5-шаговый мастер импорта
+- 8 новых тестов (~52 тест-кейса), всего 32 теста
 
-**Фазы 3–5** — см. детальные планы в `docs/plan/09_roadmap.md`
+**Фаза 5 (Интеграция)** — см. детальные планы в `docs/plan/09_roadmap.md`
 
 ---
 

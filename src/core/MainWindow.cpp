@@ -7,6 +7,8 @@
 #include "SessionManager.h"
 #include "ActionManager.h"
 #include "UndoManager.h"
+#include "NewProjectWizard.h"
+#include "ProjectTemplates.h"
 
 #include "../editor/CodeEditorWidget.h"
 #include "../editor/CodeEditorTab.h"
@@ -24,6 +26,11 @@
 #include "../blockEditor/GraphDebugger.h"
 #include "../codegen/GraphCompiler.h"
 #include "../uiDesigner/UIDesignerWidget.h"
+#include "../uiDesigner/DesignScene.h"
+#include "../uiDesigner/WidgetItem.h"
+#include "../uiDesigner/UICommands.h"
+#include "../uiDesigner/SDL2CodeGenerator.h"
+#include "../uiDesigner/UIPreview.h"
 #include "../libProcessor/LibProcessorWidget.h"
 
 #include <QApplication>
@@ -111,6 +118,7 @@ void MainWindow::setupUI()
 
     // Module 4: Library Processor
     m_libProcessor = new LibProcessorWidget(m_moduleRegistry, this);
+    m_libProcessor->setGraphStore(m_graphStore);
     m_centralStack->addWidget(m_libProcessor);
 
     m_centralStack->setCurrentIndex(0); // Start with code editor
@@ -121,6 +129,8 @@ void MainWindow::setupMenus()
     auto *fileMenu = menuBar()->addMenu(tr("&File"));
     fileMenu->addAction(m_actionManager->newProjectAction());
     fileMenu->addAction(m_actionManager->openProjectAction());
+    m_recentProjectsMenu = fileMenu->addMenu(tr("Recent Projects"));
+    updateRecentProjectsMenu();
     fileMenu->addSeparator();
     fileMenu->addAction(m_actionManager->saveAction());
     fileMenu->addAction(m_actionManager->saveAllAction());
@@ -310,6 +320,7 @@ void MainWindow::setupConnections()
     connect(am->newProjectAction(), &QAction::triggered, this, &MainWindow::onNewProject);
     connect(am->openProjectAction(), &QAction::triggered, this, &MainWindow::onOpenProject);
     connect(am->saveAction(), &QAction::triggered, this, &MainWindow::onSaveFile);
+    connect(am->action("file.close"), &QAction::triggered, this, &MainWindow::onCloseProject);
     connect(am->action("file.quit"), &QAction::triggered, qApp, &QApplication::quit);
 
     // Undo/redo: если фокус в редакторе кода — делегируем QPlainTextEdit, иначе — UndoManager
@@ -517,6 +528,116 @@ void MainWindow::setupConnections()
         });
     }
 
+    // UI Designer: drag&drop → AddWidgetCommand
+    auto *designScene = m_uiDesigner->scene();
+    connect(designScene, &DesignScene::widgetDropped, this,
+            [this, designScene](const QString &widgetType, const QPointF &scenePos) {
+        UIWidget w = UIWidget::create(widgetType, widgetType + "_" +
+            QString::number(designScene->widgetItems().size() + 1));
+        w.geometry = QRectF(scenePos.x(), scenePos.y(), 120, 40);
+
+        // Установка размеров по умолчанию по типу
+        if (widgetType == "Panel" || widgetType == "GroupBox")
+            w.geometry.setSize(QSizeF(200, 150));
+        else if (widgetType == "TextField" || widgetType == "ComboBox")
+            w.geometry.setSize(QSizeF(150, 30));
+        else if (widgetType == "Slider")
+            w.geometry.setSize(QSizeF(200, 30));
+        else if (widgetType == "ProgressBar")
+            w.geometry.setSize(QSizeF(200, 24));
+        else if (widgetType == "Image")
+            w.geometry.setSize(QSizeF(100, 100));
+
+        w.properties["text"] = w.name;
+
+        // Найти текущий UILayout (создаём по умолчанию если нет)
+        UILayout *layout = nullptr;
+        auto layouts = m_uiLayoutStore->allLayouts();
+        if (!layouts.isEmpty()) {
+            layout = m_uiLayoutStore->findLayout(layouts.first()->id);
+        } else {
+            UILayout newLayout = UILayout::create("Default");
+            m_uiLayoutStore->registerLayout(newLayout);
+            layout = m_uiLayoutStore->findLayout(newLayout.id);
+        }
+        if (layout)
+            m_commandBus->execute(std::make_unique<AddWidgetCommand>(designScene, layout, w));
+    });
+
+    // UI Designer: перемещение → MoveWidgetCommand
+    connect(designScene, &DesignScene::widgetMoved, this,
+            [this, designScene](const QString &widgetId, const QPointF &oldPos, const QPointF &newPos) {
+        auto layouts = m_uiLayoutStore->allLayouts();
+        if (layouts.isEmpty()) return;
+        UILayout *layout = m_uiLayoutStore->findLayout(layouts.first()->id);
+        if (layout)
+            m_commandBus->execute(std::make_unique<MoveWidgetCommand>(
+                designScene, layout, widgetId, oldPos, newPos));
+    });
+
+    // UI Designer: resize → ResizeWidgetCommand
+    connect(designScene, &DesignScene::widgetResized, this,
+            [this, designScene](const QString &widgetId, const QRectF &oldRect, const QRectF &newRect) {
+        auto layouts = m_uiLayoutStore->allLayouts();
+        if (layouts.isEmpty()) return;
+        UILayout *layout = m_uiLayoutStore->findLayout(layouts.first()->id);
+        if (layout)
+            m_commandBus->execute(std::make_unique<ResizeWidgetCommand>(
+                designScene, layout, widgetId, oldRect, newRect));
+    });
+
+    // UI Designer: Generate Code
+    connect(m_uiDesigner, &UIDesignerWidget::generateCodeRequested, this, [this]() {
+        if (!m_projectManager->isProjectOpen()) {
+            statusBar()->showMessage(tr("No project open"), 3000);
+            return;
+        }
+        UILayout layout = m_uiDesigner->scene()->toLayout("ui_layout");
+        GeneratedCode code = SDL2CodeGenerator::generate(layout);
+
+        QString genDir = m_projectManager->projectDir() + "/generated";
+        QDir().mkpath(genDir);
+
+        auto writeFile = [&](const QString &name, const QString &content) {
+            QFile f(genDir + "/" + name);
+            if (f.open(QIODevice::WriteOnly | QIODevice::Text)) {
+                f.write(content.toUtf8());
+                f.close();
+            }
+        };
+
+        writeFile("main.c", code.mainFile);
+        writeFile("ui.h", code.uiHeader);
+        writeFile("ui.c", code.uiSource);
+        writeFile("events.h", code.eventsHeader);
+        writeFile("events.c", code.eventsSource);
+
+        m_buildOutput->clear();
+        m_buildOutput->append(tr("=== SDL2 code generated in %1 ===\n").arg(genDir));
+        m_buildOutput->append(tr("Files: main.c, ui.h, ui.c, events.h, events.c"));
+        m_outputTabs->setCurrentWidget(m_buildOutput);
+        m_outputDock->show();
+        statusBar()->showMessage(tr("SDL2 code generated"), 3000);
+    });
+
+    // UI Designer: Preview
+    connect(m_uiDesigner, &UIDesignerWidget::previewRequested, this, [this]() {
+        UILayout layout = m_uiDesigner->scene()->toLayout("preview");
+        auto *preview = new UIPreview(this);
+        connect(preview, &UIPreview::previewError, this, [this](const QString &err) {
+            m_buildOutput->append(err);
+            m_outputTabs->setCurrentWidget(m_buildOutput);
+            m_outputDock->show();
+        });
+        connect(preview, &UIPreview::buildOutput, this, [this](const QString &text) {
+            m_buildOutput->append(text);
+        });
+        connect(preview, &UIPreview::previewStarted, this, [this]() {
+            statusBar()->showMessage(tr("Preview started"), 3000);
+        });
+        preview->startPreview(layout);
+    });
+
     // Блочный редактор: визуальная отладка
     auto *blockScene = m_blockEditor->scene();
     m_graphDebugger = new GraphDebugger(blockScene, m_debugManager, this);
@@ -643,20 +764,31 @@ void MainWindow::closeEvent(QCloseEvent *event)
 
 void MainWindow::onNewProject()
 {
-    QString name = QInputDialog::getText(this, tr("New Project"), tr("Project name:"));
-    if (name.isEmpty())
+    NewProjectWizard wizard(this);
+    if (wizard.exec() != QDialog::Accepted)
         return;
 
-    QString dir = QFileDialog::getExistingDirectory(this, tr("Select Project Directory"));
-    if (dir.isEmpty())
-        return;
+    QString name = wizard.projectName();
+    QString dir = wizard.projectDir() + "/" + name;
+    QString type = wizard.projectType();
 
-    dir = dir + "/" + name;
+    if (m_projectManager->createProject(name, dir, type)) {
+        // Генерация шаблонных файлов по типу проекта
+        ProjectTemplates::generate(type, dir, name);
 
-    if (m_projectManager->createProject(name, dir)) {
+        // Для desktop-проекта загружаем layout в UILayoutStore
+        if (type == "desktop")
+            m_uiLayoutStore->loadFromDirectory(dir);
+
         m_projectTree->setRootPath(dir);
         m_sessionManager->addRecentProject(m_projectManager->currentProject().projectFilePath);
+        updateRecentProjectsMenu();
         statusBar()->showMessage(tr("Project '%1' created").arg(name), 3000);
+
+        // Автооткрытие main.c в редакторе
+        QString mainPath = dir + "/src/main.c";
+        if (QFile::exists(mainPath))
+            m_codeEditor->openFile(mainPath);
     } else {
         QMessageBox::warning(this, tr("Error"), tr("Failed to create project"));
     }
@@ -672,6 +804,7 @@ void MainWindow::onOpenProject()
     if (m_projectManager->openProject(path)) {
         m_projectTree->setRootPath(m_projectManager->projectDir());
         m_sessionManager->addRecentProject(path);
+        updateRecentProjectsMenu();
         statusBar()->showMessage(tr("Project opened"), 3000);
     } else {
         QMessageBox::warning(this, tr("Error"), tr("Failed to open project"));
@@ -688,6 +821,35 @@ void MainWindow::onBuild()
     if (!m_projectManager->isProjectOpen()) {
         statusBar()->showMessage(tr("No project open"), 3000);
         return;
+    }
+
+    // Если активен UI Designer — генерируем SDL2-код
+    if (m_centralStack->currentWidget() == m_uiDesigner) {
+        UILayout layout = m_uiDesigner->scene()->toLayout("ui_layout");
+        GeneratedCode code = SDL2CodeGenerator::generate(layout);
+
+        QString genDir = m_projectManager->projectDir() + "/generated";
+        QDir().mkpath(genDir);
+
+        auto writeFile = [&](const QString &name, const QString &content) {
+            QFile f(genDir + "/" + name);
+            if (f.open(QIODevice::WriteOnly | QIODevice::Text)) {
+                f.write(content.toUtf8());
+                f.close();
+            }
+        };
+
+        writeFile("main.c", code.mainFile);
+        writeFile("ui.h", code.uiHeader);
+        writeFile("ui.c", code.uiSource);
+        writeFile("events.h", code.eventsHeader);
+        writeFile("events.c", code.eventsSource);
+
+        m_buildOutput->clear();
+        m_buildOutput->append(tr("=== SDL2 code generated in %1 ===\n").arg(genDir));
+        m_outputTabs->setCurrentWidget(m_buildOutput);
+        m_outputDock->show();
+        statusBar()->showMessage(tr("SDL2 code generated"), 3000);
     }
 
     // Если активен блочный редактор — компилируем граф в C-код
@@ -898,6 +1060,61 @@ void MainWindow::updateCursorPosition()
     m_cursorPosLabel->setText(QString("Ln %1, Col %2").arg(line).arg(col));
 }
 
+void MainWindow::onCloseProject()
+{
+    if (!m_projectManager->isProjectOpen()) {
+        statusBar()->showMessage(tr("No project open"), 3000);
+        return;
+    }
+
+    m_projectManager->closeProject();
+    m_codeEditor->closeAllTabs();
+    m_projectTree->setRootPath("");
+    updateTitle();
+    statusBar()->showMessage(tr("Project closed"), 3000);
+}
+
+void MainWindow::updateRecentProjectsMenu()
+{
+    if (!m_recentProjectsMenu)
+        return;
+
+    m_recentProjectsMenu->clear();
+
+    QStringList recent = m_sessionManager->recentProjects();
+
+    if (recent.isEmpty()) {
+        auto *emptyAction = m_recentProjectsMenu->addAction(tr("No recent projects"));
+        emptyAction->setEnabled(false);
+        return;
+    }
+
+    for (const QString &path : recent) {
+        QFileInfo fi(path);
+        QString label = fi.dir().dirName();
+        auto *action = m_recentProjectsMenu->addAction(label);
+        action->setToolTip(path);
+        action->setData(path);
+        connect(action, &QAction::triggered, this, [this, path]() {
+            if (m_projectManager->openProject(path)) {
+                m_projectTree->setRootPath(m_projectManager->projectDir());
+                m_sessionManager->addRecentProject(path);
+                updateRecentProjectsMenu();
+                statusBar()->showMessage(tr("Project opened"), 3000);
+            } else {
+                QMessageBox::warning(this, tr("Error"), tr("Failed to open project: %1").arg(path));
+            }
+        });
+    }
+
+    m_recentProjectsMenu->addSeparator();
+    auto *clearAction = m_recentProjectsMenu->addAction(tr("Clear History"));
+    connect(clearAction, &QAction::triggered, this, [this]() {
+        m_sessionManager->clearRecentProjects();
+        updateRecentProjectsMenu();
+    });
+}
+
 void MainWindow::restoreSession()
 {
     auto geom = m_sessionManager->windowGeometry();
@@ -907,31 +1124,13 @@ void MainWindow::restoreSession()
     if (!state.isEmpty())
         restoreState(state);
 
-    // Восстановление последнего проекта
-    QString lastProject = m_sessionManager->lastOpenedProject();
-    if (!lastProject.isEmpty() && QFile::exists(lastProject)) {
-        if (m_projectManager->openProject(lastProject))
-            m_projectTree->setRootPath(m_projectManager->projectDir());
-    }
-
-    // Восстановление открытых вкладок
-    for (const auto &path : m_sessionManager->openTabs()) {
-        if (QFile::exists(path))
-            m_codeEditor->openFile(path);
-    }
+    // Пустой запуск — проект и вкладки не восстанавливаются
 }
 
 void MainWindow::saveSession()
 {
     m_sessionManager->setWindowGeometry(saveGeometry());
     m_sessionManager->setWindowState(saveState());
-
-    // Сохранение открытых вкладок
-    m_sessionManager->setOpenTabs(m_codeEditor->openFilePaths());
-
-    // Сохранение текущего проекта
-    if (m_projectManager->isProjectOpen())
-        m_sessionManager->setLastOpenedProject(m_projectManager->currentProject().projectFilePath);
 }
 
 } // namespace DeltaQ

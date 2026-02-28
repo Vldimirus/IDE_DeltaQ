@@ -13,6 +13,8 @@ add_subdirectory(debug)
 add_executable(deltaq
     main.cpp
     core/MainWindow.cpp
+    core/NewProjectWizard.cpp
+    core/ProjectTemplates.cpp
 )
 
 target_include_directories(deltaq PRIVATE

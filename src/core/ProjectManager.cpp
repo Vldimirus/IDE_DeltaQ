@@ -45,6 +45,32 @@ bool ProjectManager::createProject(const QString &name, const QString &dir)
     return true;
 }
 
+bool ProjectManager::createProject(const QString &name, const QString &dir,
+                                   const QString &type)
+{
+    if (m_isOpen)
+        closeProject();
+
+    QDir d(dir);
+    if (!d.exists() && !d.mkpath("."))
+        return false;
+
+    m_project = Project::createNew(name);
+    m_project.projectDir = dir;
+    m_project.projectFilePath = dir + "/" + name + ".dqproj";
+    m_project.projectType = type;
+
+    if (!ensureDirectories(dir))
+        return false;
+
+    if (!saveProject())
+        return false;
+
+    m_isOpen = true;
+    emit projectOpened(name);
+    return true;
+}
+
 bool ProjectManager::openProject(const QString &dqprojPath)
 {
     QFile file(dqprojPath);
