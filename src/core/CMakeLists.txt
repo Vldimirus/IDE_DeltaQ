@@ -2,6 +2,8 @@
 add_library(dq_core STATIC
     CommandBus.cpp
     ModuleRegistry.cpp
+    GraphStore.cpp
+    UILayoutStore.cpp
     ProjectManager.cpp
     SessionManager.cpp
     ActionManager.cpp

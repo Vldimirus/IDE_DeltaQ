@@ -23,3 +23,8 @@ dq_add_test(test_Module         core/test_Module.cpp)
 dq_add_test(test_Project        core/test_Project.cpp)
 dq_add_test(test_Graph          core/test_Graph.cpp)
 dq_add_test(test_UILayout       core/test_UILayout.cpp)
+
+# Тесты хранилищ данных
+dq_add_test(test_GraphStore      core/test_GraphStore.cpp)
+dq_add_test(test_UILayoutStore   core/test_UILayoutStore.cpp)
+dq_add_test(test_ProjectManager  core/test_ProjectManager.cpp)

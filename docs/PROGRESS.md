@@ -8,13 +8,13 @@
 
 ```
 Фаза 0: Планирование         [████████████████████] 100%  ✓ утверждено
-Фаза 1: Ядро + Редактор кода  [████████░░░░░░░░░░░░]  40%  (1.2 завершена)
+Фаза 1: Ядро + Редактор кода  [██████████░░░░░░░░░░]  50%  (1.3 завершена)
 Фаза 2: Блочный редактор      [░░░░░░░░░░░░░░░░░░░░]   0%
 Фаза 3: Дизайнер UI           [░░░░░░░░░░░░░░░░░░░░]   0%
 Фаза 4: Обработчик библиотек  [░░░░░░░░░░░░░░░░░░░░]   0%
 Фаза 5: Интеграция             [░░░░░░░░░░░░░░░░░░░░]   0%
 ─────────────────────────────────────────────────────
-Общий прогресс проекта:                                ~18%
+Общий прогресс проекта:                                ~20%
 ```
 
 **Текущая фаза:** 1 — Ядро + Редактор кода
@@ -38,6 +38,7 @@
 | 8 | Локализация (i18n) | QTranslator, загрузка переводов в main.cpp, меню Settings > Language (English/Русский), SessionManager хранит язык, CMake-цели lupdate/lrelease, полный русский перевод (60 строк). Смена языка с перезапуском. |
 | 9 | Фаза 1.1: Доработка ядра + тесты | CommandBus: QMutex, MacroCommand, executeNoHistory, beginMacro/endMacro. UndoManager: clean state (setClean/isClean/clear), cleanChanged сигнал. ActionManager: группы действий (enableGroup/disableGroup/addToGroup). SessionManager: openTabs, lastOpenedProject, тестовый конструктор. Тестовая инфраструктура Qt6::Test, 4 теста (~41 тест-кейсов), все проходят. |
 | 10 | Фаза 1.2: Модели данных + тесты | Module: operator==, findInput/findOutput, hasInput/hasOutput, isValid(). Project: operator==, isValid(). Graph: operator==, findNode, addNode, removeNode (каскадное удаление соединений), addConnection, removeConnection, connectionsForNode, isValid, nodeCount/connectionCount. UILayout.h (новый): UIWidget и UILayout — модель UI-макета (.dqui) с toJson/fromJson, вложенными виджетами. 4 новых теста (~39 тест-кейсов), всего 8 тестов — все проходят. |
+| 11 | Фаза 1.3: Хранилища данных + тесты | GraphStore: register/unregister/find/findByName, load/save .dqgraph, loadFromDirectory, saveAll. UILayoutStore: аналогичный API для .dqui. ProjectManager: интеграция с GraphStore и UILayoutStore (загрузка/сохранение/очистка при open/save/close). MainWindow: инициализация всех stores. 3 новых теста (~28 тест-кейсов), всего 11 тестов — все проходят. |
 
 > **Черновики** (п. 5–6) были созданы до утверждения планов и доработаны при первой сборке.
 
@@ -50,7 +51,7 @@
 - [x] Верификация и доработка черновиков кода под утверждённые планы (первая сборка)
 - [x] Фаза 1.1: Доработка каркаса ядра + тесты (CommandBus, UndoManager, ActionManager, SessionManager)
 - [x] Фаза 1.2: Модели данных (Module, Project, Graph, UILayout — operator==, isValid, helper-методы, тесты)
-- [ ] Фаза 1.3: Хранилища данных (FileSystem, ModuleStore, GraphStore, ProjectManager)
+- [x] Фаза 1.3: Хранилища данных (GraphStore, UILayoutStore, ProjectManager — интеграция со stores, тесты)
 - [ ] Фаза 1.4: Базовый UI (MainWindow, меню, дерево проекта, панель вывода, вкладки)
 
 ---

@@ -13,6 +13,8 @@ namespace DeltaQ {
 
 class CommandBus;
 class ModuleRegistry;
+class GraphStore;
+class UILayoutStore;
 class ProjectManager;
 class SessionManager;
 class ActionManager;
@@ -65,6 +67,8 @@ private:
     // Core services
     CommandBus *m_commandBus = nullptr;
     ModuleRegistry *m_moduleRegistry = nullptr;
+    GraphStore *m_graphStore = nullptr;
+    UILayoutStore *m_uiLayoutStore = nullptr;
     ProjectManager *m_projectManager = nullptr;
     SessionManager *m_sessionManager = nullptr;
     ActionManager *m_actionManager = nullptr;

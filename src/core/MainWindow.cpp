@@ -1,6 +1,8 @@
 #include "MainWindow.h"
 #include "CommandBus.h"
 #include "ModuleRegistry.h"
+#include "GraphStore.h"
+#include "UILayoutStore.h"
 #include "ProjectManager.h"
 #include "SessionManager.h"
 #include "ActionManager.h"
@@ -49,7 +51,9 @@ void MainWindow::setupCoreServices()
 {
     m_commandBus = new CommandBus(this);
     m_moduleRegistry = new ModuleRegistry(this);
-    m_projectManager = new ProjectManager(m_moduleRegistry, this);
+    m_graphStore = new GraphStore(this);
+    m_uiLayoutStore = new UILayoutStore(this);
+    m_projectManager = new ProjectManager(m_moduleRegistry, m_graphStore, m_uiLayoutStore, this);
     m_sessionManager = new SessionManager(this);
     m_actionManager = new ActionManager(this);
     m_undoManager = new UndoManager(m_commandBus, this);

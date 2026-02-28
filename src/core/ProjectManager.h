@@ -7,12 +7,17 @@
 namespace DeltaQ {
 
 class ModuleRegistry;
+class GraphStore;
+class UILayoutStore;
 
 class ProjectManager : public QObject {
     Q_OBJECT
 
 public:
-    explicit ProjectManager(ModuleRegistry *registry, QObject *parent = nullptr);
+    explicit ProjectManager(ModuleRegistry *registry,
+                            GraphStore *graphStore = nullptr,
+                            UILayoutStore *uiLayoutStore = nullptr,
+                            QObject *parent = nullptr);
 
     bool createProject(const QString &name, const QString &dir);
     bool openProject(const QString &dqprojPath);
@@ -35,6 +40,8 @@ private:
 
     Project m_project;
     ModuleRegistry *m_registry;
+    GraphStore *m_graphStore;
+    UILayoutStore *m_uiLayoutStore;
     bool m_isOpen = false;
 };
 

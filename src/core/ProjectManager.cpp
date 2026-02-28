@@ -1,5 +1,7 @@
 #include "ProjectManager.h"
 #include "ModuleRegistry.h"
+#include "GraphStore.h"
+#include "UILayoutStore.h"
 
 #include <QFile>
 #include <QDir>
@@ -8,9 +10,14 @@
 
 namespace DeltaQ {
 
-ProjectManager::ProjectManager(ModuleRegistry *registry, QObject *parent)
+ProjectManager::ProjectManager(ModuleRegistry *registry,
+                               GraphStore *graphStore,
+                               UILayoutStore *uiLayoutStore,
+                               QObject *parent)
     : QObject(parent)
     , m_registry(registry)
+    , m_graphStore(graphStore)
+    , m_uiLayoutStore(uiLayoutStore)
 {
 }
 
@@ -56,8 +63,12 @@ bool ProjectManager::openProject(const QString &dqprojPath)
     m_project.projectFilePath = dqprojPath;
     m_project.projectDir = QFileInfo(dqprojPath).absolutePath();
 
-    // Load modules from project directory
+    // Загрузка модулей, графов и макетов из директории проекта
     m_registry->loadRegistry(m_project.projectDir);
+    if (m_graphStore)
+        m_graphStore->loadFromDirectory(m_project.projectDir);
+    if (m_uiLayoutStore)
+        m_uiLayoutStore->loadFromDirectory(m_project.projectDir);
 
     m_isOpen = true;
     emit projectOpened(m_project.name);
@@ -76,8 +87,12 @@ bool ProjectManager::saveProject()
     QJsonDocument doc(m_project.toJson());
     file.write(doc.toJson(QJsonDocument::Indented));
 
-    // Save module registry
+    // Сохранение модулей, графов и макетов
     m_registry->saveRegistry(m_project.projectDir);
+    if (m_graphStore)
+        m_graphStore->saveAll(m_project.projectDir);
+    if (m_uiLayoutStore)
+        m_uiLayoutStore->saveAll(m_project.projectDir);
 
     emit projectSaved();
     return true;
@@ -89,6 +104,10 @@ bool ProjectManager::closeProject()
         return false;
 
     m_registry->clear();
+    if (m_graphStore)
+        m_graphStore->clear();
+    if (m_uiLayoutStore)
+        m_uiLayoutStore->clear();
     m_project = Project();
     m_isOpen = false;
 
