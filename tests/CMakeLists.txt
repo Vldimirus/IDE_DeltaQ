@@ -17,3 +17,9 @@ dq_add_test(test_CommandBus     core/test_CommandBus.cpp)
 dq_add_test(test_UndoManager    core/test_UndoManager.cpp)
 dq_add_test(test_ActionManager  core/test_ActionManager.cpp)
 dq_add_test(test_SessionManager core/test_SessionManager.cpp)
+
+# Тесты моделей данных
+dq_add_test(test_Module         core/test_Module.cpp)
+dq_add_test(test_Project        core/test_Project.cpp)
+dq_add_test(test_Graph          core/test_Graph.cpp)
+dq_add_test(test_UILayout       core/test_UILayout.cpp)

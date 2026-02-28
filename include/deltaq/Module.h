@@ -13,6 +13,12 @@ struct Port {
     QString type;
     QString defaultValue;
 
+    bool operator==(const Port &other) const {
+        return name == other.name
+            && type == other.type
+            && defaultValue == other.defaultValue;
+    }
+
     QJsonObject toJson() const {
         QJsonObject obj;
         obj["name"] = name;
@@ -105,6 +111,37 @@ struct Module {
             m.dependencies.append(v.toString());
 
         return m;
+    }
+
+    bool operator==(const Module &other) const {
+        return id == other.id;
+    }
+
+    // Поиск входного порта по имени
+    const Port *findInput(const QString &portName) const {
+        for (const auto &p : inputs)
+            if (p.name == portName) return &p;
+        return nullptr;
+    }
+
+    // Поиск выходного порта по имени
+    const Port *findOutput(const QString &portName) const {
+        for (const auto &p : outputs)
+            if (p.name == portName) return &p;
+        return nullptr;
+    }
+
+    bool hasInput(const QString &portName) const { return findInput(portName) != nullptr; }
+    bool hasOutput(const QString &portName) const { return findOutput(portName) != nullptr; }
+
+    // Валидация: id и name не пусты, каждый порт имеет имя и тип
+    bool isValid() const {
+        if (id.isEmpty() || name.isEmpty()) return false;
+        for (const auto &p : inputs)
+            if (p.name.isEmpty() || p.type.isEmpty()) return false;
+        for (const auto &p : outputs)
+            if (p.name.isEmpty() || p.type.isEmpty()) return false;
+        return true;
     }
 
     static Module create(const QString &name, const QString &lang = "c") {

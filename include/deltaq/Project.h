@@ -34,6 +34,13 @@ struct BuildConfig {
             bc.flags.append(v.toString());
         return bc;
     }
+
+    bool operator==(const BuildConfig &other) const {
+        return compiler == other.compiler
+            && standard == other.standard
+            && outputDir == other.outputDir
+            && flags == other.flags;
+    }
 };
 
 struct Project {
@@ -82,6 +89,15 @@ struct Project {
         p.uiLayoutGlobs = toList(obj["ui_layouts"].toArray());
         p.build = BuildConfig::fromJson(obj["build"].toObject());
         return p;
+    }
+
+    bool operator==(const Project &other) const {
+        return name == other.name && version == other.version;
+    }
+
+    // Валидация: name не пуст
+    bool isValid() const {
+        return !name.isEmpty();
     }
 
     static Project createNew(const QString &name) {

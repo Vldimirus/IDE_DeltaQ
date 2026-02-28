@@ -1,0 +1,166 @@
+#pragma once
+
+#include <QString>
+#include <QJsonObject>
+#include <QJsonArray>
+#include <QRectF>
+#include <QUuid>
+#include <QVector>
+#include <QMap>
+#include <QVariant>
+
+namespace DeltaQ {
+
+struct UIWidget {
+    QString id;
+    QString type;         // "Button", "TextField", "Label", "Panel", ...
+    QString name;
+    QRectF geometry;      // x, y, width, height
+    QString layout;       // "None", "HBox", "VBox", "Grid", "Flow"
+    QMap<QString, QVariant> properties;
+    QMap<QString, QString> events;   // событие → обработчик
+    QVector<UIWidget> children;      // вложенные виджеты
+
+    bool operator==(const UIWidget &other) const {
+        return id == other.id
+            && type == other.type
+            && name == other.name
+            && geometry == other.geometry
+            && layout == other.layout
+            && properties == other.properties
+            && events == other.events
+            && children == other.children;
+    }
+
+    QJsonObject toJson() const {
+        QJsonObject obj;
+        obj["id"] = id;
+        obj["type"] = type;
+        obj["name"] = name;
+        obj["x"] = geometry.x();
+        obj["y"] = geometry.y();
+        obj["width"] = geometry.width();
+        obj["height"] = geometry.height();
+        if (!layout.isEmpty() && layout != "None")
+            obj["layout"] = layout;
+
+        if (!properties.isEmpty()) {
+            QJsonObject props;
+            for (auto it = properties.begin(); it != properties.end(); ++it)
+                props[it.key()] = QJsonValue::fromVariant(it.value());
+            obj["properties"] = props;
+        }
+
+        if (!events.isEmpty()) {
+            QJsonObject ev;
+            for (auto it = events.begin(); it != events.end(); ++it)
+                ev[it.key()] = it.value();
+            obj["events"] = ev;
+        }
+
+        if (!children.isEmpty()) {
+            QJsonArray arr;
+            for (const auto &child : children)
+                arr.append(child.toJson());
+            obj["children"] = arr;
+        }
+
+        return obj;
+    }
+
+    static UIWidget fromJson(const QJsonObject &obj) {
+        UIWidget w;
+        w.id = obj["id"].toString();
+        w.type = obj["type"].toString();
+        w.name = obj["name"].toString();
+        w.geometry = QRectF(
+            obj["x"].toDouble(),
+            obj["y"].toDouble(),
+            obj["width"].toDouble(),
+            obj["height"].toDouble()
+        );
+        w.layout = obj["layout"].toString("None");
+
+        auto props = obj["properties"].toObject();
+        for (auto it = props.begin(); it != props.end(); ++it)
+            w.properties[it.key()] = it.value().toVariant();
+
+        auto ev = obj["events"].toObject();
+        for (auto it = ev.begin(); it != ev.end(); ++it)
+            w.events[it.key()] = it.value().toString();
+
+        auto arr = obj["children"].toArray();
+        for (const auto &v : arr)
+            w.children.append(UIWidget::fromJson(v.toObject()));
+
+        return w;
+    }
+
+    // Создание виджета с id
+    static UIWidget create(const QString &type, const QString &name) {
+        UIWidget w;
+        w.id = QUuid::createUuid().toString(QUuid::WithoutBraces);
+        w.type = type;
+        w.name = name;
+        w.layout = "None";
+        return w;
+    }
+};
+
+struct UILayout {
+    QString id;
+    QString name;
+    QString version;
+    UIWidget window;        // корневой виджет (Window)
+    QJsonObject resources;
+    QJsonObject metadata;
+
+    bool operator==(const UILayout &other) const {
+        return id == other.id
+            && name == other.name
+            && version == other.version
+            && window == other.window;
+    }
+
+    // Валидация: id и name не пусты
+    bool isValid() const {
+        return !id.isEmpty() && !name.isEmpty();
+    }
+
+    QJsonObject toJson() const {
+        QJsonObject obj;
+        obj["id"] = id;
+        obj["name"] = name;
+        obj["version"] = version;
+        obj["window"] = window.toJson();
+        if (!resources.isEmpty())
+            obj["resources"] = resources;
+        if (!metadata.isEmpty())
+            obj["metadata"] = metadata;
+        return obj;
+    }
+
+    static UILayout fromJson(const QJsonObject &obj) {
+        UILayout l;
+        l.id = obj["id"].toString();
+        l.name = obj["name"].toString();
+        l.version = obj["version"].toString("1.0.0");
+        l.window = UIWidget::fromJson(obj["window"].toObject());
+        l.resources = obj["resources"].toObject();
+        l.metadata = obj["metadata"].toObject();
+        return l;
+    }
+
+    // Создание макета с корневым Window
+    static UILayout create(const QString &name) {
+        UILayout l;
+        l.id = QUuid::createUuid().toString(QUuid::WithoutBraces);
+        l.name = name;
+        l.version = "1.0.0";
+        l.window = UIWidget::create("Window", name);
+        l.window.geometry = QRectF(0, 0, 800, 600);
+        return l;
+    }
+};
+
+} // namespace DeltaQ

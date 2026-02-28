@@ -7,6 +7,8 @@
 #include <QUuid>
 #include <QVector>
 #include <QMap>
+#include <QSet>
+#include <algorithm>
 
 namespace DeltaQ {
 
@@ -15,6 +17,10 @@ struct GraphNode {
     QString moduleId;
     QPointF position;
     QMap<QString, QString> properties;
+
+    bool operator==(const GraphNode &other) const {
+        return id == other.id;
+    }
 
     QJsonObject toJson() const {
         QJsonObject obj;
@@ -59,6 +65,10 @@ struct GraphConnection {
         QString nodeId;
         QString portName;
 
+        bool operator==(const Endpoint &other) const {
+            return nodeId == other.nodeId && portName == other.portName;
+        }
+
         QJsonObject toJson() const {
             QJsonObject obj;
             obj["node"] = nodeId;
@@ -73,6 +83,10 @@ struct GraphConnection {
 
     Endpoint from;
     Endpoint to;
+
+    bool operator==(const GraphConnection &other) const {
+        return from == other.from && to == other.to;
+    }
 
     QJsonObject toJson() const {
         QJsonObject obj;
@@ -94,6 +108,88 @@ struct Graph {
     QString name;
     QVector<GraphNode> nodes;
     QVector<GraphConnection> connections;
+
+    bool operator==(const Graph &other) const {
+        return id == other.id;
+    }
+
+    // Поиск узла по id
+    GraphNode *findNode(const QString &nodeId) {
+        for (auto &n : nodes)
+            if (n.id == nodeId) return &n;
+        return nullptr;
+    }
+
+    const GraphNode *findNode(const QString &nodeId) const {
+        for (const auto &n : nodes)
+            if (n.id == nodeId) return &n;
+        return nullptr;
+    }
+
+    // Добавление узла (false если id дублируется)
+    bool addNode(GraphNode node) {
+        if (findNode(node.id) != nullptr) return false;
+        nodes.append(std::move(node));
+        return true;
+    }
+
+    // Удаление узла И всех его соединений
+    bool removeNode(const QString &nodeId) {
+        auto it = std::find_if(nodes.begin(), nodes.end(),
+            [&](const GraphNode &n) { return n.id == nodeId; });
+        if (it == nodes.end()) return false;
+        nodes.erase(it);
+        // Удаляем все соединения, связанные с этим узлом
+        connections.erase(
+            std::remove_if(connections.begin(), connections.end(),
+                [&](const GraphConnection &c) {
+                    return c.from.nodeId == nodeId || c.to.nodeId == nodeId;
+                }),
+            connections.end());
+        return true;
+    }
+
+    // Добавление соединения
+    bool addConnection(GraphConnection conn) {
+        connections.append(std::move(conn));
+        return true;
+    }
+
+    // Удаление конкретного соединения
+    bool removeConnection(const QString &fromNodeId, const QString &fromPort,
+                          const QString &toNodeId, const QString &toPort) {
+        auto it = std::find_if(connections.begin(), connections.end(),
+            [&](const GraphConnection &c) {
+                return c.from.nodeId == fromNodeId && c.from.portName == fromPort
+                    && c.to.nodeId == toNodeId && c.to.portName == toPort;
+            });
+        if (it == connections.end()) return false;
+        connections.erase(it);
+        return true;
+    }
+
+    // Все соединения, связанные с узлом
+    QVector<GraphConnection> connectionsForNode(const QString &nodeId) const {
+        QVector<GraphConnection> result;
+        for (const auto &c : connections)
+            if (c.from.nodeId == nodeId || c.to.nodeId == nodeId)
+                result.append(c);
+        return result;
+    }
+
+    int nodeCount() const { return nodes.size(); }
+    int connectionCount() const { return connections.size(); }
+
+    // Валидация: id и name не пусты, нет дубликатов узлов
+    bool isValid() const {
+        if (id.isEmpty() || name.isEmpty()) return false;
+        QSet<QString> ids;
+        for (const auto &n : nodes) {
+            if (ids.contains(n.id)) return false;
+            ids.insert(n.id);
+        }
+        return true;
+    }
 
     QJsonObject toJson() const {
         QJsonObject obj;
