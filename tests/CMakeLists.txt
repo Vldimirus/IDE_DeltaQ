@@ -28,3 +28,12 @@ dq_add_test(test_UILayout       core/test_UILayout.cpp)
 dq_add_test(test_GraphStore      core/test_GraphStore.cpp)
 dq_add_test(test_UILayoutStore   core/test_UILayoutStore.cpp)
 dq_add_test(test_ProjectManager  core/test_ProjectManager.cpp)
+
+# Тесты LSP-клиента
+add_executable(test_LSPClient lsp/test_LSPClient.cpp)
+target_link_libraries(test_LSPClient PRIVATE
+    dq_lsp
+    Qt6::Test
+)
+set_target_properties(test_LSPClient PROPERTIES AUTOMOC ON)
+add_test(NAME test_LSPClient COMMAND test_LSPClient)

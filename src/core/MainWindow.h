@@ -27,6 +27,7 @@ class UIDesignerWidget;
 class LibProcessorWidget;
 class ProjectTreeView;
 class BuildManager;
+class LSPClient;
 
 class MainWindow : public QMainWindow {
     Q_OBJECT
@@ -79,6 +80,7 @@ private:
     ActionManager *m_actionManager = nullptr;
     UndoManager *m_undoManager = nullptr;
     BuildManager *m_buildManager = nullptr;
+    LSPClient *m_lspClient = nullptr;
 
     // UI
     QStackedWidget *m_centralStack = nullptr;

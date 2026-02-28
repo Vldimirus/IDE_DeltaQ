@@ -12,6 +12,8 @@
 #include "../editor/CodeEditorTab.h"
 #include "../editor/ProjectTreeView.h"
 #include "../editor/BuildManager.h"
+#include "../lsp/LSPClient.h"
+#include "../lsp/LSPTypes.h"
 #include "../blockEditor/BlockEditorWidget.h"
 #include "../uiDesigner/UIDesignerWidget.h"
 #include "../libProcessor/LibProcessorWidget.h"
@@ -25,6 +27,7 @@
 #include <QVBoxLayout>
 #include <QLabel>
 #include <QActionGroup>
+#include <QTextCursor>
 
 namespace DeltaQ {
 
@@ -61,6 +64,10 @@ void MainWindow::setupCoreServices()
     m_undoManager = new UndoManager(m_commandBus, this);
 
     m_buildManager = new BuildManager(this);
+
+    // LSP-клиент
+    m_lspClient = new LSPClient(this);
+
     m_actionManager->setupStandardActions();
 }
 
@@ -71,6 +78,7 @@ void MainWindow::setupUI()
 
     // Module 1: Code Editor
     m_codeEditor = new CodeEditorWidget(m_commandBus, m_moduleRegistry, this);
+    m_codeEditor->setLSPClient(m_lspClient);
     m_centralStack->addWidget(m_codeEditor);
 
     // Module 2: Block Editor
@@ -112,6 +120,8 @@ void MainWindow::setupMenus()
     editMenu->addAction(m_actionManager->action("edit.replace"));
     editMenu->addSeparator();
     editMenu->addAction(m_actionManager->action("edit.goToLine"));
+    editMenu->addAction(m_actionManager->action("edit.goToDefinition"));
+    editMenu->addAction(m_actionManager->action("edit.findReferences"));
 
     auto *viewMenu = menuBar()->addMenu(tr("&View"));
     viewMenu->addAction(m_actionManager->action("view.codeEditor"));
@@ -246,6 +256,8 @@ void MainWindow::setupConnections()
     connect(am->action("edit.find"), &QAction::triggered, m_codeEditor, &CodeEditorWidget::showFind);
     connect(am->action("edit.replace"), &QAction::triggered, m_codeEditor, &CodeEditorWidget::showReplace);
     connect(am->action("edit.goToLine"), &QAction::triggered, m_codeEditor, &CodeEditorWidget::goToLine);
+    connect(am->action("edit.goToDefinition"), &QAction::triggered, m_codeEditor, &CodeEditorWidget::goToDefinition);
+    connect(am->action("edit.findReferences"), &QAction::triggered, m_codeEditor, &CodeEditorWidget::findReferences);
 
     connect(am->buildAction(), &QAction::triggered, this, &MainWindow::onBuild);
     connect(am->action("build.clean"), &QAction::triggered, this, &MainWindow::onClean);
@@ -282,6 +294,65 @@ void MainWindow::setupConnections()
 
     // Позиция курсора в редакторе → статус-бар
     connect(m_codeEditor, &CodeEditorWidget::currentTabChanged, this, &MainWindow::updateCursorPosition);
+
+    // LSP: запуск при открытии проекта
+    connect(m_projectManager, &ProjectManager::projectOpened, this, [this]() {
+        // Ищем clangd в PATH
+        QString clangd = "clangd";
+        m_lspClient->start(clangd, {"--background-index"});
+        if (m_lspClient->isRunning()) {
+            QString rootUri = LSPClient::pathToUri(m_projectManager->projectDir());
+            m_lspClient->initialize(rootUri);
+        }
+    });
+    connect(m_projectManager, &ProjectManager::projectClosed, this, [this]() {
+        m_lspClient->stop();
+    });
+
+    // LSP: переход к определению → открыть файл и перейти к позиции
+    connect(m_lspClient, &LSPClient::definitionResult, this, [this](const QVector<LSPLocation> &locations) {
+        if (locations.isEmpty()) {
+            statusBar()->showMessage(tr("Definition not found"), 3000);
+            return;
+        }
+        const auto &loc = locations.first();
+        QString path = LSPClient::uriToPath(loc.uri);
+        m_codeEditor->openFile(path);
+        // Перейти к позиции
+        auto *tab = m_codeEditor->currentTab();
+        if (tab && tab->editor()) {
+            QTextCursor cursor(tab->editor()->document()->findBlockByNumber(loc.range.start.line));
+            cursor.movePosition(QTextCursor::Right, QTextCursor::MoveAnchor, loc.range.start.character);
+            tab->editor()->setTextCursor(cursor);
+            tab->editor()->centerCursor();
+        }
+    });
+
+    // LSP: диагностика → подчёркивание ошибок в редакторе
+    connect(m_lspClient, &LSPClient::diagnosticsReceived, this,
+            [this](const QString &uri, const QVector<LSPDiagnostic> &diagnostics) {
+        Q_UNUSED(uri)
+        Q_UNUSED(diagnostics)
+        // TODO: реализовать подчёркивание ошибок через ExtraSelections
+        // Пока просто показываем количество в статус-баре
+        int errors = 0, warnings = 0;
+        for (const auto &d : diagnostics) {
+            if (d.severity == DiagnosticSeverity::Error) ++errors;
+            else if (d.severity == DiagnosticSeverity::Warning) ++warnings;
+        }
+        if (errors > 0 || warnings > 0) {
+            statusBar()->showMessage(tr("Diagnostics: %1 errors, %2 warnings")
+                .arg(errors).arg(warnings), 5000);
+        }
+    });
+
+    // LSP: ошибка сервера
+    connect(m_lspClient, &LSPClient::serverError, this, [this](const QString &msg) {
+        statusBar()->showMessage(tr("LSP: %1").arg(msg), 5000);
+    });
+    connect(m_lspClient, &LSPClient::initialized, this, [this]() {
+        statusBar()->showMessage(tr("LSP server initialized"), 3000);
+    });
 }
 
 void MainWindow::closeEvent(QCloseEvent *event)

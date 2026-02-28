@@ -89,6 +89,8 @@ void ActionManager::setupStandardActions()
     registerAction("edit.find", tr("Find..."), QKeySequence::Find, "edit");
     registerAction("edit.replace", tr("Replace..."), QKeySequence::Replace, "edit");
     registerAction("edit.goToLine", tr("Go to Line..."), QKeySequence("Ctrl+G"), "edit");
+    registerAction("edit.goToDefinition", tr("Go to Definition"), QKeySequence("F12"), "edit");
+    registerAction("edit.findReferences", tr("Find References"), QKeySequence("Shift+F12"), "edit");
 
     // Группа "build"
     registerAction("build.build", tr("Build"), QKeySequence("Ctrl+B"), "build");

@@ -1,6 +1,6 @@
 # DeltaQ IDE — Прогресс разработки
 
-> Последнее обновление: 2026-02-28 (Фаза 2.1)
+> Последнее обновление: 2026-02-28 (Фаза 2.2)
 
 ---
 
@@ -8,13 +8,13 @@
 
 ```
 Фаза 0: Планирование         [████████████████████] 100%  ✓ утверждено
-Фаза 1: Ядро + Редактор кода  [██████████████░░░░░░]  70%  (2.1 завершена)
+Фаза 1: Ядро + Редактор кода  [████████████████░░░░]  80%  (2.2 завершена)
 Фаза 2: Блочный редактор      [░░░░░░░░░░░░░░░░░░░░]   0%
 Фаза 3: Дизайнер UI           [░░░░░░░░░░░░░░░░░░░░]   0%
 Фаза 4: Обработчик библиотек  [░░░░░░░░░░░░░░░░░░░░]   0%
 Фаза 5: Интеграция             [░░░░░░░░░░░░░░░░░░░░]   0%
 ─────────────────────────────────────────────────────
-Общий прогресс проекта:                                ~25%
+Общий прогресс проекта:                                ~28%
 ```
 
 **Текущая фаза:** 1 — Ядро + Редактор кода
@@ -41,6 +41,7 @@
 | 11 | Фаза 1.3: Хранилища данных + тесты | GraphStore: register/unregister/find/findByName, load/save .dqgraph, loadFromDirectory, saveAll. UILayoutStore: аналогичный API для .dqui. ProjectManager: интеграция с GraphStore и UILayoutStore (загрузка/сохранение/очистка при open/save/close). MainWindow: инициализация всех stores. 3 новых теста (~28 тест-кейсов), всего 11 тестов — все проходят. |
 | 12 | Фаза 1.4: Базовый UI | BuildManager → Output dock (вывод сборки, блокировка кнопки, Clean). onRun: поиск и запуск бинарника → Application Output. StatusBar: Ln/Col при перемещении курсора. ProjectTreeView: контекстное меню (Open, New File/Folder, Delete, Show in FM), фильтр CMakeLists.txt. Сессия: сохранение/восстановление открытых вкладок и последнего проекта. |
 | 13 | Фаза 2.1: Доработка редактора кода | FindReplaceBar (Ctrl+F поиск, Ctrl+H замена, подсветка совпадений, счётчик, опции Case/Words). Go to Line (Ctrl+G). Подсветка парных скобок ((){}\[\], вперёд/назад, красная подсветка при отсутствии пары). SyntaxHighlighter: имена функций, @dqmodule/@dqport аннотации, параметры аннотаций. AnnotationParser: парсинг @dqport (direction, name, type, default). ActionManager: edit.replace (Ctrl+H), edit.goToLine (Ctrl+G). |
+| 14 | Фаза 2.2: LSP-клиент (clangd) | LSPClient (JSON-RPC 2.0 через stdin/stdout, Content-Length framing). LSPTypes: Position, Range, Location, Diagnostic, CompletionItem, HoverInfo, DocumentSymbol. Синхронизация документов: didOpen/didChange/didSave/didClose с CodeEditorWidget. Запросы: completion, hover, definition, references. Автозапуск clangd при открытии проекта. Навигация: Go to Definition (F12), Find References (Shift+F12). Диагностика: отображение счётчика ошибок/предупреждений. 1 новый тест (~16 тест-кейсов), всего 12 тестов — все проходят. |
 
 > **Черновики** (п. 5–6) были созданы до утверждения планов и доработаны при первой сборке.
 
@@ -56,6 +57,7 @@
 - [x] Фаза 1.3: Хранилища данных (GraphStore, UILayoutStore, ProjectManager — интеграция со stores, тесты)
 - [x] Фаза 1.4: Базовый UI (BuildManager→Output, StatusBar Ln/Col, контекстное меню дерева, сессия вкладок)
 - [x] Фаза 2.1: Доработка редактора (Find/Replace, Go to Line, парные скобки, SyntaxHighlighter, AnnotationParser)
+- [x] Фаза 2.2: LSP-клиент (JSON-RPC, didOpen/didChange/didSave, completion, hover, definition, references, диагностика)
 
 ---
 
@@ -66,7 +68,7 @@
 | Блок | Задачи | Статус |
 |------|--------|--------|
 | Редактор кода | QScintilla интеграция, доработка ProjectTreeView | WIP |
-| LSP-клиент | JSON-RPC протокол, clangd, автодополнение, диагностика, навигация | TODO |
+| LSP-клиент | Виджет автодополнения, подчёркивание ошибок в редакторе, hover-подсказки | WIP |
 | Система сборки | Генерация CMakeLists, запуск компиляции, парсинг ошибок, панель вывода | TODO |
 | Отладчик | GDB/LLDB драйвер, breakpoints, step, панель переменных, стек вызовов | TODO |
 

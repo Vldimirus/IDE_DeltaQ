@@ -11,6 +11,7 @@ class CommandBus;
 class ModuleRegistry;
 class CodeEditorTab;
 class FindReplaceBar;
+class LSPClient;
 
 class CodeEditorWidget : public QWidget {
     Q_OBJECT
@@ -28,10 +29,17 @@ public:
     QString currentFilePath() const;
     QStringList openFilePaths() const;
 
+    // LSP
+    void setLSPClient(LSPClient *client);
+
     // Поиск и замена
     void showFind();
     void showReplace();
     void goToLine();
+
+    // Навигация LSP
+    void goToDefinition();
+    void findReferences();
 
 signals:
     void fileSaved(const QString &path);
@@ -50,7 +58,9 @@ private:
     FindReplaceBar *m_findBar;
     CommandBus *m_commandBus;
     ModuleRegistry *m_moduleRegistry;
+    LSPClient *m_lspClient = nullptr;
     QMap<QString, int> m_openFiles; // path -> tab index
+    QMap<QString, int> m_documentVersions; // uri -> version (для LSP)
 };
 
 } // namespace DeltaQ

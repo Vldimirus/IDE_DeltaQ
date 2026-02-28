@@ -2,6 +2,7 @@
 #include "CodeEditorTab.h"
 #include "FindReplaceBar.h"
 #include "BuildManager.h"
+#include "../lsp/LSPClient.h"
 
 #include <QFileInfo>
 #include <QMessageBox>
@@ -55,6 +56,25 @@ void CodeEditorWidget::openFile(const QString &path)
     m_tabWidget->setCurrentIndex(index);
     m_openFiles[path] = index;
 
+    // LSP: уведомляем сервер об открытии файла
+    if (m_lspClient && m_lspClient->isRunning()) {
+        QString uri = LSPClient::pathToUri(path);
+        QString langId = path.endsWith(".h") || path.endsWith(".hpp") ? "cpp" :
+                          path.endsWith(".c") ? "c" : "cpp";
+        m_documentVersions[uri] = 1;
+        m_lspClient->didOpen(uri, langId, tab->editor()->toPlainText());
+
+        // Подключаем отправку изменений при редактировании
+        connect(tab->editor()->document(), &QTextDocument::contentsChanged, this, [this, tab]() {
+            if (!m_lspClient || !m_lspClient->isRunning())
+                return;
+            QString uri = LSPClient::pathToUri(tab->filePath());
+            int &ver = m_documentVersions[uri];
+            ++ver;
+            m_lspClient->didChange(uri, ver, tab->editor()->toPlainText());
+        });
+    }
+
     connect(tab, &CodeEditorTab::modificationChanged, this, [this, tab](bool modified) {
         int idx = m_tabWidget->indexOf(tab);
         if (idx >= 0) {
@@ -71,6 +91,9 @@ void CodeEditorWidget::saveCurrentFile()
     auto *tab = currentTab();
     if (tab) {
         tab->saveFile();
+        // LSP: уведомляем о сохранении
+        if (m_lspClient && m_lspClient->isRunning())
+            m_lspClient->didSave(LSPClient::pathToUri(tab->filePath()));
         emit fileSaved(tab->filePath());
     }
 }
@@ -128,6 +151,13 @@ void CodeEditorWidget::closeTab(int index)
             tab->saveFile();
     }
 
+    // LSP: уведомляем о закрытии документа
+    if (m_lspClient && m_lspClient->isRunning()) {
+        QString uri = LSPClient::pathToUri(tab->filePath());
+        m_lspClient->didClose(uri);
+        m_documentVersions.remove(uri);
+    }
+
     m_openFiles.remove(tab->filePath());
     m_tabWidget->removeTab(index);
     delete tab;
@@ -147,6 +177,35 @@ void CodeEditorWidget::onTabChanged(int /*index*/)
     auto *tab = currentTab();
     m_findBar->setEditor(tab ? tab->editor() : nullptr);
     emit currentTabChanged();
+}
+
+void CodeEditorWidget::setLSPClient(LSPClient *client)
+{
+    m_lspClient = client;
+}
+
+void CodeEditorWidget::goToDefinition()
+{
+    if (!m_lspClient || !m_lspClient->isRunning())
+        return;
+    auto *tab = currentTab();
+    if (!tab) return;
+
+    auto cursor = tab->editor()->textCursor();
+    QString uri = LSPClient::pathToUri(tab->filePath());
+    m_lspClient->definition(uri, cursor.blockNumber(), cursor.columnNumber());
+}
+
+void CodeEditorWidget::findReferences()
+{
+    if (!m_lspClient || !m_lspClient->isRunning())
+        return;
+    auto *tab = currentTab();
+    if (!tab) return;
+
+    auto cursor = tab->editor()->textCursor();
+    QString uri = LSPClient::pathToUri(tab->filePath());
+    m_lspClient->references(uri, cursor.blockNumber(), cursor.columnNumber());
 }
 
 void CodeEditorWidget::showFind()
