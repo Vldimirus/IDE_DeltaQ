@@ -4,6 +4,8 @@ set(EDITOR_SOURCES
     FindReplaceBar.cpp
     ProjectTreeView.cpp
     BuildManager.cpp
+    CompilerOutputParser.cpp
+    CMakeGenerator.cpp
     AnnotationParser.cpp
     SyntaxHighlighter.cpp
 )

@@ -37,3 +37,22 @@ target_link_libraries(test_LSPClient PRIVATE
 )
 set_target_properties(test_LSPClient PROPERTIES AUTOMOC ON)
 add_test(NAME test_LSPClient COMMAND test_LSPClient)
+
+# Тесты редактора
+add_executable(test_CompilerOutputParser editor/test_CompilerOutputParser.cpp)
+target_link_libraries(test_CompilerOutputParser PRIVATE
+    dq_editor
+    dq_lsp
+    Qt6::Test
+)
+set_target_properties(test_CompilerOutputParser PROPERTIES AUTOMOC ON)
+add_test(NAME test_CompilerOutputParser COMMAND test_CompilerOutputParser)
+
+add_executable(test_CMakeGenerator editor/test_CMakeGenerator.cpp)
+target_link_libraries(test_CMakeGenerator PRIVATE
+    dq_editor
+    dq_lsp
+    Qt6::Test
+)
+set_target_properties(test_CMakeGenerator PROPERTIES AUTOMOC ON)
+add_test(NAME test_CMakeGenerator COMMAND test_CMakeGenerator)

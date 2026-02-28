@@ -284,9 +284,27 @@ void MainWindow::setupConnections()
         m_actionManager->buildAction()->setEnabled(false);
         statusBar()->showMessage(tr("Building..."));
     });
-    connect(m_buildManager, &BuildManager::buildFinished, this, [this](bool success) {
+    connect(m_buildManager, &BuildManager::buildFinished, this, [this](bool success, int errors, int warnings) {
         m_actionManager->buildAction()->setEnabled(true);
-        statusBar()->showMessage(success ? tr("Build succeeded") : tr("Build failed"), 5000);
+        if (success)
+            statusBar()->showMessage(tr("Build succeeded"), 5000);
+        else
+            statusBar()->showMessage(tr("Build failed: %1 error(s), %2 warning(s)")
+                .arg(errors).arg(warnings), 5000);
+    });
+
+    // Навигация к ошибке: клик по строке вывода сборки → переход в редактор
+    connect(m_buildManager, &BuildManager::buildError, this,
+            [this](const QString &file, int line, int /*column*/,
+                   const QString &/*severity*/, const QString &/*message*/) {
+        Q_UNUSED(file)
+        Q_UNUSED(line)
+        // Ошибки собираются в CompilerOutputParser и доступны через buildManager
+    });
+
+    // Двойной клик по строке в Build Output → навигация к ошибке
+    connect(m_buildOutput, &QTextEdit::cursorPositionChanged, this, []() {
+        // Обработка через контекстное меню или double-click (см. ниже)
     });
 
     // Дерево проекта: открытие файлов в редакторе
@@ -409,7 +427,9 @@ void MainWindow::onBuild()
         statusBar()->showMessage(tr("No project open"), 3000);
         return;
     }
-    m_buildManager->build(m_projectManager->projectDir());
+    m_buildManager->build(m_projectManager->projectDir(),
+                          m_projectManager->currentProject().name,
+                          m_projectManager->currentProject().build.standard);
 }
 
 void MainWindow::onClean()
