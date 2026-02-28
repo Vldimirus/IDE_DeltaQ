@@ -313,6 +313,29 @@ void MainWindow::setupConnections()
     // Позиция курсора в редакторе → статус-бар
     connect(m_codeEditor, &CodeEditorWidget::currentTabChanged, this, &MainWindow::updateCursorPosition);
 
+    // Загрузка реестра модулей при открытии проекта
+    connect(m_projectManager, &ProjectManager::projectOpened, this, [this]() {
+        m_moduleRegistry->loadRegistry(m_projectManager->projectDir());
+        int count = m_moduleRegistry->count();
+        if (count > 0)
+            statusBar()->showMessage(tr("Loaded %1 module(s)").arg(count), 3000);
+    });
+    connect(m_projectManager, &ProjectManager::projectClosed, this, [this]() {
+        m_moduleRegistry->clear();
+    });
+
+    // Уведомление о регистрации модуля из аннотаций
+    connect(m_moduleRegistry, &ModuleRegistry::moduleRegistered, this, [this](const QString &id) {
+        auto *mod = m_moduleRegistry->findModule(id);
+        if (mod)
+            statusBar()->showMessage(tr("Module '%1' registered").arg(mod->name), 3000);
+    });
+    connect(m_moduleRegistry, &ModuleRegistry::moduleUpdated, this, [this](const QString &id) {
+        auto *mod = m_moduleRegistry->findModule(id);
+        if (mod)
+            statusBar()->showMessage(tr("Module '%1' updated").arg(mod->name), 3000);
+    });
+
     // LSP: запуск при открытии проекта
     connect(m_projectManager, &ProjectManager::projectOpened, this, [this]() {
         // Ищем clangd в PATH

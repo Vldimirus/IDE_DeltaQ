@@ -12,6 +12,7 @@ class ModuleRegistry;
 class CodeEditorTab;
 class FindReplaceBar;
 class LSPClient;
+class AnnotationParser;
 
 class CodeEditorWidget : public QWidget {
     Q_OBJECT
@@ -53,11 +54,13 @@ public slots:
 
 private:
     CodeEditorTab *findTabForFile(const QString &path) const;
+    void parseAndSaveModules(const QString &filePath);
 
     QTabWidget *m_tabWidget;
     FindReplaceBar *m_findBar;
     CommandBus *m_commandBus;
     ModuleRegistry *m_moduleRegistry;
+    AnnotationParser *m_annotationParser;
     LSPClient *m_lspClient = nullptr;
     QMap<QString, int> m_openFiles; // path -> tab index
     QMap<QString, int> m_documentVersions; // uri -> version (для LSP)

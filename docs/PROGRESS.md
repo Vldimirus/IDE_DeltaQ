@@ -1,6 +1,6 @@
 # DeltaQ IDE — Прогресс разработки
 
-> Последнее обновление: 2026-02-28 (Фаза 2.3)
+> Последнее обновление: 2026-02-28 (Фаза 2.4)
 
 ---
 
@@ -8,13 +8,13 @@
 
 ```
 Фаза 0: Планирование         [████████████████████] 100%  ✓ утверждено
-Фаза 1: Ядро + Редактор кода  [██████████████████░░]  90%  (2.3 завершена)
+Фаза 1: Ядро + Редактор кода  [███████████████████░]  95%  (2.4 завершена)
 Фаза 2: Блочный редактор      [░░░░░░░░░░░░░░░░░░░░]   0%
 Фаза 3: Дизайнер UI           [░░░░░░░░░░░░░░░░░░░░]   0%
 Фаза 4: Обработчик библиотек  [░░░░░░░░░░░░░░░░░░░░]   0%
 Фаза 5: Интеграция             [░░░░░░░░░░░░░░░░░░░░]   0%
 ─────────────────────────────────────────────────────
-Общий прогресс проекта:                                ~30%
+Общий прогресс проекта:                                ~32%
 ```
 
 **Текущая фаза:** 1 — Ядро + Редактор кода
@@ -43,6 +43,7 @@
 | 13 | Фаза 2.1: Доработка редактора кода | FindReplaceBar (Ctrl+F поиск, Ctrl+H замена, подсветка совпадений, счётчик, опции Case/Words). Go to Line (Ctrl+G). Подсветка парных скобок ((){}\[\], вперёд/назад, красная подсветка при отсутствии пары). SyntaxHighlighter: имена функций, @dqmodule/@dqport аннотации, параметры аннотаций. AnnotationParser: парсинг @dqport (direction, name, type, default). ActionManager: edit.replace (Ctrl+H), edit.goToLine (Ctrl+G). |
 | 14 | Фаза 2.2: LSP-клиент (clangd) | LSPClient (JSON-RPC 2.0 через stdin/stdout, Content-Length framing). LSPTypes: Position, Range, Location, Diagnostic, CompletionItem, HoverInfo, DocumentSymbol. Синхронизация документов: didOpen/didChange/didSave/didClose с CodeEditorWidget. Запросы: completion, hover, definition, references. Автозапуск clangd при открытии проекта. Навигация: Go to Definition (F12), Find References (Shift+F12). Диагностика: отображение счётчика ошибок/предупреждений. 1 новый тест (~16 тест-кейсов), всего 12 тестов — все проходят. |
 | 15 | Фаза 2.3: Система сборки | CompilerOutputParser: парсинг вывода GCC/Clang/CMake (error/warning/note), regex для формата файл:строка:столбец, сигнал errorFound. CMakeGenerator: генерация CMakeLists.txt из исходников проекта (рекурсивный сбор .c/.cpp/.cxx/.cc, пропуск build/, стандарты C/C++, флаги компиляции). BuildManager: рефакторинг с интеграцией парсера и генератора, двухэтапная сборка (configure + build), проверка CMakeCache.txt. Навигация к ошибкам: buildError сигнал с файлом/строкой/столбцом. 2 новых теста (~19 тест-кейсов), всего 14 тестов — все проходят. |
+| 16 | Фаза 2.4: Аннотации @dqmodule | AnnotationParser: переписан с построчным парсингом, поддержка множественных @dqmodule в одном файле, многострочных комментариев (/* */), парсинг key=value (в кавычках и без), стабильные ID (SHA256 от путь+имя), сигналы ошибок и moduleParsed. Module.h: добавлено поле category. Автогенерация .dqmod при сохранении файла (CodeEditorWidget → AnnotationParser → .dqmod + ModuleRegistry). ModuleRegistry: findBySourcePath, modulesByCategory, categories, validateModule, hasDuplicateName. Загрузка реестра при открытии проекта, уведомления в статусбар. 1 новый тест (~14 тест-кейсов), всего 15 тестов — все проходят. |
 
 > **Черновики** (п. 5–6) были созданы до утверждения планов и доработаны при первой сборке.
 
@@ -60,6 +61,7 @@
 - [x] Фаза 2.1: Доработка редактора (Find/Replace, Go to Line, парные скобки, SyntaxHighlighter, AnnotationParser)
 - [x] Фаза 2.2: LSP-клиент (JSON-RPC, didOpen/didChange/didSave, completion, hover, definition, references, диагностика)
 - [x] Фаза 2.3: Система сборки (CompilerOutputParser, CMakeGenerator, BuildManager рефакторинг, навигация к ошибкам)
+- [x] Фаза 2.4: Аннотации @dqmodule (AnnotationParser, автогенерация .dqmod, ModuleRegistry доработка, интеграция)
 
 ---
 

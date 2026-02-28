@@ -19,8 +19,11 @@ public:
     Module *findModule(const QString &id);
     const Module *findModule(const QString &id) const;
     Module *findModuleByName(const QString &name);
+    Module *findBySourcePath(const QString &sourcePath);
     QVector<const Module *> allModules() const;
     QVector<const Module *> modulesByOrigin(const QString &origin) const;
+    QVector<const Module *> modulesByCategory(const QString &category) const;
+    QStringList categories() const;
 
     // I/O
     bool loadFromFile(const QString &path);
@@ -31,6 +34,10 @@ public:
     // Registry file (.dqreg)
     bool loadRegistry(const QString &projectDir);
     bool saveRegistry(const QString &projectDir) const;
+
+    // Валидация
+    bool validateModule(const Module &module) const;
+    bool hasDuplicateName(const QString &name, const QString &excludeId = QString()) const;
 
     int count() const { return m_modules.size(); }
     void clear();

@@ -53,6 +53,7 @@ struct Module {
     QString version;
     QString language;     // "c" or "cpp"
     QString description;
+    QString category;     // "math", "logic", "io", "string", ...
     QVector<Port> inputs;
     QVector<Port> outputs;
     QString sourcePath;   // relative to project
@@ -67,6 +68,8 @@ struct Module {
         obj["version"] = version;
         obj["language"] = language;
         obj["description"] = description;
+        if (!category.isEmpty())
+            obj["category"] = category;
         obj["origin"] = origin;
 
         QJsonObject ports;
@@ -97,6 +100,7 @@ struct Module {
         m.version = obj["version"].toString();
         m.language = obj["language"].toString();
         m.description = obj["description"].toString();
+        m.category = obj["category"].toString();
         m.origin = obj["origin"].toString();
         m.sourcePath = obj["source"].toString();
         m.headerPath = obj["header"].toString();

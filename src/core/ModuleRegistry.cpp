@@ -6,6 +6,7 @@
 #include <QDir>
 #include <QDirIterator>
 #include <QFileInfo>
+#include <QSet>
 
 namespace DeltaQ {
 
@@ -68,6 +69,15 @@ QVector<const Module *> ModuleRegistry::allModules() const
     return result;
 }
 
+Module *ModuleRegistry::findBySourcePath(const QString &sourcePath)
+{
+    for (auto &m : m_modules) {
+        if (m.sourcePath == sourcePath)
+            return &m;
+    }
+    return nullptr;
+}
+
 QVector<const Module *> ModuleRegistry::modulesByOrigin(const QString &origin) const
 {
     QVector<const Module *> result;
@@ -76,6 +86,40 @@ QVector<const Module *> ModuleRegistry::modulesByOrigin(const QString &origin) c
             result.append(&m);
     }
     return result;
+}
+
+QVector<const Module *> ModuleRegistry::modulesByCategory(const QString &category) const
+{
+    QVector<const Module *> result;
+    for (const auto &m : m_modules) {
+        if (m.category == category)
+            result.append(&m);
+    }
+    return result;
+}
+
+QStringList ModuleRegistry::categories() const
+{
+    QSet<QString> cats;
+    for (const auto &m : m_modules) {
+        if (!m.category.isEmpty())
+            cats.insert(m.category);
+    }
+    return QStringList(cats.begin(), cats.end());
+}
+
+bool ModuleRegistry::validateModule(const Module &module) const
+{
+    return module.isValid();
+}
+
+bool ModuleRegistry::hasDuplicateName(const QString &name, const QString &excludeId) const
+{
+    for (const auto &m : m_modules) {
+        if (m.name == name && m.id != excludeId)
+            return true;
+    }
+    return false;
 }
 
 bool ModuleRegistry::loadModuleFile(const QString &dqmodPath)

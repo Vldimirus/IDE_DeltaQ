@@ -2,11 +2,15 @@
 #include "CodeEditorTab.h"
 #include "FindReplaceBar.h"
 #include "BuildManager.h"
+#include "AnnotationParser.h"
 #include "../lsp/LSPClient.h"
+#include "../core/ModuleRegistry.h"
 
 #include <QFileInfo>
 #include <QMessageBox>
 #include <QInputDialog>
+#include <QFile>
+#include <QJsonDocument>
 
 namespace DeltaQ {
 
@@ -15,6 +19,7 @@ CodeEditorWidget::CodeEditorWidget(CommandBus *bus, ModuleRegistry *registry,
     : QWidget(parent)
     , m_commandBus(bus)
     , m_moduleRegistry(registry)
+    , m_annotationParser(new AnnotationParser(this))
 {
     auto *layout = new QVBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
@@ -94,7 +99,45 @@ void CodeEditorWidget::saveCurrentFile()
         // LSP: уведомляем о сохранении
         if (m_lspClient && m_lspClient->isRunning())
             m_lspClient->didSave(LSPClient::pathToUri(tab->filePath()));
+
+        // Автогенерация .dqmod из аннотаций
+        parseAndSaveModules(tab->filePath());
+
         emit fileSaved(tab->filePath());
+    }
+}
+
+void CodeEditorWidget::parseAndSaveModules(const QString &filePath)
+{
+    // Парсим только C/C++ файлы
+    if (!filePath.endsWith(".c") && !filePath.endsWith(".cpp") &&
+        !filePath.endsWith(".cxx") && !filePath.endsWith(".cc") &&
+        !filePath.endsWith(".h") && !filePath.endsWith(".hpp"))
+        return;
+
+    auto modules = m_annotationParser->parseFile(filePath);
+    if (modules.isEmpty())
+        return;
+
+    // Сохраняем каждый модуль как .dqmod и регистрируем в реестре
+    for (const auto &mod : modules) {
+        // Сохраняем .dqmod рядом с исходником
+        QString dqmodPath = AnnotationParser::dqmodPathForSource(filePath);
+        if (modules.size() > 1) {
+            // Несколько модулей в одном файле — добавляем имя модуля в путь
+            QFileInfo fi(filePath);
+            dqmodPath = fi.absolutePath() + "/" + mod.name + ".dqmod";
+        }
+
+        QFile file(dqmodPath);
+        if (file.open(QIODevice::WriteOnly)) {
+            QJsonDocument doc(mod.toJson());
+            file.write(doc.toJson(QJsonDocument::Indented));
+        }
+
+        // Регистрируем/обновляем в реестре
+        if (m_moduleRegistry)
+            m_moduleRegistry->registerModule(mod);
     }
 }
 
