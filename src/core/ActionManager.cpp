@@ -97,6 +97,15 @@ void ActionManager::setupStandardActions()
     registerAction("build.run", tr("Run"), QKeySequence("Ctrl+R"), "build");
     registerAction("build.clean", tr("Clean"), QKeySequence("Ctrl+Shift+B"), "build");
 
+    // Группа "debug"
+    registerAction("debug.start", tr("Start Debugging"), QKeySequence("F5"), "debug");
+    registerAction("debug.stop", tr("Stop Debugging"), QKeySequence("Shift+F5"), "debug");
+    registerAction("debug.continue", tr("Continue"), QKeySequence("F5"), "debug");
+    registerAction("debug.stepOver", tr("Step Over"), QKeySequence("F10"), "debug");
+    registerAction("debug.stepInto", tr("Step Into"), QKeySequence("F11"), "debug");
+    registerAction("debug.stepOut", tr("Step Out"), QKeySequence("Shift+F11"), "debug");
+    registerAction("debug.toggleBreakpoint", tr("Toggle Breakpoint"), QKeySequence("F9"), "debug");
+
     // Группа "view"
     registerAction("view.codeEditor", tr("Code Editor"), QKeySequence("Ctrl+1"), "view");
     registerAction("view.blockEditor", tr("Block Editor"), QKeySequence("Ctrl+2"), "view");

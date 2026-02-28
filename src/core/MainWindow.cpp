@@ -14,6 +14,8 @@
 #include "../editor/BuildManager.h"
 #include "../lsp/LSPClient.h"
 #include "../lsp/LSPTypes.h"
+#include "../debug/DebugManager.h"
+#include "../debug/DebugTypes.h"
 #include "../blockEditor/BlockEditorWidget.h"
 #include "../uiDesigner/UIDesignerWidget.h"
 #include "../libProcessor/LibProcessorWidget.h"
@@ -28,6 +30,8 @@
 #include <QLabel>
 #include <QActionGroup>
 #include <QTextCursor>
+#include <QTreeWidget>
+#include <QHeaderView>
 
 namespace DeltaQ {
 
@@ -67,6 +71,9 @@ void MainWindow::setupCoreServices()
 
     // LSP-клиент
     m_lspClient = new LSPClient(this);
+
+    // Отладчик
+    m_debugManager = new DebugManager(this);
 
     m_actionManager->setupStandardActions();
 }
@@ -133,6 +140,17 @@ void MainWindow::setupMenus()
     buildMenu->addAction(m_actionManager->buildAction());
     buildMenu->addAction(m_actionManager->runAction());
     buildMenu->addAction(m_actionManager->action("build.clean"));
+
+    auto *debugMenu = menuBar()->addMenu(tr("&Debug"));
+    debugMenu->addAction(m_actionManager->action("debug.start"));
+    debugMenu->addAction(m_actionManager->action("debug.stop"));
+    debugMenu->addSeparator();
+    debugMenu->addAction(m_actionManager->action("debug.continue"));
+    debugMenu->addAction(m_actionManager->action("debug.stepOver"));
+    debugMenu->addAction(m_actionManager->action("debug.stepInto"));
+    debugMenu->addAction(m_actionManager->action("debug.stepOut"));
+    debugMenu->addSeparator();
+    debugMenu->addAction(m_actionManager->action("debug.toggleBreakpoint"));
 
     auto *settingsMenu = menuBar()->addMenu(tr("&Settings"));
     auto *langMenu = settingsMenu->addMenu(tr("Language"));
@@ -237,8 +255,36 @@ void MainWindow::setupDocks()
     m_appOutput->setFont(QFont("Monospace", 10));
     m_outputTabs->addTab(m_appOutput, tr("Application Output"));
 
+    m_debugConsole = new QTextEdit(this);
+    m_debugConsole->setReadOnly(true);
+    m_debugConsole->setFont(QFont("Monospace", 10));
+    m_outputTabs->addTab(m_debugConsole, tr("Debug Console"));
+
     m_outputDock->setWidget(m_outputTabs);
     addDockWidget(Qt::BottomDockWidgetArea, m_outputDock);
+
+    // Панель переменных
+    m_variablesDock = new QDockWidget(tr("Variables"), this);
+    m_variablesDock->setObjectName("variablesDock");
+    auto *varsTree = new QTreeWidget(this);
+    varsTree->setHeaderLabels({tr("Name"), tr("Type"), tr("Value")});
+    varsTree->setColumnCount(3);
+    varsTree->header()->setStretchLastSection(true);
+    m_variablesDock->setWidget(varsTree);
+    addDockWidget(Qt::RightDockWidgetArea, m_variablesDock);
+    m_variablesDock->hide();
+
+    // Панель стека вызовов
+    m_callStackDock = new QDockWidget(tr("Call Stack"), this);
+    m_callStackDock->setObjectName("callStackDock");
+    auto *stackTree = new QTreeWidget(this);
+    stackTree->setHeaderLabels({tr("#"), tr("Function"), tr("File"), tr("Line")});
+    stackTree->setColumnCount(4);
+    stackTree->header()->setStretchLastSection(true);
+    stackTree->setRootIsDecorated(false);
+    m_callStackDock->setWidget(stackTree);
+    addDockWidget(Qt::RightDockWidgetArea, m_callStackDock);
+    m_callStackDock->hide();
 }
 
 void MainWindow::setupConnections()
@@ -262,6 +308,15 @@ void MainWindow::setupConnections()
     connect(am->buildAction(), &QAction::triggered, this, &MainWindow::onBuild);
     connect(am->action("build.clean"), &QAction::triggered, this, &MainWindow::onClean);
     connect(am->runAction(), &QAction::triggered, this, &MainWindow::onRun);
+
+    // Действия отладки
+    connect(am->action("debug.start"), &QAction::triggered, this, &MainWindow::onDebugStart);
+    connect(am->action("debug.stop"), &QAction::triggered, this, &MainWindow::onDebugStop);
+    connect(am->action("debug.continue"), &QAction::triggered, m_debugManager, &DebugManager::continueExecution);
+    connect(am->action("debug.stepOver"), &QAction::triggered, m_debugManager, &DebugManager::stepOver);
+    connect(am->action("debug.stepInto"), &QAction::triggered, m_debugManager, &DebugManager::stepInto);
+    connect(am->action("debug.stepOut"), &QAction::triggered, m_debugManager, &DebugManager::stepOut);
+    connect(am->action("debug.toggleBreakpoint"), &QAction::triggered, this, &MainWindow::onToggleBreakpoint);
 
     connect(am->action("view.codeEditor"), &QAction::triggered, this, &MainWindow::switchToCodeEditor);
     connect(am->action("view.blockEditor"), &QAction::triggered, this, &MainWindow::switchToBlockEditor);
@@ -312,6 +367,98 @@ void MainWindow::setupConnections()
 
     // Позиция курсора в редакторе → статус-бар
     connect(m_codeEditor, &CodeEditorWidget::currentTabChanged, this, &MainWindow::updateCursorPosition);
+
+    // Сигналы отладчика
+    connect(m_debugManager, &DebugManager::debugStarted, this, [this]() {
+        m_variablesDock->show();
+        m_callStackDock->show();
+        m_outputTabs->setCurrentWidget(m_debugConsole);
+        m_outputDock->show();
+        statusBar()->showMessage(tr("Debugging started"), 3000);
+    });
+    connect(m_debugManager, &DebugManager::debugStopped, this, [this]() {
+        m_variablesDock->hide();
+        m_callStackDock->hide();
+        statusBar()->showMessage(tr("Debugging stopped"), 3000);
+    });
+    connect(m_debugManager, &DebugManager::debugOutput, this, [this](const QString &text) {
+        m_debugConsole->append(text);
+    });
+    connect(m_debugManager, &DebugManager::targetOutput, this, [this](const QString &text) {
+        m_appOutput->append(text);
+    });
+    connect(m_debugManager, &DebugManager::errorOccurred, this, [this](const QString &msg) {
+        statusBar()->showMessage(tr("Debug error: %1").arg(msg), 5000);
+    });
+    connect(m_debugManager, &DebugManager::breakpointHit, this, [this](const QString &file, int line) {
+        m_codeEditor->openFile(file);
+        auto *tab = m_codeEditor->currentTab();
+        if (tab && tab->editor()) {
+            QTextCursor cursor(tab->editor()->document()->findBlockByNumber(line - 1));
+            tab->editor()->setTextCursor(cursor);
+            tab->editor()->centerCursor();
+        }
+        statusBar()->showMessage(tr("Breakpoint hit: %1:%2").arg(QFileInfo(file).fileName()).arg(line), 5000);
+    });
+    connect(m_debugManager, &DebugManager::stepped, this, [this](const QString &file, int line) {
+        if (!file.isEmpty()) {
+            m_codeEditor->openFile(file);
+            auto *tab = m_codeEditor->currentTab();
+            if (tab && tab->editor()) {
+                QTextCursor cursor(tab->editor()->document()->findBlockByNumber(line - 1));
+                tab->editor()->setTextCursor(cursor);
+                tab->editor()->centerCursor();
+            }
+        }
+    });
+
+    // Обновление панели переменных
+    connect(m_debugManager, &DebugManager::variablesUpdated, this,
+            [this](const QVector<Variable> &vars) {
+        auto *tree = qobject_cast<QTreeWidget *>(m_variablesDock->widget());
+        if (!tree) return;
+        tree->clear();
+        for (const auto &var : vars) {
+            auto *item = new QTreeWidgetItem(tree, {var.name, var.type, var.value});
+            Q_UNUSED(item)
+        }
+    });
+
+    // Обновление стека вызовов
+    connect(m_debugManager, &DebugManager::callStackUpdated, this,
+            [this](const QVector<StackFrame> &frames) {
+        auto *tree = qobject_cast<QTreeWidget *>(m_callStackDock->widget());
+        if (!tree) return;
+        tree->clear();
+        for (const auto &f : frames) {
+            auto *item = new QTreeWidgetItem(tree, {
+                QString::number(f.level), f.function,
+                QFileInfo(f.file).fileName(), QString::number(f.line)
+            });
+            item->setData(0, Qt::UserRole, f.file);
+            item->setData(0, Qt::UserRole + 1, f.line);
+        }
+    });
+
+    // Двойной клик по кадру стека → навигация
+    auto *stackTree = qobject_cast<QTreeWidget *>(m_callStackDock->widget());
+    if (stackTree) {
+        connect(stackTree, &QTreeWidget::itemDoubleClicked, this, [this](QTreeWidgetItem *item, int) {
+            QString file = item->data(0, Qt::UserRole).toString();
+            int line = item->data(0, Qt::UserRole + 1).toInt();
+            if (!file.isEmpty()) {
+                m_codeEditor->openFile(file);
+                auto *tab = m_codeEditor->currentTab();
+                if (tab && tab->editor()) {
+                    QTextCursor cursor(tab->editor()->document()->findBlockByNumber(line - 1));
+                    tab->editor()->setTextCursor(cursor);
+                    tab->editor()->centerCursor();
+                }
+            }
+            // Выбираем кадр в GDB
+            m_debugManager->selectFrame(item->text(0).toInt());
+        });
+    }
 
     // Загрузка реестра модулей при открытии проекта
     connect(m_projectManager, &ProjectManager::projectOpened, this, [this]() {
@@ -514,6 +661,55 @@ void MainWindow::onRun()
     });
     process->start(executable, {});
     statusBar()->showMessage(tr("Running %1").arg(projectName), 3000);
+}
+
+void MainWindow::onDebugStart()
+{
+    if (!m_projectManager->isProjectOpen()) {
+        statusBar()->showMessage(tr("No project open"), 3000);
+        return;
+    }
+
+    // Ищем исполняемый файл в build/
+    QString buildDir = m_projectManager->projectDir() + "/build";
+    QString projectName = m_projectManager->currentProject().name;
+    QStringList candidates = {
+        buildDir + "/" + projectName,
+        buildDir + "/src/" + projectName,
+        buildDir + "/" + projectName.toLower(),
+    };
+
+    QString executable;
+    for (const auto &path : candidates) {
+        if (QFile::exists(path)) {
+            executable = path;
+            break;
+        }
+    }
+
+    if (executable.isEmpty()) {
+        statusBar()->showMessage(tr("Executable not found — build first"), 3000);
+        return;
+    }
+
+    m_debugConsole->clear();
+    m_debugManager->startDebug(executable);
+}
+
+void MainWindow::onDebugStop()
+{
+    m_debugManager->stopDebug();
+}
+
+void MainWindow::onToggleBreakpoint()
+{
+    auto *tab = m_codeEditor->currentTab();
+    if (!tab || !tab->editor())
+        return;
+
+    QString file = tab->filePath();
+    int line = tab->editor()->textCursor().blockNumber() + 1;
+    m_debugManager->toggleBreakpoint(file, line);
 }
 
 void MainWindow::switchToCodeEditor() { m_centralStack->setCurrentWidget(m_codeEditor); }

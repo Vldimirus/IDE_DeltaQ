@@ -65,3 +65,12 @@ target_link_libraries(test_AnnotationParser PRIVATE
 )
 set_target_properties(test_AnnotationParser PROPERTIES AUTOMOC ON)
 add_test(NAME test_AnnotationParser COMMAND test_AnnotationParser)
+
+# Тесты отладчика
+add_executable(test_DebugManager debug/test_DebugManager.cpp)
+target_link_libraries(test_DebugManager PRIVATE
+    dq_debug
+    Qt6::Test
+)
+set_target_properties(test_DebugManager PROPERTIES AUTOMOC ON)
+add_test(NAME test_DebugManager COMMAND test_DebugManager)

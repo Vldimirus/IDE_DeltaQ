@@ -1,6 +1,6 @@
 # DeltaQ IDE — Прогресс разработки
 
-> Последнее обновление: 2026-02-28 (Фаза 2.4)
+> Последнее обновление: 2026-02-28 (Фаза 2.5)
 
 ---
 
@@ -8,16 +8,16 @@
 
 ```
 Фаза 0: Планирование         [████████████████████] 100%  ✓ утверждено
-Фаза 1: Ядро + Редактор кода  [███████████████████░]  95%  (2.4 завершена)
+Фаза 1: Ядро + Редактор кода  [████████████████████] 100%  ✓ завершена
 Фаза 2: Блочный редактор      [░░░░░░░░░░░░░░░░░░░░]   0%
 Фаза 3: Дизайнер UI           [░░░░░░░░░░░░░░░░░░░░]   0%
 Фаза 4: Обработчик библиотек  [░░░░░░░░░░░░░░░░░░░░]   0%
 Фаза 5: Интеграция             [░░░░░░░░░░░░░░░░░░░░]   0%
 ─────────────────────────────────────────────────────
-Общий прогресс проекта:                                ~32%
+Общий прогресс проекта:                                ~35%
 ```
 
-**Текущая фаза:** 1 — Ядро + Редактор кода
+**Текущая фаза:** 2 — Блочный редактор (следующая)
 
 ---
 
@@ -44,6 +44,7 @@
 | 14 | Фаза 2.2: LSP-клиент (clangd) | LSPClient (JSON-RPC 2.0 через stdin/stdout, Content-Length framing). LSPTypes: Position, Range, Location, Diagnostic, CompletionItem, HoverInfo, DocumentSymbol. Синхронизация документов: didOpen/didChange/didSave/didClose с CodeEditorWidget. Запросы: completion, hover, definition, references. Автозапуск clangd при открытии проекта. Навигация: Go to Definition (F12), Find References (Shift+F12). Диагностика: отображение счётчика ошибок/предупреждений. 1 новый тест (~16 тест-кейсов), всего 12 тестов — все проходят. |
 | 15 | Фаза 2.3: Система сборки | CompilerOutputParser: парсинг вывода GCC/Clang/CMake (error/warning/note), regex для формата файл:строка:столбец, сигнал errorFound. CMakeGenerator: генерация CMakeLists.txt из исходников проекта (рекурсивный сбор .c/.cpp/.cxx/.cc, пропуск build/, стандарты C/C++, флаги компиляции). BuildManager: рефакторинг с интеграцией парсера и генератора, двухэтапная сборка (configure + build), проверка CMakeCache.txt. Навигация к ошибкам: buildError сигнал с файлом/строкой/столбцом. 2 новых теста (~19 тест-кейсов), всего 14 тестов — все проходят. |
 | 16 | Фаза 2.4: Аннотации @dqmodule | AnnotationParser: переписан с построчным парсингом, поддержка множественных @dqmodule в одном файле, многострочных комментариев (/* */), парсинг key=value (в кавычках и без), стабильные ID (SHA256 от путь+имя), сигналы ошибок и moduleParsed. Module.h: добавлено поле category. Автогенерация .dqmod при сохранении файла (CodeEditorWidget → AnnotationParser → .dqmod + ModuleRegistry). ModuleRegistry: findBySourcePath, modulesByCategory, categories, validateModule, hasDuplicateName. Загрузка реестра при открытии проекта, уведомления в статусбар. 1 новый тест (~14 тест-кейсов), всего 15 тестов — все проходят. |
+| 17 | Фаза 2.5: Отладчик (GDB/MI) | DebugManager: полная реализация GDB/MI протокола (запуск/остановка GDB, MI-команды с токенами, парсинг MI-вывода). Точки останова: add/remove/toggle/conditional, синхронизация с GDB. Stepping: stepOver (-exec-next), stepInto (-exec-step), stepOut (-exec-finish), runToCursor. Переменные: requestLocalVariables (-stack-list-variables), evaluateExpression. Стек вызовов: requestCallStack (-stack-list-frames), selectFrame. MainWindow: меню Debug (F5 Start, Shift+F5 Stop, F10/F11/Shift+F11 Step, F9 Breakpoint), панель Variables (QTreeWidget), панель Call Stack с навигацией, Debug Console. ActionManager: 7 новых действий debug.*. 1 новый тест (~20 тест-кейсов), всего 16 тестов — все проходят. |
 
 > **Черновики** (п. 5–6) были созданы до утверждения планов и доработаны при первой сборке.
 
@@ -62,6 +63,7 @@
 - [x] Фаза 2.2: LSP-клиент (JSON-RPC, didOpen/didChange/didSave, completion, hover, definition, references, диагностика)
 - [x] Фаза 2.3: Система сборки (CompilerOutputParser, CMakeGenerator, BuildManager рефакторинг, навигация к ошибкам)
 - [x] Фаза 2.4: Аннотации @dqmodule (AnnotationParser, автогенерация .dqmod, ModuleRegistry доработка, интеграция)
+- [x] Фаза 2.5: Отладчик (DebugManager с GDB/MI, breakpoints, stepping, переменные, стек, панели)
 
 ---
 
@@ -74,7 +76,7 @@
 | Редактор кода | QScintilla интеграция, доработка ProjectTreeView | WIP |
 | LSP-клиент | Виджет автодополнения, подчёркивание ошибок в редакторе, hover-подсказки | WIP |
 | Система сборки | Генерация CMakeLists, запуск компиляции, парсинг ошибок, панель вывода | DONE |
-| Отладчик | GDB/LLDB драйвер, breakpoints, step, панель переменных, стек вызовов | TODO |
+| Отладчик | GDB/LLDB драйвер, breakpoints, step, панель переменных, стек вызовов | DONE |
 
 **Фазы 2–5** — см. детальные планы в `docs/plan/09_roadmap.md`
 

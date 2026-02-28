@@ -28,6 +28,7 @@ class LibProcessorWidget;
 class ProjectTreeView;
 class BuildManager;
 class LSPClient;
+class DebugManager;
 
 class MainWindow : public QMainWindow {
     Q_OBJECT
@@ -51,6 +52,9 @@ private slots:
     void onBuild();
     void onClean();
     void onRun();
+    void onDebugStart();
+    void onDebugStop();
+    void onToggleBreakpoint();
     void switchToCodeEditor();
     void switchToBlockEditor();
     void switchToUIDesigner();
@@ -81,6 +85,7 @@ private:
     UndoManager *m_undoManager = nullptr;
     BuildManager *m_buildManager = nullptr;
     LSPClient *m_lspClient = nullptr;
+    DebugManager *m_debugManager = nullptr;
 
     // UI
     QStackedWidget *m_centralStack = nullptr;
@@ -104,6 +109,11 @@ private:
     // Output widgets (ссылки для подключения BuildManager)
     QTextEdit *m_buildOutput = nullptr;
     QTextEdit *m_appOutput = nullptr;
+    QTextEdit *m_debugConsole = nullptr;
+
+    // Debug panels
+    QDockWidget *m_variablesDock = nullptr;
+    QDockWidget *m_callStackDock = nullptr;
 };
 
 } // namespace DeltaQ

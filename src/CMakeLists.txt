@@ -5,6 +5,7 @@ add_subdirectory(uiDesigner)
 add_subdirectory(libProcessor)
 add_subdirectory(codegen)
 add_subdirectory(lsp)
+add_subdirectory(debug)
 
 # Главный исполняемый файл
 # MainWindow вынесен из dq_core сюда, чтобы избежать
@@ -27,6 +28,7 @@ target_link_libraries(deltaq PRIVATE
     dq_lib_processor
     dq_codegen
     dq_lsp
+    dq_debug
     Qt6::Core
     Qt6::Widgets
 )
