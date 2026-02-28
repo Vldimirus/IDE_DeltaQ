@@ -1,6 +1,6 @@
 # DeltaQ IDE — Прогресс разработки
 
-> Последнее обновление: 2026-02-28 (Фаза 5.2 — Close Project + Recent Projects + пустой запуск)
+> Последнее обновление: 2026-02-28 (Фаза 5.5 — Маршрутизация файлов + вкладки для графов/UI + удаление связей)
 
 ---
 
@@ -11,9 +11,9 @@
 Фаза 1: Ядро + Редактор кода  [████████████████████] 100%  ✓ завершена
 Фаза 2: Блочный редактор      [████████████████████] 100%  ✓ завершена
 Фаза 3: Дизайнер UI + Библ.    [████████████████████] 100%  ✓ завершена
-Фаза 4: Интеграция             [████░░░░░░░░░░░░░░░░]  20%
+Фаза 4: Интеграция             [█████░░░░░░░░░░░░░░░]  25%
 ─────────────────────────────────────────────────────
-Общий прогресс проекта:                                ~77%
+Общий прогресс проекта:                                ~78%
 ```
 
 **Текущая фаза:** 4 — Интеграция (следующая)
@@ -52,6 +52,9 @@
 | 23 | Фаза 4: Дизайнер UI + Обработчик библиотек (полностью) | UI Designer + SDL2 Code Generator + LibProcessor + UIPreview. 29 новых файлов, 7 модифицированных, 8 тестов (~52 тест-кейса), всего 32 теста. |
 | 24 | Фаза 5.1: NewProjectWizard | Мастер создания проекта (QWizard, 3 страницы: тип/имя/сводка). ProjectTemplates: генерация шаблонных файлов (Console — hello world, Desktop — SDL2 + UILayout + 5 C-файлов). Project.h: поле projectType. ProjectManager: перегрузка createProject(name, dir, type). MainWindow: onNewProject → NewProjectWizard + автооткрытие main.c. 4 новых файла, 5 модифицированных, все 32 теста проходят. |
 | 25 | Фаза 5.2: Close Project + Recent Projects + пустой запуск | restoreSession/saveSession: убрано автооткрытие проекта и вкладок (пустой запуск). onCloseProject: закрытие проекта + вкладок + очистка дерева. File → Recent Projects: подменю из SessionManager::recentProjects(), клик → открытие, Clear History. updateRecentProjectsMenu() вызывается при New/Open/Recent. CodeEditorWidget::closeAllTabs(). 4 файла изменены, все 32 теста проходят. |
+| 26 | Фаза 5.3: UI Designer — окно по умолчанию | DesignScene: рамка окна 800×600 в drawBackground() (тень, тело, title bar с кнопками close/min/max, заголовок). Поля m_windowRect, m_windowTitle, TitleBarHeight, геттеры/сеттеры. UIDesignerWidget: showEvent + centerOnWindow (fitInView при первом показе). Вид отцентрирован на рамке окна. 4 файла изменены, все 32 теста проходят. |
+| 27 | Фаза 5.4: Система шаблонов — собираемые проекты | **Часть A (SDL2 сборка):** CMakeGenerator — параметр projectType, генерация find_package(PkgConfig)+pkg_check_modules(SDL2)+target_include_directories+target_link_libraries для desktop. BuildManager — проброс projectType через build(). MainWindow — передача projectType при сборке. **Часть B (Шаблоны модулей/графов):** ProjectTemplates — generateConsoleModulesAndGraphs (модуль hello category=io + граф main с 1 узлом), generateDesktopModulesAndGraphs (модули event_handler+update_label + граф main с 2 узлами и соединением action→action). MainWindow::onNewProject — загрузка moduleRegistry и graphStore после генерации шаблонов. NewProjectWizard — сводка включает .dqmod и .dqgraph файлы. 8 файлов изменены, все 32 теста проходят. |
+| 28 | Фаза 5.5: Маршрутизация + вкладки + удаление связей | **Маршрутизация:** MainWindow::onFileActivated() — .dqgraph/.dqmod/.dqui открываются как вкладки в едином таб-баре (не переключают QStackedWidget). **include/:** убрана из ensureDirectories(). **Delete:** BlockEditorWidget — удаление выделенных узлов и соединений (Delete). ConnectionItem — selectable + красная подсветка. **UI Designer:** connectUIDesignerSignals() — сигналы drag&drop/move/resize/GenerateCode/Preview подключаются к каждому экземпляру. **Generate Code** → src/ вместо generated/. 7 файлов изменены, все 32 теста проходят. |
 
 > **Черновики** (п. 5–6) были созданы до утверждения планов и доработаны при первой сборке.
 
@@ -79,6 +82,16 @@
 - [x] Фаза 4: Дизайнер UI + Обработчик библиотек (полностью — 8 подэтапов, 29 новых файлов, 7 модифицированных)
 - [x] Фаза 5.1: NewProjectWizard (мастер создания проекта с шаблонами Console/Desktop)
 - [x] Фаза 5.2: Close Project + Recent Projects + пустой запуск
+- [x] Фаза 5.3: UI Designer — окно по умолчанию при открытии
+- [x] Фаза 5.4: Система шаблонов — собираемые проекты (SDL2 в CMake, .dqmod + .dqgraph генерация)
+- [x] Фаза 5.5: Маршрутизация файлов + вкладки для графов/UI + удаление связей
+
+### Известные проблемы (Фаза 5.5)
+
+- [ ] Блочный редактор (.dqgraph): узлы слишком приближены при открытии — zoomFit масштабирует чрезмерно для малого числа узлов
+- [ ] UI Designer (.dqui): drag&drop виджетов из палитры на холст может не работать корректно во вкладке
+- [ ] UI Designer: нет дерева виджетов (object tree) в боковой панели
+- [ ] UI Designer: выделение виджета и просмотр свойств в правой панели — требует проверки
 
 ---
 
@@ -88,7 +101,7 @@
 
 **Фаза 4 (Дизайнер UI + Обработчик библиотек) — завершена на 100%.**
 
-**Фаза 5 (Интеграция) — начата (20%).**
+**Фаза 5 (Интеграция) — начата (25%).**
 
 Реализовано:
 - UI Designer: DesignScene, WidgetItem (12 типов), WidgetPalette (23 типа, 4 категории), PropertyEditor

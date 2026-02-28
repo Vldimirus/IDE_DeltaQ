@@ -8,6 +8,7 @@
 #include <QGraphicsSceneDragDropEvent>
 #include <QMimeData>
 #include <QUuid>
+#include <QFont>
 
 namespace DeltaQ {
 
@@ -148,6 +149,60 @@ void DesignScene::drawBackground(QPainter *painter, const QRectF &rect)
     for (qreal y = top; y <= rect.bottom(); y += majorSize)
         majorLines.append(QLineF(rect.left(), y, rect.right(), y));
     painter->drawLines(majorLines);
+
+    // --- Рамка окна по умолчанию ---
+    if (!m_windowRect.isEmpty() && rect.intersects(m_windowRect)) {
+        painter->save();
+
+        // Тень окна
+        QRectF shadowRect = m_windowRect.translated(4, 4);
+        painter->setPen(Qt::NoPen);
+        painter->setBrush(QColor(0, 0, 0, 80));
+        painter->drawRect(shadowRect);
+
+        // Тело окна (тёмно-серый фон, имитация SDL-окна)
+        painter->setBrush(QColor(45, 45, 48));
+        painter->setPen(QPen(QColor(80, 80, 80), 1.0));
+        painter->drawRect(m_windowRect);
+
+        // Title bar
+        QRectF titleBar(m_windowRect.x(), m_windowRect.y(),
+                        m_windowRect.width(), TitleBarHeight);
+        painter->setBrush(QColor(60, 60, 65));
+        painter->setPen(Qt::NoPen);
+        painter->drawRect(titleBar);
+
+        // Кнопки окна (close/minimize/maximize) — три кружка слева
+        const qreal btnRadius = 5.0;
+        const qreal btnY = titleBar.center().y();
+        const qreal btnStartX = titleBar.x() + 14.0;
+        const qreal btnSpacing = 18.0;
+
+        // Close (красный)
+        painter->setBrush(QColor(232, 80, 80));
+        painter->drawEllipse(QPointF(btnStartX, btnY), btnRadius, btnRadius);
+        // Minimize (жёлтый)
+        painter->setBrush(QColor(227, 190, 60));
+        painter->drawEllipse(QPointF(btnStartX + btnSpacing, btnY), btnRadius, btnRadius);
+        // Maximize (зелёный)
+        painter->setBrush(QColor(80, 200, 80));
+        painter->drawEllipse(QPointF(btnStartX + btnSpacing * 2, btnY), btnRadius, btnRadius);
+
+        // Заголовок окна — по центру title bar
+        painter->setPen(QColor(220, 220, 220));
+        QFont titleFont;
+        titleFont.setPixelSize(13);
+        titleFont.setBold(true);
+        painter->setFont(titleFont);
+        painter->drawText(titleBar, Qt::AlignCenter, m_windowTitle);
+
+        // Разделитель под title bar
+        painter->setPen(QPen(QColor(80, 80, 80), 1.0));
+        painter->drawLine(QPointF(titleBar.left(), titleBar.bottom()),
+                          QPointF(titleBar.right(), titleBar.bottom()));
+
+        painter->restore();
+    }
 }
 
 // --- Drag & Drop ---

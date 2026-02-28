@@ -43,9 +43,11 @@ signals:
 
 protected:
     void wheelEvent(QWheelEvent *event) override;
+    void showEvent(QShowEvent *event) override;
 
 private:
     void setupToolBar();
+    void centerOnWindow();
 
     ModuleRegistry *m_registry;
     CommandBus *m_commandBus;
@@ -62,6 +64,7 @@ private:
     QString m_currentLayoutId;
 
     qreal m_currentZoom = 1.0;
+    bool m_firstShow = true;
     static constexpr qreal MinZoom = 0.1;
     static constexpr qreal MaxZoom = 5.0;
     static constexpr qreal ZoomStep = 1.15;

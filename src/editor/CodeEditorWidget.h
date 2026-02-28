@@ -59,6 +59,10 @@ public:
     // Доступ к вкладке по пути файла
     CodeEditorTab *findTabForFile(const QString &path) const;
 
+    // Произвольные виджеты как вкладки (графы, UI-макеты)
+    void openCustomTab(QWidget *widget, const QString &title, const QString &path);
+    QWidget *findCustomTabWidget(const QString &path) const;
+
 signals:
     void fileSaved(const QString &path);
     void buildRequested(const QString &projectDir);
@@ -83,6 +87,7 @@ private:
     LSPClient *m_lspClient = nullptr;
     QMap<QString, int> m_openFiles; // path -> tab index
     QMap<QString, int> m_documentVersions; // uri -> version (для LSP)
+    QMap<QString, QWidget*> m_customTabs; // path -> widget (графы, UI-макеты)
 };
 
 } // namespace DeltaQ

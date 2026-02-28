@@ -20,7 +20,8 @@ BuildManager::BuildManager(QObject *parent)
 }
 
 void BuildManager::build(const QString &projectDir, const QString &projectName,
-                          const QString &cStandard, const QString &cxxStandard)
+                          const QString &cStandard, const QString &cxxStandard,
+                          const QString &projectType)
 {
     if (isBuilding())
         return;
@@ -36,7 +37,7 @@ void BuildManager::build(const QString &projectDir, const QString &projectName,
     // Если есть имя проекта — генерируем CMakeLists.txt
     if (!projectName.isEmpty()) {
         emit buildOutput(tr("=== Generating CMakeLists.txt ===\n"));
-        m_generator->generate(projectDir, projectName, cStandard, cxxStandard);
+        m_generator->generate(projectDir, projectName, cStandard, cxxStandard, {}, projectType);
     }
 
     // Проверяем есть ли CMakeLists.txt

@@ -65,6 +65,8 @@ private slots:
     void updateTitle();
     void updateStatusBar(const QString &message);
     void updateCursorPosition();
+    void onFileActivated(const QString &path);
+    void connectUIDesignerSignals(UIDesignerWidget *designer);
 
 private:
     void setupCoreServices();

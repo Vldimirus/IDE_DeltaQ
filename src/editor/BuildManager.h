@@ -19,7 +19,8 @@ public:
     void build(const QString &projectDir,
                const QString &projectName = {},
                const QString &cStandard = "17",
-               const QString &cxxStandard = "20");
+               const QString &cxxStandard = "20",
+               const QString &projectType = "console");
     void clean(const QString &projectDir);
     void cancel();
 

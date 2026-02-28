@@ -2,15 +2,28 @@
 #include "ProjectTemplates.h"
 
 #include <deltaq/UILayout.h>
+#include <deltaq/Module.h>
+#include <deltaq/Graph.h>
 #include "../uiDesigner/SDL2CodeGenerator.h"
 
 #include <QFile>
 #include <QDir>
 #include <QJsonDocument>
+#include <QJsonObject>
 
 namespace DeltaQ {
 
 // --- Вспомогательная функция записи файла ---
+
+static bool writeJsonFile(const QString &path, const QJsonObject &obj)
+{
+    QFile f(path);
+    if (!f.open(QIODevice::WriteOnly))
+        return false;
+    QJsonDocument doc(obj);
+    f.write(doc.toJson(QJsonDocument::Indented));
+    return true;
+}
 
 static bool writeTextFile(const QString &path, const QString &content)
 {
@@ -49,7 +62,10 @@ bool ProjectTemplates::generateConsoleTemplate(const QString &projectDir,
         "    return 0;\n"
         "}\n";
 
-    return writeTextFile(projectDir + "/src/main.c", mainC);
+    if (!writeTextFile(projectDir + "/src/main.c", mainC))
+        return false;
+
+    return generateConsoleModulesAndGraphs(projectDir);
 }
 
 // --- Desktop: UILayout + SDL2CodeGenerator ---
@@ -100,6 +116,74 @@ bool ProjectTemplates::generateDesktopTemplate(const QString &projectDir,
     if (!writeTextFile(projectDir + "/src/events.h", code.eventsHeader))
         return false;
     if (!writeTextFile(projectDir + "/src/events.c", code.eventsSource))
+        return false;
+
+    return generateDesktopModulesAndGraphs(projectDir);
+}
+
+// --- Console: модуль hello + граф main ---
+
+bool ProjectTemplates::generateConsoleModulesAndGraphs(const QString &projectDir)
+{
+    QDir().mkpath(projectDir + "/modules");
+    QDir().mkpath(projectDir + "/graphs");
+
+    // Модуль hello (category=io, вход text:string)
+    Module hello = Module::create("hello");
+    hello.category = "io";
+    hello.description = "Выводит текст в консоль";
+    hello.inputs.append(Port{"text", "string", "Hello from DeltaQ!"});
+    if (!writeJsonFile(projectDir + "/modules/hello.dqmod", hello.toJson()))
+        return false;
+
+    // Граф main (1 узел — hello)
+    Graph mainGraph = Graph::create("main");
+    GraphNode helloNode = GraphNode::create(hello.id, QPointF(100, 100));
+    mainGraph.addNode(helloNode);
+    if (!writeJsonFile(projectDir + "/graphs/main.dqgraph", mainGraph.toJson()))
+        return false;
+
+    return true;
+}
+
+// --- Desktop: модули event_handler + update_label + граф main ---
+
+bool ProjectTemplates::generateDesktopModulesAndGraphs(const QString &projectDir)
+{
+    QDir().mkpath(projectDir + "/modules");
+    QDir().mkpath(projectDir + "/graphs");
+
+    // Модуль event_handler (category=events, вход event → выход action)
+    Module eventHandler = Module::create("event_handler");
+    eventHandler.category = "events";
+    eventHandler.description = "Обрабатывает SDL-события";
+    eventHandler.inputs.append(Port{"event", "SDL_Event", ""});
+    eventHandler.outputs.append(Port{"action", "string", ""});
+    if (!writeJsonFile(projectDir + "/modules/event_handler.dqmod", eventHandler.toJson()))
+        return false;
+
+    // Модуль update_label (category=ui, входы action + text)
+    Module updateLabel = Module::create("update_label");
+    updateLabel.category = "ui";
+    updateLabel.description = "Обновляет текст метки";
+    updateLabel.inputs.append(Port{"action", "string", ""});
+    updateLabel.inputs.append(Port{"text", "string", "Hello DeltaQ"});
+    if (!writeJsonFile(projectDir + "/modules/update_label.dqmod", updateLabel.toJson()))
+        return false;
+
+    // Граф main (2 узла, 1 соединение action→action)
+    Graph mainGraph = Graph::create("main");
+    GraphNode ehNode = GraphNode::create(eventHandler.id, QPointF(100, 100));
+    GraphNode ulNode = GraphNode::create(updateLabel.id, QPointF(350, 100));
+    mainGraph.addNode(ehNode);
+    mainGraph.addNode(ulNode);
+
+    GraphConnection conn;
+    conn.from = {ehNode.id, "action"};
+    conn.to = {ulNode.id, "action"};
+    mainGraph.addConnection(conn);
+
+    if (!writeJsonFile(projectDir + "/graphs/main.dqgraph", mainGraph.toJson()))
         return false;
 
     return true;

@@ -227,8 +227,23 @@ QStringList CodeEditorWidget::openFilePaths() const
 
 void CodeEditorWidget::closeTab(int index)
 {
-    auto *tab = qobject_cast<CodeEditorTab *>(m_tabWidget->widget(index));
-    if (!tab) return;
+    QWidget *widget = m_tabWidget->widget(index);
+    if (!widget) return;
+
+    // Кастомная вкладка (граф, UI-макет)
+    auto *tab = qobject_cast<CodeEditorTab *>(widget);
+    if (!tab) {
+        // Удаляем из m_customTabs
+        for (auto it = m_customTabs.begin(); it != m_customTabs.end(); ++it) {
+            if (it.value() == widget) {
+                m_customTabs.erase(it);
+                break;
+            }
+        }
+        m_tabWidget->removeTab(index);
+        delete widget;
+        return;
+    }
 
     if (tab->isModified()) {
         auto result = QMessageBox::question(this, tr("Save Changes"),
@@ -505,6 +520,29 @@ CodeEditorTab *CodeEditorWidget::findTabForFile(const QString &path) const
         if (tab && tab->filePath() == path)
             return tab;
     }
+    return nullptr;
+}
+
+void CodeEditorWidget::openCustomTab(QWidget *widget, const QString &title, const QString &path)
+{
+    // Если уже открыта — переключаемся
+    auto *existing = findCustomTabWidget(path);
+    if (existing) {
+        m_tabWidget->setCurrentWidget(existing);
+        return;
+    }
+
+    int index = m_tabWidget->addTab(widget, title);
+    m_tabWidget->setTabToolTip(index, path);
+    m_tabWidget->setCurrentIndex(index);
+    m_customTabs[path] = widget;
+}
+
+QWidget *CodeEditorWidget::findCustomTabWidget(const QString &path) const
+{
+    auto it = m_customTabs.find(path);
+    if (it != m_customTabs.end() && m_tabWidget->indexOf(it.value()) >= 0)
+        return it.value();
     return nullptr;
 }
 

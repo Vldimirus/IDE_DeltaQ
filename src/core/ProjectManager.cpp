@@ -148,8 +148,7 @@ bool ProjectManager::ensureDirectories(const QString &dir)
            d.mkpath("graphs") &&
            d.mkpath("ui") &&
            d.mkpath("src") &&
-           d.mkpath("build") &&
-           d.mkpath("include");
+           d.mkpath("build");
 }
 
 } // namespace DeltaQ

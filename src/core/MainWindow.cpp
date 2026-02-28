@@ -38,6 +38,9 @@
 #include <QDir>
 #include <QFile>
 #include <QFileDialog>
+#include <QFileInfo>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QInputDialog>
 #include <QMessageBox>
 #include <QTextEdit>
@@ -411,7 +414,7 @@ void MainWindow::setupConnections()
     });
 
     // Дерево проекта: открытие файлов в редакторе
-    connect(m_projectTree, &ProjectTreeView::fileSelected, m_codeEditor, &CodeEditorWidget::openFile);
+    connect(m_projectTree, &ProjectTreeView::fileSelected, this, &MainWindow::onFileActivated);
 
     // Позиция курсора в редакторе → статус-бар
     connect(m_codeEditor, &CodeEditorWidget::currentTabChanged, this, &MainWindow::updateCursorPosition);
@@ -528,115 +531,8 @@ void MainWindow::setupConnections()
         });
     }
 
-    // UI Designer: drag&drop → AddWidgetCommand
-    auto *designScene = m_uiDesigner->scene();
-    connect(designScene, &DesignScene::widgetDropped, this,
-            [this, designScene](const QString &widgetType, const QPointF &scenePos) {
-        UIWidget w = UIWidget::create(widgetType, widgetType + "_" +
-            QString::number(designScene->widgetItems().size() + 1));
-        w.geometry = QRectF(scenePos.x(), scenePos.y(), 120, 40);
-
-        // Установка размеров по умолчанию по типу
-        if (widgetType == "Panel" || widgetType == "GroupBox")
-            w.geometry.setSize(QSizeF(200, 150));
-        else if (widgetType == "TextField" || widgetType == "ComboBox")
-            w.geometry.setSize(QSizeF(150, 30));
-        else if (widgetType == "Slider")
-            w.geometry.setSize(QSizeF(200, 30));
-        else if (widgetType == "ProgressBar")
-            w.geometry.setSize(QSizeF(200, 24));
-        else if (widgetType == "Image")
-            w.geometry.setSize(QSizeF(100, 100));
-
-        w.properties["text"] = w.name;
-
-        // Найти текущий UILayout (создаём по умолчанию если нет)
-        UILayout *layout = nullptr;
-        auto layouts = m_uiLayoutStore->allLayouts();
-        if (!layouts.isEmpty()) {
-            layout = m_uiLayoutStore->findLayout(layouts.first()->id);
-        } else {
-            UILayout newLayout = UILayout::create("Default");
-            m_uiLayoutStore->registerLayout(newLayout);
-            layout = m_uiLayoutStore->findLayout(newLayout.id);
-        }
-        if (layout)
-            m_commandBus->execute(std::make_unique<AddWidgetCommand>(designScene, layout, w));
-    });
-
-    // UI Designer: перемещение → MoveWidgetCommand
-    connect(designScene, &DesignScene::widgetMoved, this,
-            [this, designScene](const QString &widgetId, const QPointF &oldPos, const QPointF &newPos) {
-        auto layouts = m_uiLayoutStore->allLayouts();
-        if (layouts.isEmpty()) return;
-        UILayout *layout = m_uiLayoutStore->findLayout(layouts.first()->id);
-        if (layout)
-            m_commandBus->execute(std::make_unique<MoveWidgetCommand>(
-                designScene, layout, widgetId, oldPos, newPos));
-    });
-
-    // UI Designer: resize → ResizeWidgetCommand
-    connect(designScene, &DesignScene::widgetResized, this,
-            [this, designScene](const QString &widgetId, const QRectF &oldRect, const QRectF &newRect) {
-        auto layouts = m_uiLayoutStore->allLayouts();
-        if (layouts.isEmpty()) return;
-        UILayout *layout = m_uiLayoutStore->findLayout(layouts.first()->id);
-        if (layout)
-            m_commandBus->execute(std::make_unique<ResizeWidgetCommand>(
-                designScene, layout, widgetId, oldRect, newRect));
-    });
-
-    // UI Designer: Generate Code
-    connect(m_uiDesigner, &UIDesignerWidget::generateCodeRequested, this, [this]() {
-        if (!m_projectManager->isProjectOpen()) {
-            statusBar()->showMessage(tr("No project open"), 3000);
-            return;
-        }
-        UILayout layout = m_uiDesigner->scene()->toLayout("ui_layout");
-        GeneratedCode code = SDL2CodeGenerator::generate(layout);
-
-        QString genDir = m_projectManager->projectDir() + "/generated";
-        QDir().mkpath(genDir);
-
-        auto writeFile = [&](const QString &name, const QString &content) {
-            QFile f(genDir + "/" + name);
-            if (f.open(QIODevice::WriteOnly | QIODevice::Text)) {
-                f.write(content.toUtf8());
-                f.close();
-            }
-        };
-
-        writeFile("main.c", code.mainFile);
-        writeFile("ui.h", code.uiHeader);
-        writeFile("ui.c", code.uiSource);
-        writeFile("events.h", code.eventsHeader);
-        writeFile("events.c", code.eventsSource);
-
-        m_buildOutput->clear();
-        m_buildOutput->append(tr("=== SDL2 code generated in %1 ===\n").arg(genDir));
-        m_buildOutput->append(tr("Files: main.c, ui.h, ui.c, events.h, events.c"));
-        m_outputTabs->setCurrentWidget(m_buildOutput);
-        m_outputDock->show();
-        statusBar()->showMessage(tr("SDL2 code generated"), 3000);
-    });
-
-    // UI Designer: Preview
-    connect(m_uiDesigner, &UIDesignerWidget::previewRequested, this, [this]() {
-        UILayout layout = m_uiDesigner->scene()->toLayout("preview");
-        auto *preview = new UIPreview(this);
-        connect(preview, &UIPreview::previewError, this, [this](const QString &err) {
-            m_buildOutput->append(err);
-            m_outputTabs->setCurrentWidget(m_buildOutput);
-            m_outputDock->show();
-        });
-        connect(preview, &UIPreview::buildOutput, this, [this](const QString &text) {
-            m_buildOutput->append(text);
-        });
-        connect(preview, &UIPreview::previewStarted, this, [this]() {
-            statusBar()->showMessage(tr("Preview started"), 3000);
-        });
-        preview->startPreview(layout);
-    });
+    // UI Designer: подключаем сигналы основного экземпляра
+    connectUIDesignerSignals(m_uiDesigner);
 
     // Блочный редактор: визуальная отладка
     auto *blockScene = m_blockEditor->scene();
@@ -776,6 +672,10 @@ void MainWindow::onNewProject()
         // Генерация шаблонных файлов по типу проекта
         ProjectTemplates::generate(type, dir, name);
 
+        // Загружаем модули и графы в stores
+        m_moduleRegistry->loadRegistry(dir);
+        m_graphStore->loadFromDirectory(dir);
+
         // Для desktop-проекта загружаем layout в UILayoutStore
         if (type == "desktop")
             m_uiLayoutStore->loadFromDirectory(dir);
@@ -903,7 +803,9 @@ void MainWindow::onBuild()
 
     m_buildManager->build(m_projectManager->projectDir(),
                           m_projectManager->currentProject().name,
-                          m_projectManager->currentProject().build.standard);
+                          m_projectManager->currentProject().build.standard,
+                          "20",
+                          m_projectManager->currentProject().projectType);
 }
 
 void MainWindow::onClean()
@@ -1020,6 +922,207 @@ void MainWindow::switchToCodeEditor() { m_centralStack->setCurrentWidget(m_codeE
 void MainWindow::switchToBlockEditor() { m_centralStack->setCurrentWidget(m_blockEditor); }
 void MainWindow::switchToUIDesigner() { m_centralStack->setCurrentWidget(m_uiDesigner); }
 void MainWindow::switchToLibProcessor() { m_centralStack->setCurrentWidget(m_libProcessor); }
+
+void MainWindow::onFileActivated(const QString &path)
+{
+    const QString ext = QFileInfo(path).suffix().toLower();
+    const QString name = QFileInfo(path).fileName();
+
+    // Всегда показываем CodeEditorWidget (единый таб-бар)
+    switchToCodeEditor();
+
+    // Исходные файлы и CMakeLists → текстовый редактор
+    if (ext == "c" || ext == "cpp" || ext == "h" || ext == "hpp" ||
+        ext == "txt" || name == "CMakeLists.txt") {
+        m_codeEditor->openFile(path);
+        return;
+    }
+
+    // Граф блочного редактора — открываем как вкладку
+    if (ext == "dqgraph") {
+        if (m_codeEditor->findCustomTabWidget(path)) {
+            m_codeEditor->openCustomTab(nullptr, {}, path); // переключение
+            return;
+        }
+        QFile f(path);
+        if (f.open(QIODevice::ReadOnly)) {
+            QString id = QJsonDocument::fromJson(f.readAll()).object()["id"].toString();
+            if (!id.isEmpty()) {
+                auto *editor = new BlockEditorWidget(m_moduleRegistry, m_commandBus);
+                editor->loadGraph(id, m_graphStore);
+                m_codeEditor->openCustomTab(editor, name, path);
+            }
+        }
+        return;
+    }
+
+    // UI-макет — открываем как вкладку
+    if (ext == "dqui") {
+        if (m_codeEditor->findCustomTabWidget(path)) {
+            m_codeEditor->openCustomTab(nullptr, {}, path);
+            return;
+        }
+        QFile f(path);
+        if (f.open(QIODevice::ReadOnly)) {
+            QString id = QJsonDocument::fromJson(f.readAll()).object()["id"].toString();
+            if (!id.isEmpty()) {
+                auto *editor = new UIDesignerWidget(m_moduleRegistry, m_commandBus);
+                editor->loadLayout(id, m_uiLayoutStore);
+                connectUIDesignerSignals(editor);
+                m_codeEditor->openCustomTab(editor, name, path);
+            }
+        }
+        return;
+    }
+
+    // Модуль — ищем граф с этим модулем и открываем как вкладку
+    if (ext == "dqmod") {
+        QFile f(path);
+        if (f.open(QIODevice::ReadOnly)) {
+            QString moduleId = QJsonDocument::fromJson(f.readAll()).object()["id"].toString();
+            if (!moduleId.isEmpty() && m_graphStore) {
+                for (auto *graph : m_graphStore->allGraphs()) {
+                    for (const auto &node : graph->nodes) {
+                        if (node.moduleId == moduleId) {
+                            // Ищем файл графа, чтобы использовать как ключ вкладки
+                            QString graphPath = m_projectManager->currentProject().projectDir
+                                + "/graphs/" + graph->name + ".dqgraph";
+                            if (m_codeEditor->findCustomTabWidget(graphPath)) {
+                                m_codeEditor->openCustomTab(nullptr, {}, graphPath);
+                            } else {
+                                auto *editor = new BlockEditorWidget(m_moduleRegistry, m_commandBus);
+                                editor->loadGraph(graph->id, m_graphStore);
+                                m_codeEditor->openCustomTab(editor,
+                                    graph->name + ".dqgraph", graphPath);
+                            }
+                            return;
+                        }
+                    }
+                }
+            }
+        }
+        return;
+    }
+
+    // .dqproj — игнорируем
+    if (ext == "dqproj")
+        return;
+
+    // Прочие файлы — открываем как текст
+    m_codeEditor->openFile(path);
+}
+
+void MainWindow::connectUIDesignerSignals(UIDesignerWidget *designer)
+{
+    auto *scene = designer->scene();
+
+    // Drag&drop → AddWidgetCommand
+    connect(scene, &DesignScene::widgetDropped, this,
+            [this, scene](const QString &widgetType, const QPointF &scenePos) {
+        UIWidget w = UIWidget::create(widgetType, widgetType + "_" +
+            QString::number(scene->widgetItems().size() + 1));
+        w.geometry = QRectF(scenePos.x(), scenePos.y(), 120, 40);
+
+        if (widgetType == "Panel" || widgetType == "GroupBox")
+            w.geometry.setSize(QSizeF(200, 150));
+        else if (widgetType == "TextField" || widgetType == "ComboBox")
+            w.geometry.setSize(QSizeF(150, 30));
+        else if (widgetType == "Slider")
+            w.geometry.setSize(QSizeF(200, 30));
+        else if (widgetType == "ProgressBar")
+            w.geometry.setSize(QSizeF(200, 24));
+        else if (widgetType == "Image")
+            w.geometry.setSize(QSizeF(100, 100));
+
+        w.properties["text"] = w.name;
+
+        UILayout *layout = nullptr;
+        auto layouts = m_uiLayoutStore->allLayouts();
+        if (!layouts.isEmpty()) {
+            layout = m_uiLayoutStore->findLayout(layouts.first()->id);
+        } else {
+            UILayout newLayout = UILayout::create("Default");
+            m_uiLayoutStore->registerLayout(newLayout);
+            layout = m_uiLayoutStore->findLayout(newLayout.id);
+        }
+        if (layout)
+            m_commandBus->execute(std::make_unique<AddWidgetCommand>(scene, layout, w));
+    });
+
+    // Перемещение → MoveWidgetCommand
+    connect(scene, &DesignScene::widgetMoved, this,
+            [this, scene](const QString &widgetId, const QPointF &oldPos, const QPointF &newPos) {
+        auto layouts = m_uiLayoutStore->allLayouts();
+        if (layouts.isEmpty()) return;
+        UILayout *layout = m_uiLayoutStore->findLayout(layouts.first()->id);
+        if (layout)
+            m_commandBus->execute(std::make_unique<MoveWidgetCommand>(
+                scene, layout, widgetId, oldPos, newPos));
+    });
+
+    // Resize → ResizeWidgetCommand
+    connect(scene, &DesignScene::widgetResized, this,
+            [this, scene](const QString &widgetId, const QRectF &oldRect, const QRectF &newRect) {
+        auto layouts = m_uiLayoutStore->allLayouts();
+        if (layouts.isEmpty()) return;
+        UILayout *layout = m_uiLayoutStore->findLayout(layouts.first()->id);
+        if (layout)
+            m_commandBus->execute(std::make_unique<ResizeWidgetCommand>(
+                scene, layout, widgetId, oldRect, newRect));
+    });
+
+    // Generate Code
+    connect(designer, &UIDesignerWidget::generateCodeRequested, this, [this, designer]() {
+        if (!m_projectManager->isProjectOpen()) {
+            statusBar()->showMessage(tr("No project open"), 3000);
+            return;
+        }
+        UILayout layout = designer->scene()->toLayout("ui_layout");
+        GeneratedCode code = SDL2CodeGenerator::generate(layout);
+
+        QString srcDir = m_projectManager->projectDir() + "/src";
+        QDir().mkpath(srcDir);
+
+        auto writeFile = [&](const QString &name, const QString &content) {
+            QFile f(srcDir + "/" + name);
+            if (f.open(QIODevice::WriteOnly | QIODevice::Text)) {
+                f.write(content.toUtf8());
+                f.close();
+            }
+        };
+
+        writeFile("main.c", code.mainFile);
+        writeFile("ui.h", code.uiHeader);
+        writeFile("ui.c", code.uiSource);
+        writeFile("events.h", code.eventsHeader);
+        writeFile("events.c", code.eventsSource);
+
+        m_buildOutput->clear();
+        m_buildOutput->append(tr("=== SDL2 code generated in %1 ===\n").arg(srcDir));
+        m_buildOutput->append(tr("Files: main.c, ui.h, ui.c, events.h, events.c"));
+        m_outputTabs->setCurrentWidget(m_buildOutput);
+        m_outputDock->show();
+        statusBar()->showMessage(tr("SDL2 code generated"), 3000);
+    });
+
+    // Preview
+    connect(designer, &UIDesignerWidget::previewRequested, this, [this, designer]() {
+        UILayout layout = designer->scene()->toLayout("preview");
+        auto *preview = new UIPreview(this);
+        connect(preview, &UIPreview::previewError, this, [this](const QString &err) {
+            m_buildOutput->append(err);
+            m_outputTabs->setCurrentWidget(m_buildOutput);
+            m_outputDock->show();
+        });
+        connect(preview, &UIPreview::buildOutput, this, [this](const QString &text) {
+            m_buildOutput->append(text);
+        });
+        connect(preview, &UIPreview::previewStarted, this, [this]() {
+            statusBar()->showMessage(tr("Preview started"), 3000);
+        });
+        preview->startPreview(layout);
+    });
+}
 
 void MainWindow::updateTitle()
 {

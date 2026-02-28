@@ -16,6 +16,7 @@ ConnectionItem::ConnectionItem(PortItem *sourcePort, PortItem *destPort,
     , m_destPort(destPort)
 {
     setZValue(-1); // За узлами
+    setFlag(ItemIsSelectable);
     m_dataType = sourcePort ? sourcePort->portType() : QString();
     updatePath();
 }
@@ -25,6 +26,7 @@ ConnectionItem::ConnectionItem(PortItem *sourcePort, QGraphicsItem *parent)
     , m_sourcePort(sourcePort)
 {
     setZValue(-1);
+    setFlag(ItemIsSelectable);
     m_dataType = sourcePort ? sourcePort->portType() : QString();
 }
 
@@ -66,7 +68,10 @@ void ConnectionItem::paint(QPainter *painter,
     Q_UNUSED(widget)
 
     QColor color = PortItem::colorForType(m_dataType);
-    qreal width = m_highlighted ? 3.0 : 2.0;
+    bool selected = isSelected();
+    qreal width = (m_highlighted || selected) ? 3.0 : 2.0;
+    if (selected)
+        color = QColor(255, 100, 100); // красный при выделении
 
     painter->setRenderHint(QPainter::Antialiasing);
     painter->setPen(QPen(color, width));

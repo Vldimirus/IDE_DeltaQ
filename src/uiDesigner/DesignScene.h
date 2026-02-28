@@ -28,6 +28,12 @@ public:
     UILayout toLayout(const QString &name) const;
     void clearScene();
 
+    // Рамка окна по умолчанию
+    QRectF windowRect() const { return m_windowRect; }
+    void setWindowRect(const QRectF &rect) { m_windowRect = rect; update(); }
+    QString windowTitle() const { return m_windowTitle; }
+    void setWindowTitle(const QString &title) { m_windowTitle = title; update(); }
+
     // Сетка
     void setGridVisible(bool visible);
     bool isGridVisible() const { return m_gridVisible; }
@@ -53,6 +59,11 @@ private:
     QMap<QString, WidgetItem *> m_widgets;
     bool m_gridVisible = true;
     qreal m_gridSize = 10.0;
+
+    // Рамка окна
+    QRectF m_windowRect = QRectF(0, 0, 800, 600);
+    QString m_windowTitle = QStringLiteral("Window");
+    static constexpr qreal TitleBarHeight = 30.0;
 };
 
 } // namespace DeltaQ

@@ -17,6 +17,10 @@ private:
                                         const QString &name);
     static bool generateDesktopTemplate(const QString &projectDir,
                                         const QString &name);
+
+    // Генерация .dqmod и .dqgraph файлов
+    static bool generateConsoleModulesAndGraphs(const QString &projectDir);
+    static bool generateDesktopModulesAndGraphs(const QString &projectDir);
 };
 
 } // namespace DeltaQ

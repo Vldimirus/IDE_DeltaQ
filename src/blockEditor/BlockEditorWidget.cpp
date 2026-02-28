@@ -3,7 +3,13 @@
 #include "BlockScene.h"
 #include "ModulePalette.h"
 
+#include "NodeItem.h"
+#include "ConnectionItem.h"
+#include "PortItem.h"
+#include "GraphCommands.h"
+
 #include "../core/GraphStore.h"
+#include "../core/CommandBus.h"
 
 #include <QGraphicsView>
 #include <QGraphicsItem>
@@ -13,6 +19,7 @@
 #include <QAction>
 #include <QWheelEvent>
 #include <QKeyEvent>
+#include <QShowEvent>
 
 namespace DeltaQ {
 
@@ -115,8 +122,15 @@ void BlockEditorWidget::zoomOut()
 
 void BlockEditorWidget::zoomFit()
 {
-    m_view->fitInView(m_scene->itemsBoundingRect(), Qt::KeepAspectRatio);
+    QRectF rect = m_scene->itemsBoundingRect().adjusted(-50, -50, 50, 50);
+    m_view->fitInView(rect, Qt::KeepAspectRatio);
     m_currentZoom = m_view->transform().m11();
+    // Ограничиваем зум — узлы не должны быть огромными
+    if (m_currentZoom > 1.5) {
+        m_view->resetTransform();
+        m_currentZoom = 1.0;
+        m_view->centerOn(rect.center());
+    }
 }
 
 void BlockEditorWidget::wheelEvent(QWheelEvent *event)
@@ -156,11 +170,64 @@ void BlockEditorWidget::keyPressEvent(QKeyEvent *event)
     }
 
     if (event->key() == Qt::Key_Delete) {
-        // Удаление выделенных — будет через CommandBus в 3.3
+        deleteSelected();
         return;
     }
 
     QWidget::keyPressEvent(event);
+}
+
+void BlockEditorWidget::showEvent(QShowEvent *event)
+{
+    QWidget::showEvent(event);
+    if (m_firstShow && !m_scene->items().isEmpty()) {
+        m_firstShow = false;
+        zoomFit();
+        // Ограничиваем максимальный зум, чтобы узлы не были огромными
+        if (m_currentZoom > 1.5) {
+            m_view->resetTransform();
+            m_view->scale(1.0, 1.0);
+            m_currentZoom = 1.0;
+            m_view->centerOn(m_scene->itemsBoundingRect().center());
+        }
+    }
+}
+
+void BlockEditorWidget::deleteSelected()
+{
+    auto selected = m_scene->selectedItems();
+    if (selected.isEmpty()) return;
+
+    // Собираем данные ДО удаления (после delete указатели невалидны)
+    struct ConnInfo {
+        QString fromNode, fromPort, toNode, toPort;
+    };
+    QList<ConnInfo> connsToRemove;
+    QStringList nodesToRemove;
+
+    for (auto *item : selected) {
+        auto *conn = dynamic_cast<ConnectionItem *>(item);
+        if (conn && conn->sourcePort() && conn->destPort()) {
+            connsToRemove.append({
+                conn->sourcePort()->parentNode()->nodeId(),
+                conn->sourcePort()->portName(),
+                conn->destPort()->parentNode()->nodeId(),
+                conn->destPort()->portName()
+            });
+            continue;
+        }
+        auto *node = dynamic_cast<NodeItem *>(item);
+        if (node)
+            nodesToRemove.append(node->nodeId());
+    }
+
+    // Удаляем соединения по сохранённым данным
+    for (const auto &c : connsToRemove)
+        m_scene->removeConnectionItem(c.fromNode, c.fromPort, c.toNode, c.toPort);
+
+    // Удаляем узлы по сохранённым ID
+    for (const auto &id : nodesToRemove)
+        m_scene->removeNodeItem(id);
 }
 
 } // namespace DeltaQ

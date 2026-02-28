@@ -40,9 +40,11 @@ public:
 protected:
     void wheelEvent(QWheelEvent *event) override;
     void keyPressEvent(QKeyEvent *event) override;
+    void showEvent(QShowEvent *event) override;
 
 private:
     void setupToolBar();
+    void deleteSelected();
 
     ModuleRegistry *m_registry;
     CommandBus *m_commandBus;
@@ -51,6 +53,7 @@ private:
     QToolBar *m_toolbar = nullptr;
     QSplitter *m_splitter = nullptr;
 
+    bool m_firstShow = true;
     qreal m_currentZoom = 1.0;
     static constexpr qreal MinZoom = 0.1;
     static constexpr qreal MaxZoom = 5.0;

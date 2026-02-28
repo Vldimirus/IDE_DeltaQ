@@ -232,11 +232,16 @@ void NewProjectWizard::updateSummary()
                 "<li>src/events.h</li>"
                 "<li>src/events.c</li>"
                 "<li>ui/main.dqui</li>"
+                "<li>modules/event_handler.dqmod</li>"
+                "<li>modules/update_label.dqmod</li>"
+                "<li>graphs/main.dqgraph</li>"
                 "<li>" + name + ".dqproj</li>"
                 "</ul>";
     } else {
         files = "<ul>"
                 "<li>src/main.c</li>"
+                "<li>modules/hello.dqmod</li>"
+                "<li>graphs/main.dqgraph</li>"
                 "<li>" + name + ".dqproj</li>"
                 "</ul>";
     }

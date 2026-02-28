@@ -16,6 +16,7 @@
 #include <QComboBox>
 #include <QLabel>
 #include <QWheelEvent>
+#include <QShowEvent>
 #include <QAction>
 
 namespace DeltaQ {
@@ -177,6 +178,24 @@ void UIDesignerWidget::wheelEvent(QWheelEvent *event)
     } else {
         QWidget::wheelEvent(event);
     }
+}
+
+void UIDesignerWidget::showEvent(QShowEvent *event)
+{
+    QWidget::showEvent(event);
+    if (m_firstShow) {
+        m_firstShow = false;
+        centerOnWindow();
+    }
+}
+
+void UIDesignerWidget::centerOnWindow()
+{
+    QRectF windowRect = m_scene->windowRect();
+    // Добавляем отступ вокруг рамки окна для комфортного обзора
+    QRectF viewRect = windowRect.adjusted(-40, -40, 40, 40);
+    m_view->fitInView(viewRect, Qt::KeepAspectRatio);
+    m_currentZoom = m_view->transform().m11();
 }
 
 } // namespace DeltaQ

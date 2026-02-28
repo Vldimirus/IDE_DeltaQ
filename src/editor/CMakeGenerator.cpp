@@ -16,10 +16,10 @@ CMakeGenerator::CMakeGenerator(QObject *parent)
 
 QString CMakeGenerator::generate(const QString &projectDir, const QString &projectName,
                                   const QString &cStandard, const QString &cxxStandard,
-                                  const QStringList &extraFlags)
+                                  const QStringList &extraFlags, const QString &projectType)
 {
     QStringList sources = collectSources(projectDir);
-    QString content = generateContent(projectName, sources, cStandard, cxxStandard, extraFlags);
+    QString content = generateContent(projectName, sources, cStandard, cxxStandard, extraFlags, projectType);
 
     // Записываем CMakeLists.txt в корень проекта
     QString cmakePath = projectDir + "/CMakeLists.txt";
@@ -78,7 +78,8 @@ QString CMakeGenerator::generateContent(const QString &projectName,
                                          const QStringList &sources,
                                          const QString &cStandard,
                                          const QString &cxxStandard,
-                                         const QStringList &extraFlags) const
+                                         const QStringList &extraFlags,
+                                         const QString &projectType) const
 {
     QString cmake;
     cmake += "# Автоматически сгенерировано DeltaQ IDE\n";
@@ -113,6 +114,15 @@ QString CMakeGenerator::generateContent(const QString &projectName,
     for (const auto &flag : extraFlags)
         cmake += QString("    %1\n").arg(flag);
     cmake += ")\n";
+
+    // SDL2 для desktop-проектов
+    if (projectType == "desktop") {
+        cmake += "\n# SDL2\n";
+        cmake += "find_package(PkgConfig REQUIRED)\n";
+        cmake += "pkg_check_modules(SDL2 REQUIRED sdl2)\n";
+        cmake += QString("target_include_directories(%1 PRIVATE ${SDL2_INCLUDE_DIRS})\n").arg(projectName);
+        cmake += QString("target_link_libraries(%1 PRIVATE ${SDL2_LIBRARIES})\n").arg(projectName);
+    }
 
     return cmake;
 }

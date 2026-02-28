@@ -21,7 +21,8 @@ public:
     QString generate(const QString &projectDir, const QString &projectName,
                      const QString &cStandard = "17",
                      const QString &cxxStandard = "20",
-                     const QStringList &extraFlags = {});
+                     const QStringList &extraFlags = {},
+                     const QString &projectType = "console");
 
     // Запуск cmake configure
     bool configure(const QString &projectDir);
@@ -35,7 +36,8 @@ private:
                             const QStringList &sources,
                             const QString &cStandard,
                             const QString &cxxStandard,
-                            const QStringList &extraFlags) const;
+                            const QStringList &extraFlags,
+                            const QString &projectType) const;
 };
 
 } // namespace DeltaQ
