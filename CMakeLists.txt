@@ -69,6 +69,23 @@ if(DQ_USE_LIBCLANG)
     endif()
 endif()
 
+# Инструменты локализации (lupdate/lrelease) — ищем Qt6 версии
+find_program(LUPDATE_EXECUTABLE
+    NAMES lupdate6 lupdate
+    HINTS /usr/lib/qt6/bin ${Qt6Core_DIR}/../../../bin
+)
+find_program(LRELEASE_EXECUTABLE
+    NAMES lrelease6 lrelease
+    HINTS /usr/lib/qt6/bin ${Qt6Core_DIR}/../../../bin
+)
+
+if(LUPDATE_EXECUTABLE AND LRELEASE_EXECUTABLE)
+    message(STATUS "lupdate found: ${LUPDATE_EXECUTABLE}")
+    message(STATUS "lrelease found: ${LRELEASE_EXECUTABLE}")
+else()
+    message(WARNING "lupdate/lrelease not found — цели переводов будут недоступны")
+endif()
+
 # Main executable sources
 add_subdirectory(src)
 

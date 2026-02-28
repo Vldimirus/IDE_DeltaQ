@@ -5,6 +5,7 @@
 #include <QWidget>
 #include <QLabel>
 #include <QVBoxLayout>
+#include <QCoreApplication>
 
 namespace DeltaQ {
 
@@ -18,7 +19,8 @@ public:
         : QWidget(parent)
     {
         auto *layout = new QVBoxLayout(this);
-        auto *label = new QLabel("Дизайнер UI (SDL2)\n\n(будет реализован в Фазе 3)", this);
+        auto *label = new QLabel(QCoreApplication::translate("UIDesignerWidget",
+            "UI Designer (SDL2)\n\n(will be implemented in Phase 3)"), this);
         label->setAlignment(Qt::AlignCenter);
         layout->addWidget(label);
     }

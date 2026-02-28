@@ -20,6 +20,7 @@
 #include <QTextEdit>
 #include <QVBoxLayout>
 #include <QLabel>
+#include <QActionGroup>
 
 namespace DeltaQ {
 
@@ -112,6 +113,39 @@ void MainWindow::setupMenus()
     buildMenu->addAction(m_actionManager->buildAction());
     buildMenu->addAction(m_actionManager->runAction());
     buildMenu->addAction(m_actionManager->action("build.clean"));
+
+    auto *settingsMenu = menuBar()->addMenu(tr("&Settings"));
+    auto *langMenu = settingsMenu->addMenu(tr("Language"));
+
+    auto *langGroup = new QActionGroup(this);
+    langGroup->setExclusive(true);
+
+    // Названия языков — всегда на родном языке, без tr()
+    auto *langEn = langMenu->addAction("English");
+    langEn->setCheckable(true);
+    langEn->setData("en");
+    langGroup->addAction(langEn);
+
+    auto *langRu = langMenu->addAction(QString::fromUtf8("Русский"));
+    langRu->setCheckable(true);
+    langRu->setData("ru");
+    langGroup->addAction(langRu);
+
+    // Отмечаем текущий язык
+    QString currentLang = m_sessionManager->language();
+    if (currentLang == "ru")
+        langRu->setChecked(true);
+    else
+        langEn->setChecked(true);
+
+    connect(langGroup, &QActionGroup::triggered, this, [this](QAction *action) {
+        QString newLang = action->data().toString();
+        if (newLang == m_sessionManager->language())
+            return;
+        m_sessionManager->setLanguage(newLang);
+        QMessageBox::information(this, tr("Language Changed"),
+            tr("The language will be changed after restarting the application."));
+    });
 
     auto *helpMenu = menuBar()->addMenu(tr("&Help"));
     helpMenu->addAction(tr("About DeltaQ"), this, [this]() {

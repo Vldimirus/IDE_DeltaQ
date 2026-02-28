@@ -28,6 +28,16 @@ void SessionManager::clearRecentProjects()
     m_settings.remove("session/recentProjects");
 }
 
+QString SessionManager::language() const
+{
+    return m_settings.value("app/language", "en").toString();
+}
+
+void SessionManager::setLanguage(const QString &lang)
+{
+    m_settings.setValue("app/language", lang);
+}
+
 QByteArray SessionManager::windowGeometry() const
 {
     return m_settings.value("window/geometry").toByteArray();

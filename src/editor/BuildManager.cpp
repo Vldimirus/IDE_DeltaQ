@@ -27,7 +27,7 @@ void BuildManager::build(const QString &projectDir)
             this, &BuildManager::onProcessFinished);
 
     emit buildStarted();
-    emit buildOutput("=== Сборка проекта ===\n");
+    emit buildOutput(tr("=== Building project ===\n"));
 
     // Сначала cmake, потом make
     m_process->start("cmake", {"--build", ".", "--parallel"});
@@ -37,14 +37,14 @@ void BuildManager::clean(const QString &projectDir)
 {
     QString buildDir = projectDir + "/build";
     QDir(buildDir).removeRecursively();
-    emit buildOutput("=== Очистка завершена ===\n");
+    emit buildOutput(tr("=== Clean complete ===\n"));
 }
 
 void BuildManager::cancel()
 {
     if (m_process && m_process->state() != QProcess::NotRunning) {
         m_process->kill();
-        emit buildOutput("\n=== Сборка отменена ===\n");
+        emit buildOutput(tr("\n=== Build cancelled ===\n"));
     }
 }
 
@@ -64,9 +64,9 @@ void BuildManager::onProcessFinished(int exitCode, QProcess::ExitStatus status)
 {
     bool success = (status == QProcess::NormalExit && exitCode == 0);
     if (success)
-        emit buildOutput("\n=== Сборка завершена успешно ===\n");
+        emit buildOutput(tr("\n=== Build succeeded ===\n"));
     else
-        emit buildOutput(QString("\n=== Сборка завершена с ошибкой (код: %1) ===\n").arg(exitCode));
+        emit buildOutput(tr("\n=== Build failed (exit code: %1) ===\n").arg(exitCode));
 
     emit buildFinished(success);
     m_process->deleteLater();

@@ -30,3 +30,26 @@ target_link_libraries(deltaq PRIVATE
     Qt6::Core
     Qt6::Widgets
 )
+
+# Цели для генерации переводов
+set(TS_FILE "${CMAKE_SOURCE_DIR}/resources/translations/deltaq_ru.ts")
+set(QM_OUTPUT_DIR "${CMAKE_CURRENT_BINARY_DIR}/translations")
+
+if(LUPDATE_EXECUTABLE AND LRELEASE_EXECUTABLE)
+    # lupdate: извлечение строк из исходников в .ts
+    add_custom_target(update_translations
+        COMMAND ${LUPDATE_EXECUTABLE}
+            ${CMAKE_SOURCE_DIR}/src
+            -ts ${TS_FILE}
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+        COMMENT "Extracting translatable strings with lupdate..."
+    )
+
+    # lrelease: компиляция .ts → .qm + копирование рядом с исполняемым файлом
+    add_custom_target(translations
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${QM_OUTPUT_DIR}
+        COMMAND ${LRELEASE_EXECUTABLE} ${TS_FILE}
+            -qm ${QM_OUTPUT_DIR}/deltaq_ru.qm
+        COMMENT "Compiling translations with lrelease..."
+    )
+endif()

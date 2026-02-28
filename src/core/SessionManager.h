@@ -22,6 +22,10 @@ public:
     QByteArray windowState() const;
     void setWindowState(const QByteArray &state);
 
+    // Language
+    QString language() const;
+    void setLanguage(const QString &lang);
+
     // Editor settings
     int tabWidth() const;
     void setTabWidth(int width);

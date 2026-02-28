@@ -35,6 +35,7 @@
 | 5 | Модели данных (черновик) | Module.h, Project.h, Graph.h — базовые структуры с JSON-сериализацией |
 | 6 | Редактор кода (черновик) | CodeEditorWidget (вкладки), CodeEditorTab (текстовый редактор с нумерацией строк) |
 | 7 | Первая успешная сборка | Исправлены CMakeLists.txt (заглушки → INTERFACE), CommandBus (vector вместо QStack), CodeEditorTab (подкласс QPlainTextEdit), AnnotationParser (поля Module). Проект компилируется и линкуется. |
+| 8 | Локализация (i18n) | QTranslator, загрузка переводов в main.cpp, меню Settings > Language (English/Русский), SessionManager хранит язык, CMake-цели lupdate/lrelease, полный русский перевод (60 строк). Смена языка с перезапуском. |
 
 > **Черновики** (п. 5–6) были созданы до утверждения планов и доработаны при первой сборке.
 
