@@ -74,3 +74,45 @@ target_link_libraries(test_DebugManager PRIVATE
 )
 set_target_properties(test_DebugManager PROPERTIES AUTOMOC ON)
 add_test(NAME test_DebugManager COMMAND test_DebugManager)
+
+# Тесты LSP: rename, formatting, definition/references массивы
+add_executable(test_LSPRename lsp/test_LSPRename.cpp)
+target_link_libraries(test_LSPRename PRIVATE
+    dq_lsp
+    Qt6::Test
+)
+set_target_properties(test_LSPRename PROPERTIES AUTOMOC ON)
+add_test(NAME test_LSPRename COMMAND test_LSPRename)
+
+# Тесты отображения диагностики
+add_executable(test_DiagnosticDisplay editor/test_DiagnosticDisplay.cpp)
+target_link_libraries(test_DiagnosticDisplay PRIVATE
+    dq_editor
+    dq_lsp
+    Qt6::Test
+    Qt6::Widgets
+)
+set_target_properties(test_DiagnosticDisplay PROPERTIES AUTOMOC ON)
+add_test(NAME test_DiagnosticDisplay COMMAND test_DiagnosticDisplay)
+
+# Тесты маркеров breakpoints
+add_executable(test_BreakpointMarkers editor/test_BreakpointMarkers.cpp)
+target_link_libraries(test_BreakpointMarkers PRIVATE
+    dq_editor
+    dq_lsp
+    Qt6::Test
+    Qt6::Widgets
+)
+set_target_properties(test_BreakpointMarkers PROPERTIES AUTOMOC ON)
+add_test(NAME test_BreakpointMarkers COMMAND test_BreakpointMarkers)
+
+# Тесты popup автодополнения
+add_executable(test_CompletionPopup editor/test_CompletionPopup.cpp)
+target_link_libraries(test_CompletionPopup PRIVATE
+    dq_editor
+    dq_lsp
+    Qt6::Test
+    Qt6::Widgets
+)
+set_target_properties(test_CompletionPopup PROPERTIES AUTOMOC ON)
+add_test(NAME test_CompletionPopup COMMAND test_CompletionPopup)

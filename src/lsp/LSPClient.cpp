@@ -212,6 +212,26 @@ void LSPClient::references(const QString &uri, int line, int character)
     sendRequest("textDocument/references", params);
 }
 
+void LSPClient::rename(const QString &uri, int line, int character, const QString &newName)
+{
+    QJsonObject params;
+    params["textDocument"] = QJsonObject({{"uri", uri}});
+    params["position"] = QJsonObject({{"line", line}, {"character", character}});
+    params["newName"] = newName;
+    sendRequest("textDocument/rename", params);
+}
+
+void LSPClient::formatting(const QString &uri, int tabSize, bool insertSpaces)
+{
+    QJsonObject params;
+    params["textDocument"] = QJsonObject({{"uri", uri}});
+    QJsonObject options;
+    options["tabSize"] = tabSize;
+    options["insertSpaces"] = insertSpaces;
+    params["options"] = options;
+    sendRequest("textDocument/formatting", params);
+}
+
 // --- Утилиты ---
 
 QString LSPClient::pathToUri(const QString &path)
@@ -328,7 +348,7 @@ void LSPClient::handleMessage(const QJsonObject &message)
     if (message.contains("id")) {
         // Ответ на наш запрос
         int id = message["id"].toInt();
-        QJsonObject result = message["result"].toObject();
+        QJsonValue result = message["result"];
         QJsonObject error = message["error"].toObject();
         handleResponse(id, result, error);
         return;
@@ -342,7 +362,7 @@ void LSPClient::handleMessage(const QJsonObject &message)
     }
 }
 
-void LSPClient::handleResponse(int id, const QJsonObject &result, const QJsonObject &error)
+void LSPClient::handleResponse(int id, const QJsonValue &result, const QJsonObject &error)
 {
     QString method = m_pendingRequests.take(id);
     if (method.isEmpty())
@@ -362,26 +382,16 @@ void LSPClient::handleResponse(int id, const QJsonObject &result, const QJsonObj
     }
     else if (method == "textDocument/completion") {
         QVector<CompletionItem> items;
-        // Результат может быть массивом или CompletionList
         QJsonArray itemsArray;
-        if (result.contains("items"))
-            itemsArray = result["items"].toArray();
-        else if (result.isEmpty()) {
-            // Пробуем как массив из result напрямую
-            // Ответ completion может быть CompletionItem[] или CompletionList
+
+        if (result.isArray()) {
+            // Ответ — массив CompletionItem[]
+            itemsArray = result.toArray();
+        } else if (result.isObject()) {
+            // Ответ — CompletionList { items: [...] }
+            QJsonObject obj = result.toObject();
+            itemsArray = obj["items"].toArray();
         }
-
-        // Также обрабатываем случай, когда result — это CompletionList
-        auto resultValue = m_buffer; // не нужно — result уже распарсен
-        Q_UNUSED(resultValue)
-
-        if (!result.contains("items") && !result.isEmpty()) {
-            // Это может быть случай когда result = [{...}, {...}]
-            // Но result у нас QJsonObject, массив будет в handleMessage
-        }
-
-        if (result.contains("items"))
-            itemsArray = result["items"].toArray();
 
         for (const auto &item : itemsArray)
             items.append(CompletionItem::fromJson(item.toObject()));
@@ -389,22 +399,44 @@ void LSPClient::handleResponse(int id, const QJsonObject &result, const QJsonObj
         emit completionResult(items);
     }
     else if (method == "textDocument/hover") {
-        if (!result.isEmpty()) {
-            emit hoverResult(HoverInfo::fromJson(result));
+        if (result.isObject()) {
+            emit hoverResult(HoverInfo::fromJson(result.toObject()));
         }
     }
     else if (method == "textDocument/definition") {
         QVector<LSPLocation> locations;
-        // Результат может быть Location, Location[] или null
-        if (result.contains("uri")) {
-            locations.append(LSPLocation::fromJson(result));
+        if (result.isArray()) {
+            // Location[]
+            for (const auto &loc : result.toArray())
+                locations.append(LSPLocation::fromJson(loc.toObject()));
+        } else if (result.isObject()) {
+            // Одиночный Location
+            locations.append(LSPLocation::fromJson(result.toObject()));
         }
         emit definitionResult(locations);
     }
     else if (method == "textDocument/references") {
         QVector<LSPLocation> locations;
-        // Аналогично definition
+        if (result.isArray()) {
+            for (const auto &loc : result.toArray())
+                locations.append(LSPLocation::fromJson(loc.toObject()));
+        } else if (result.isObject()) {
+            locations.append(LSPLocation::fromJson(result.toObject()));
+        }
         emit referencesResult(locations);
+    }
+    else if (method == "textDocument/rename") {
+        if (result.isObject()) {
+            emit renameResult(WorkspaceEdit::fromJson(result.toObject()));
+        }
+    }
+    else if (method == "textDocument/formatting") {
+        QVector<LSPTextEdit> edits;
+        if (result.isArray()) {
+            for (const auto &e : result.toArray())
+                edits.append(LSPTextEdit::fromJson(e.toObject()));
+        }
+        emit formattingResult(edits);
     }
 }
 

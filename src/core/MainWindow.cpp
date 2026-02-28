@@ -129,6 +129,9 @@ void MainWindow::setupMenus()
     editMenu->addAction(m_actionManager->action("edit.goToLine"));
     editMenu->addAction(m_actionManager->action("edit.goToDefinition"));
     editMenu->addAction(m_actionManager->action("edit.findReferences"));
+    editMenu->addSeparator();
+    editMenu->addAction(m_actionManager->action("edit.rename"));
+    editMenu->addAction(m_actionManager->action("edit.format"));
 
     auto *viewMenu = menuBar()->addMenu(tr("&View"));
     viewMenu->addAction(m_actionManager->action("view.codeEditor"));
@@ -296,14 +299,35 @@ void MainWindow::setupConnections()
     connect(am->saveAction(), &QAction::triggered, this, &MainWindow::onSaveFile);
     connect(am->action("file.quit"), &QAction::triggered, qApp, &QApplication::quit);
 
-    connect(am->undoAction(), &QAction::triggered, m_undoManager, &UndoManager::undo);
-    connect(am->redoAction(), &QAction::triggered, m_undoManager, &UndoManager::redo);
+    // Undo/redo: если фокус в редакторе кода — делегируем QPlainTextEdit, иначе — UndoManager
+    connect(am->undoAction(), &QAction::triggered, this, [this]() {
+        if (m_centralStack->currentWidget() == m_codeEditor) {
+            auto *tab = m_codeEditor->currentTab();
+            if (tab && tab->editor()) {
+                tab->editor()->undo();
+                return;
+            }
+        }
+        m_undoManager->undo();
+    });
+    connect(am->redoAction(), &QAction::triggered, this, [this]() {
+        if (m_centralStack->currentWidget() == m_codeEditor) {
+            auto *tab = m_codeEditor->currentTab();
+            if (tab && tab->editor()) {
+                tab->editor()->redo();
+                return;
+            }
+        }
+        m_undoManager->redo();
+    });
 
     connect(am->action("edit.find"), &QAction::triggered, m_codeEditor, &CodeEditorWidget::showFind);
     connect(am->action("edit.replace"), &QAction::triggered, m_codeEditor, &CodeEditorWidget::showReplace);
     connect(am->action("edit.goToLine"), &QAction::triggered, m_codeEditor, &CodeEditorWidget::goToLine);
     connect(am->action("edit.goToDefinition"), &QAction::triggered, m_codeEditor, &CodeEditorWidget::goToDefinition);
     connect(am->action("edit.findReferences"), &QAction::triggered, m_codeEditor, &CodeEditorWidget::findReferences);
+    connect(am->action("edit.rename"), &QAction::triggered, m_codeEditor, &CodeEditorWidget::renameSymbol);
+    connect(am->action("edit.format"), &QAction::triggered, m_codeEditor, &CodeEditorWidget::formatDocument);
 
     connect(am->buildAction(), &QAction::triggered, this, &MainWindow::onBuild);
     connect(am->action("build.clean"), &QAction::triggered, this, &MainWindow::onClean);
@@ -379,6 +403,7 @@ void MainWindow::setupConnections()
     connect(m_debugManager, &DebugManager::debugStopped, this, [this]() {
         m_variablesDock->hide();
         m_callStackDock->hide();
+        m_codeEditor->clearDebugLineInAllTabs();
         statusBar()->showMessage(tr("Debugging stopped"), 3000);
     });
     connect(m_debugManager, &DebugManager::debugOutput, this, [this](const QString &text) {
@@ -391,9 +416,11 @@ void MainWindow::setupConnections()
         statusBar()->showMessage(tr("Debug error: %1").arg(msg), 5000);
     });
     connect(m_debugManager, &DebugManager::breakpointHit, this, [this](const QString &file, int line) {
+        m_codeEditor->clearDebugLineInAllTabs();
         m_codeEditor->openFile(file);
         auto *tab = m_codeEditor->currentTab();
-        if (tab && tab->editor()) {
+        if (tab) {
+            tab->setDebugCurrentLine(line);
             QTextCursor cursor(tab->editor()->document()->findBlockByNumber(line - 1));
             tab->editor()->setTextCursor(cursor);
             tab->editor()->centerCursor();
@@ -401,16 +428,33 @@ void MainWindow::setupConnections()
         statusBar()->showMessage(tr("Breakpoint hit: %1:%2").arg(QFileInfo(file).fileName()).arg(line), 5000);
     });
     connect(m_debugManager, &DebugManager::stepped, this, [this](const QString &file, int line) {
+        m_codeEditor->clearDebugLineInAllTabs();
         if (!file.isEmpty()) {
             m_codeEditor->openFile(file);
             auto *tab = m_codeEditor->currentTab();
-            if (tab && tab->editor()) {
+            if (tab) {
+                tab->setDebugCurrentLine(line);
                 QTextCursor cursor(tab->editor()->document()->findBlockByNumber(line - 1));
                 tab->editor()->setTextCursor(cursor);
                 tab->editor()->centerCursor();
             }
         }
     });
+    connect(m_debugManager, &DebugManager::breakpointAdded, this,
+            [this](const Breakpoint &bp) {
+        auto *tab = m_codeEditor->findTabForFile(bp.file);
+        if (tab)
+            tab->addBreakpointMarker(bp.line);
+    });
+    connect(m_debugManager, &DebugManager::breakpointRemoved, this,
+            [this](const QString &file, int line) {
+        auto *tab = m_codeEditor->findTabForFile(file);
+        if (tab)
+            tab->removeBreakpointMarker(line);
+    });
+    // Breakpoint toggle из редактора → DebugManager
+    connect(m_codeEditor, &CodeEditorWidget::breakpointToggleRequested,
+            m_debugManager, &DebugManager::toggleBreakpoint);
 
     // Обновление панели переменных
     connect(m_debugManager, &DebugManager::variablesUpdated, this,
@@ -517,17 +561,12 @@ void MainWindow::setupConnections()
     });
 
     // LSP: диагностика → подчёркивание ошибок в редакторе
-    connect(m_lspClient, &LSPClient::diagnosticsReceived, this,
-            [this](const QString &uri, const QVector<LSPDiagnostic> &diagnostics) {
-        Q_UNUSED(uri)
-        Q_UNUSED(diagnostics)
-        // TODO: реализовать подчёркивание ошибок через ExtraSelections
-        // Пока просто показываем количество в статус-баре
-        int errors = 0, warnings = 0;
-        for (const auto &d : diagnostics) {
-            if (d.severity == DiagnosticSeverity::Error) ++errors;
-            else if (d.severity == DiagnosticSeverity::Warning) ++warnings;
-        }
+    connect(m_lspClient, &LSPClient::diagnosticsReceived,
+            m_codeEditor, &CodeEditorWidget::onDiagnosticsReceived);
+    connect(m_codeEditor, &CodeEditorWidget::diagnosticsUpdated, this,
+            [this](const QString &path, int errors, int warnings) {
+        // Обновляем бейджи в дереве проекта
+        m_projectTree->updateDiagnosticCounts(path, errors, warnings);
         if (errors > 0 || warnings > 0) {
             statusBar()->showMessage(tr("Diagnostics: %1 errors, %2 warnings")
                 .arg(errors).arg(warnings), 5000);

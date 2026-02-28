@@ -5,6 +5,7 @@
 #include <QJsonObject>
 #include <QJsonArray>
 #include <QVector>
+#include <QMap>
 
 namespace DeltaQ {
 
@@ -163,6 +164,37 @@ struct HoverInfo {
         if (obj.contains("range"))
             info.range = LSPRange::fromJson(obj["range"].toObject());
         return info;
+    }
+};
+
+// Текстовое изменение (для formatting/rename)
+struct LSPTextEdit {
+    LSPRange range;
+    QString newText;
+
+    static LSPTextEdit fromJson(const QJsonObject &obj) {
+        LSPTextEdit edit;
+        edit.range = LSPRange::fromJson(obj["range"].toObject());
+        edit.newText = obj["newText"].toString();
+        return edit;
+    }
+};
+
+// Редактирование рабочего пространства (для rename)
+struct WorkspaceEdit {
+    // URI → список текстовых правок
+    QMap<QString, QVector<LSPTextEdit>> changes;
+
+    static WorkspaceEdit fromJson(const QJsonObject &obj) {
+        WorkspaceEdit we;
+        QJsonObject changesObj = obj["changes"].toObject();
+        for (auto it = changesObj.begin(); it != changesObj.end(); ++it) {
+            QVector<LSPTextEdit> edits;
+            for (const auto &e : it.value().toArray())
+                edits.append(LSPTextEdit::fromJson(e.toObject()));
+            we.changes[it.key()] = edits;
+        }
+        return we;
     }
 };
 

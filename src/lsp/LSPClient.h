@@ -6,6 +6,7 @@
 #include <QObject>
 #include <QProcess>
 #include <QJsonObject>
+#include <QJsonValue>
 #include <QJsonDocument>
 #include <QMap>
 #include <functional>
@@ -39,6 +40,8 @@ public:
     void hover(const QString &uri, int line, int character);
     void definition(const QString &uri, int line, int character);
     void references(const QString &uri, int line, int character);
+    void rename(const QString &uri, int line, int character, const QString &newName);
+    void formatting(const QString &uri, int tabSize = 4, bool insertSpaces = true);
 
     // Утилиты
     static QString pathToUri(const QString &path);
@@ -58,6 +61,8 @@ signals:
     void hoverResult(const HoverInfo &info);
     void definitionResult(const QVector<LSPLocation> &locations);
     void referencesResult(const QVector<LSPLocation> &locations);
+    void renameResult(const WorkspaceEdit &edits);
+    void formattingResult(const QVector<LSPTextEdit> &edits);
 
 private slots:
     void onReadyRead();
@@ -71,7 +76,7 @@ private:
     void sendMessage(const QJsonObject &message);
     void processIncomingData();
     void handleMessage(const QJsonObject &message);
-    void handleResponse(int id, const QJsonObject &result, const QJsonObject &error);
+    void handleResponse(int id, const QJsonValue &result, const QJsonObject &error);
     void handleNotification(const QString &method, const QJsonObject &params);
 
     QProcess *m_process = nullptr;

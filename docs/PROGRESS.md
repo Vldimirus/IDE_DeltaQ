@@ -1,6 +1,6 @@
 # DeltaQ IDE — Прогресс разработки
 
-> Последнее обновление: 2026-02-28 (Фаза 2.5)
+> Последнее обновление: 2026-02-28 (Фаза 2.9)
 
 ---
 
@@ -45,6 +45,10 @@
 | 15 | Фаза 2.3: Система сборки | CompilerOutputParser: парсинг вывода GCC/Clang/CMake (error/warning/note), regex для формата файл:строка:столбец, сигнал errorFound. CMakeGenerator: генерация CMakeLists.txt из исходников проекта (рекурсивный сбор .c/.cpp/.cxx/.cc, пропуск build/, стандарты C/C++, флаги компиляции). BuildManager: рефакторинг с интеграцией парсера и генератора, двухэтапная сборка (configure + build), проверка CMakeCache.txt. Навигация к ошибкам: buildError сигнал с файлом/строкой/столбцом. 2 новых теста (~19 тест-кейсов), всего 14 тестов — все проходят. |
 | 16 | Фаза 2.4: Аннотации @dqmodule | AnnotationParser: переписан с построчным парсингом, поддержка множественных @dqmodule в одном файле, многострочных комментариев (/* */), парсинг key=value (в кавычках и без), стабильные ID (SHA256 от путь+имя), сигналы ошибок и moduleParsed. Module.h: добавлено поле category. Автогенерация .dqmod при сохранении файла (CodeEditorWidget → AnnotationParser → .dqmod + ModuleRegistry). ModuleRegistry: findBySourcePath, modulesByCategory, categories, validateModule, hasDuplicateName. Загрузка реестра при открытии проекта, уведомления в статусбар. 1 новый тест (~14 тест-кейсов), всего 15 тестов — все проходят. |
 | 17 | Фаза 2.5: Отладчик (GDB/MI) | DebugManager: полная реализация GDB/MI протокола (запуск/остановка GDB, MI-команды с токенами, парсинг MI-вывода). Точки останова: add/remove/toggle/conditional, синхронизация с GDB. Stepping: stepOver (-exec-next), stepInto (-exec-step), stepOut (-exec-finish), runToCursor. Переменные: requestLocalVariables (-stack-list-variables), evaluateExpression. Стек вызовов: requestCallStack (-stack-list-frames), selectFrame. MainWindow: меню Debug (F5 Start, Shift+F5 Stop, F10/F11/Shift+F11 Step, F9 Breakpoint), панель Variables (QTreeWidget), панель Call Stack с навигацией, Debug Console. ActionManager: 7 новых действий debug.*. 1 новый тест (~20 тест-кейсов), всего 16 тестов — все проходят. |
+| 18 | Фаза 2.6: Исправление LSPClient + диагностика + hover | Критический баг: handleResponse принимал QJsonObject — терял массивы. Исправлено на QJsonValue. Definition и references теперь корректно парсят Location[]. Рефакторинг highlightCurrentLine → updateExtraSelections (единая точка: текущая строка + скобки + диагностика + debug). setDiagnostics → WaveUnderline (красный=error, оранжевый=warning, синий=info) с tooltip. CodePlainTextEdit: mouseMoveEvent + QTimer 500ms → hoverRequested → LSPClient::hover → QToolTip::showText. |
+| 19 | Фаза 2.7: Маркеры отладки + breakpoints в margin | LineNumberArea расширена на 16px для маркеров. Красный кружок — breakpoint, жёлтая стрелка — текущая строка отладки. Клик в margin → toggle breakpoint → DebugManager. Зелёный фон строки при останове. breakpointAdded/Removed → синхронизация маркеров. debugStopped → clearDebugLineInAllTabs. |
+| 20 | Фаза 2.8: Popup автодополнения | CompletionPopup: QFrame + QListWidget, цветные иконки по kind (F=функция, V=переменная, C=класс, E=enum, K=keyword, S=snippet). Фильтрация по prefix (case-insensitive). EventFilter: Enter/Tab=вставка, Esc=скрыть, ↑↓=навигация. Триггеры: «.», «->», «::», Ctrl+Space (через completionRequested). |
+| 21 | Фаза 2.9: Rename + Formatting + Undo/Redo + ProjectTreeView | LSPClient: rename() и formatting() запросы, парсинг WorkspaceEdit и TextEdit[]. LSPTypes: LSPTextEdit + WorkspaceEdit структуры. CodeEditorWidget: renameSymbol (QInputDialog + LSP rename), formatDocument (LSP formatting), применение edits в обратном порядке. ActionManager: edit.rename (F2), edit.format (Ctrl+Shift+I). Undo/redo: делегирование — фокус в CodeEditor → QPlainTextEdit, иначе → UndoManager. ProjectTreeView: DiagnosticDelegate с цветными бейджами ошибок/предупреждений. 4 новых теста (~30 тест-кейсов), всего 20 тестов — все проходят. |
 
 > **Черновики** (п. 5–6) были созданы до утверждения планов и доработаны при первой сборке.
 
@@ -64,19 +68,23 @@
 - [x] Фаза 2.3: Система сборки (CompilerOutputParser, CMakeGenerator, BuildManager рефакторинг, навигация к ошибкам)
 - [x] Фаза 2.4: Аннотации @dqmodule (AnnotationParser, автогенерация .dqmod, ModuleRegistry доработка, интеграция)
 - [x] Фаза 2.5: Отладчик (DebugManager с GDB/MI, breakpoints, stepping, переменные, стек, панели)
+- [x] Фаза 2.6: Исправление LSPClient + диагностика + hover
+- [x] Фаза 2.7: Маркеры отладки + breakpoints в margin
+- [x] Фаза 2.8: Popup автодополнения
+- [x] Фаза 2.9: Rename + Formatting + Undo/Redo + ProjectTreeView
 
 ---
 
 ## Что дальше
 
-**Фаза 1 — оставшиеся задачи:**
+**Фаза 1 (Редактор кода) — завершена на 100%.**
 
-| Блок | Задачи | Статус |
-|------|--------|--------|
-| Редактор кода | QScintilla интеграция, доработка ProjectTreeView | WIP |
-| LSP-клиент | Виджет автодополнения, подчёркивание ошибок в редакторе, hover-подсказки | WIP |
-| Система сборки | Генерация CMakeLists, запуск компиляции, парсинг ошибок, панель вывода | DONE |
-| Отладчик | GDB/LLDB драйвер, breakpoints, step, панель переменных, стек вызовов | DONE |
+Все задачи по редактору кода выполнены:
+- Редактор: QPlainTextEdit с нумерацией строк, подсветкой синтаксиса, парными скобками
+- LSP: JSON-RPC клиент, диагностика с WaveUnderline, hover-подсказки, definition, references, rename, formatting
+- Автодополнение: popup с иконками и фильтрацией
+- Отладка: GDB/MI, breakpoints в margin, текущая строка отладки
+- Система сборки: CMake генератор, парсер ошибок, навигация
 
 **Фазы 2–5** — см. детальные планы в `docs/plan/09_roadmap.md`
 
