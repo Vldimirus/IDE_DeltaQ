@@ -9,7 +9,9 @@
 #include "UndoManager.h"
 
 #include "../editor/CodeEditorWidget.h"
+#include "../editor/CodeEditorTab.h"
 #include "../editor/ProjectTreeView.h"
+#include "../editor/BuildManager.h"
 #include "../blockEditor/BlockEditorWidget.h"
 #include "../uiDesigner/UIDesignerWidget.h"
 #include "../libProcessor/LibProcessorWidget.h"
@@ -58,6 +60,7 @@ void MainWindow::setupCoreServices()
     m_actionManager = new ActionManager(this);
     m_undoManager = new UndoManager(m_commandBus, this);
 
+    m_buildManager = new BuildManager(this);
     m_actionManager->setupStandardActions();
 }
 
@@ -190,6 +193,10 @@ void MainWindow::setupToolBar()
 
 void MainWindow::setupStatusBar()
 {
+    m_cursorPosLabel = new QLabel("Ln 1, Col 1", this);
+    m_cursorPosLabel->setMinimumWidth(120);
+    m_cursorPosLabel->setAlignment(Qt::AlignCenter);
+    statusBar()->addPermanentWidget(m_cursorPosLabel);
     statusBar()->showMessage(tr("Ready"));
 }
 
@@ -207,15 +214,15 @@ void MainWindow::setupDocks()
     m_outputDock->setObjectName("outputDock");
     m_outputTabs = new QTabWidget(this);
 
-    auto *buildOutput = new QTextEdit(this);
-    buildOutput->setReadOnly(true);
-    buildOutput->setFont(QFont("Monospace", 10));
-    m_outputTabs->addTab(buildOutput, tr("Build Output"));
+    m_buildOutput = new QTextEdit(this);
+    m_buildOutput->setReadOnly(true);
+    m_buildOutput->setFont(QFont("Monospace", 10));
+    m_outputTabs->addTab(m_buildOutput, tr("Build Output"));
 
-    auto *appOutput = new QTextEdit(this);
-    appOutput->setReadOnly(true);
-    appOutput->setFont(QFont("Monospace", 10));
-    m_outputTabs->addTab(appOutput, tr("Application Output"));
+    m_appOutput = new QTextEdit(this);
+    m_appOutput->setReadOnly(true);
+    m_appOutput->setFont(QFont("Monospace", 10));
+    m_outputTabs->addTab(m_appOutput, tr("Application Output"));
 
     m_outputDock->setWidget(m_outputTabs);
     addDockWidget(Qt::BottomDockWidgetArea, m_outputDock);
@@ -234,6 +241,7 @@ void MainWindow::setupConnections()
     connect(am->redoAction(), &QAction::triggered, m_undoManager, &UndoManager::redo);
 
     connect(am->buildAction(), &QAction::triggered, this, &MainWindow::onBuild);
+    connect(am->action("build.clean"), &QAction::triggered, this, &MainWindow::onClean);
     connect(am->runAction(), &QAction::triggered, this, &MainWindow::onRun);
 
     connect(am->action("view.codeEditor"), &QAction::triggered, this, &MainWindow::switchToCodeEditor);
@@ -246,8 +254,27 @@ void MainWindow::setupConnections()
 
     connect(m_commandBus, &CommandBus::commandExecuted, this, &MainWindow::updateStatusBar);
 
-    // Project tree: open files in editor
+    // Вывод сборки в Output dock
+    connect(m_buildManager, &BuildManager::buildOutput, this, [this](const QString &text) {
+        m_buildOutput->append(text);
+        m_outputTabs->setCurrentWidget(m_buildOutput);
+        m_outputDock->show();
+    });
+    connect(m_buildManager, &BuildManager::buildStarted, this, [this]() {
+        m_buildOutput->clear();
+        m_actionManager->buildAction()->setEnabled(false);
+        statusBar()->showMessage(tr("Building..."));
+    });
+    connect(m_buildManager, &BuildManager::buildFinished, this, [this](bool success) {
+        m_actionManager->buildAction()->setEnabled(true);
+        statusBar()->showMessage(success ? tr("Build succeeded") : tr("Build failed"), 5000);
+    });
+
+    // Дерево проекта: открытие файлов в редакторе
     connect(m_projectTree, &ProjectTreeView::fileSelected, m_codeEditor, &CodeEditorWidget::openFile);
+
+    // Позиция курсора в редакторе → статус-бар
+    connect(m_codeEditor, &CodeEditorWidget::currentTabChanged, this, &MainWindow::updateCursorPosition);
 }
 
 void MainWindow::closeEvent(QCloseEvent *event)
@@ -304,12 +331,68 @@ void MainWindow::onBuild()
         statusBar()->showMessage(tr("No project open"), 3000);
         return;
     }
-    m_codeEditor->buildProject(m_projectManager->projectDir());
+    m_buildManager->build(m_projectManager->projectDir());
+}
+
+void MainWindow::onClean()
+{
+    if (!m_projectManager->isProjectOpen()) {
+        statusBar()->showMessage(tr("No project open"), 3000);
+        return;
+    }
+    m_buildManager->clean(m_projectManager->projectDir());
 }
 
 void MainWindow::onRun()
 {
-    statusBar()->showMessage(tr("Run — not yet implemented"), 3000);
+    if (!m_projectManager->isProjectOpen()) {
+        statusBar()->showMessage(tr("No project open"), 3000);
+        return;
+    }
+
+    // Ищем исполняемый файл в build/
+    QString buildDir = m_projectManager->projectDir() + "/build";
+    QString projectName = m_projectManager->currentProject().name;
+
+    // Пробуем найти бинарник с именем проекта
+    QStringList candidates = {
+        buildDir + "/" + projectName,
+        buildDir + "/src/" + projectName,
+        buildDir + "/" + projectName.toLower(),
+    };
+
+    QString executable;
+    for (const auto &path : candidates) {
+        if (QFile::exists(path)) {
+            executable = path;
+            break;
+        }
+    }
+
+    if (executable.isEmpty()) {
+        statusBar()->showMessage(tr("Executable not found — build first"), 3000);
+        return;
+    }
+
+    m_appOutput->clear();
+    m_outputTabs->setCurrentWidget(m_appOutput);
+    m_outputDock->show();
+
+    auto *process = new QProcess(this);
+    process->setWorkingDirectory(m_projectManager->projectDir());
+    connect(process, &QProcess::readyReadStandardOutput, this, [this, process]() {
+        m_appOutput->append(process->readAllStandardOutput());
+    });
+    connect(process, &QProcess::readyReadStandardError, this, [this, process]() {
+        m_appOutput->append(process->readAllStandardError());
+    });
+    connect(process, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
+            this, [this, process](int exitCode, QProcess::ExitStatus) {
+        m_appOutput->append(tr("\n=== Process exited (code: %1) ===").arg(exitCode));
+        process->deleteLater();
+    });
+    process->start(executable, {});
+    statusBar()->showMessage(tr("Running %1").arg(projectName), 3000);
 }
 
 void MainWindow::switchToCodeEditor() { m_centralStack->setCurrentWidget(m_codeEditor); }
@@ -330,6 +413,32 @@ void MainWindow::updateStatusBar(const QString &message)
     statusBar()->showMessage(message, 3000);
 }
 
+void MainWindow::updateCursorPosition()
+{
+    auto *tab = m_codeEditor->currentTab();
+    if (!tab || !tab->editor()) {
+        m_cursorPosLabel->setText("Ln 1, Col 1");
+        return;
+    }
+
+    auto *editor = tab->editor();
+    // Подключаем обновление при перемещении курсора (один раз на таб)
+    connect(editor, &QPlainTextEdit::cursorPositionChanged, this, [this]() {
+        auto *t = m_codeEditor->currentTab();
+        if (!t || !t->editor()) return;
+        auto cursor = t->editor()->textCursor();
+        int line = cursor.blockNumber() + 1;
+        int col = cursor.columnNumber() + 1;
+        m_cursorPosLabel->setText(QString("Ln %1, Col %2").arg(line).arg(col));
+    }, Qt::UniqueConnection);
+
+    // Обновляем сразу
+    auto cursor = editor->textCursor();
+    int line = cursor.blockNumber() + 1;
+    int col = cursor.columnNumber() + 1;
+    m_cursorPosLabel->setText(QString("Ln %1, Col %2").arg(line).arg(col));
+}
+
 void MainWindow::restoreSession()
 {
     auto geom = m_sessionManager->windowGeometry();
@@ -338,12 +447,32 @@ void MainWindow::restoreSession()
     auto state = m_sessionManager->windowState();
     if (!state.isEmpty())
         restoreState(state);
+
+    // Восстановление последнего проекта
+    QString lastProject = m_sessionManager->lastOpenedProject();
+    if (!lastProject.isEmpty() && QFile::exists(lastProject)) {
+        if (m_projectManager->openProject(lastProject))
+            m_projectTree->setRootPath(m_projectManager->projectDir());
+    }
+
+    // Восстановление открытых вкладок
+    for (const auto &path : m_sessionManager->openTabs()) {
+        if (QFile::exists(path))
+            m_codeEditor->openFile(path);
+    }
 }
 
 void MainWindow::saveSession()
 {
     m_sessionManager->setWindowGeometry(saveGeometry());
     m_sessionManager->setWindowState(saveState());
+
+    // Сохранение открытых вкладок
+    m_sessionManager->setOpenTabs(m_codeEditor->openFilePaths());
+
+    // Сохранение текущего проекта
+    if (m_projectManager->isProjectOpen())
+        m_sessionManager->setLastOpenedProject(m_projectManager->currentProject().projectFilePath);
 }
 
 } // namespace DeltaQ

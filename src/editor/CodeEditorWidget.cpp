@@ -95,6 +95,17 @@ QString CodeEditorWidget::currentFilePath() const
     return tab ? tab->filePath() : QString();
 }
 
+QStringList CodeEditorWidget::openFilePaths() const
+{
+    QStringList paths;
+    for (int i = 0; i < m_tabWidget->count(); ++i) {
+        auto *tab = qobject_cast<CodeEditorTab *>(m_tabWidget->widget(i));
+        if (tab)
+            paths.append(tab->filePath());
+    }
+    return paths;
+}
+
 void CodeEditorWidget::closeTab(int index)
 {
     auto *tab = qobject_cast<CodeEditorTab *>(m_tabWidget->widget(index));
@@ -126,7 +137,7 @@ void CodeEditorWidget::closeTab(int index)
 
 void CodeEditorWidget::onTabChanged(int /*index*/)
 {
-    // Can be used for status bar updates
+    emit currentTabChanged();
 }
 
 CodeEditorTab *CodeEditorWidget::findTabForFile(const QString &path) const

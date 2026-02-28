@@ -25,11 +25,13 @@ public:
 
     CodeEditorTab *currentTab() const;
     QString currentFilePath() const;
+    QStringList openFilePaths() const;
 
 signals:
     void fileSaved(const QString &path);
     void buildRequested(const QString &projectDir);
     void buildOutput(const QString &text);
+    void currentTabChanged();
 
 public slots:
     void closeTab(int index);

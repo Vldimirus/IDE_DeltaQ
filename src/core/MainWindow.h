@@ -7,6 +7,8 @@
 #include <QToolBar>
 #include <QStatusBar>
 #include <QTabWidget>
+#include <QLabel>
+#include <QTextEdit>
 #include <memory>
 
 namespace DeltaQ {
@@ -24,6 +26,7 @@ class BlockEditorWidget;
 class UIDesignerWidget;
 class LibProcessorWidget;
 class ProjectTreeView;
+class BuildManager;
 
 class MainWindow : public QMainWindow {
     Q_OBJECT
@@ -45,6 +48,7 @@ private slots:
     void onOpenProject();
     void onSaveFile();
     void onBuild();
+    void onClean();
     void onRun();
     void switchToCodeEditor();
     void switchToBlockEditor();
@@ -52,6 +56,7 @@ private slots:
     void switchToLibProcessor();
     void updateTitle();
     void updateStatusBar(const QString &message);
+    void updateCursorPosition();
 
 private:
     void setupCoreServices();
@@ -73,6 +78,7 @@ private:
     SessionManager *m_sessionManager = nullptr;
     ActionManager *m_actionManager = nullptr;
     UndoManager *m_undoManager = nullptr;
+    BuildManager *m_buildManager = nullptr;
 
     // UI
     QStackedWidget *m_centralStack = nullptr;
@@ -89,6 +95,13 @@ private:
 
     // Toolbar
     QToolBar *m_mainToolBar = nullptr;
+
+    // StatusBar widgets
+    QLabel *m_cursorPosLabel = nullptr;
+
+    // Output widgets (ссылки для подключения BuildManager)
+    QTextEdit *m_buildOutput = nullptr;
+    QTextEdit *m_appOutput = nullptr;
 };
 
 } // namespace DeltaQ
