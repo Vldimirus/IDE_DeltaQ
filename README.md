@@ -1,0 +1,235 @@
+# DeltaQ IDE
+
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
+[![C++20](https://img.shields.io/badge/C%2B%2B-20-blue.svg)](https://en.cppreference.com/w/cpp/20)
+[![Qt 6](https://img.shields.io/badge/Qt-6-green.svg)](https://www.qt.io/)
+[![Platform: Linux](https://img.shields.io/badge/Platform-Linux-lightgrey.svg)]()
+
+**A modular IDE that combines traditional code editing with visual block programming and UI design for C/C++ development.**
+
+> **[Русская версия / Russian version](README_RU.md)**
+
+---
+
+## Background
+
+DeltaQ IDE was born out of practical necessity. As a full-cycle R&D engineer working across multiple disciplines — from mathematics and physics to electronics, embedded systems, and software — I found myself constantly switching between different tools, languages, and paradigms. Keeping all of this in your head at once is hard enough; having to fight your tools on top of that makes it harder.
+
+The idea behind DeltaQ is simple: **lower the barrier to software development** by letting you work at the level of abstraction that fits the task. Write C code when you need precision. Connect visual blocks when you need to see the big picture. Design a UI by dragging widgets. Let the IDE handle the glue code, the build system, and the boilerplate — so you can focus on what you're actually building.
+
+---
+
+## Features
+
+- **Code Editor** — full-featured C/C++ editor with syntax highlighting, LSP integration (clangd), auto-completion, find & replace, go to definition, and bracket matching
+- **Visual Block Editor** — node-based graph editor where you connect modules to build programs visually; graphs compile down to pure C code via topological sorting and IR generation
+- **UI Designer** — drag & drop interface builder targeting SDL2; design windows visually, bind events to graph handlers, and generate compilable C code
+- **Library Processor** — import existing C/C++ libraries through libclang AST parsing; automatically decompose functions and classes into reusable modules
+- **Module System** — everything is a module (`.dqmod`). Modules nest recursively (matryoshka principle): a graph is a module, a module can contain a graph. Standard library with ~26 core modules included
+- **Built-in Debugger** — GDB/MI integration with breakpoints, stepping, variable inspection, call stack, and visual debugging on the graph canvas
+- **Build System** — CMake-based build pipeline with compiler output parsing, error navigation, and one-click build & run
+
+<!-- TODO: Add screenshot of the main IDE window -->
+<!-- TODO: Add screenshot of the block editor with a sample graph -->
+<!-- TODO: Add screenshot of the UI designer -->
+
+---
+
+## Architecture
+
+DeltaQ IDE is built on a **4-layer architecture** with a central CommandBus:
+
+```
+┌─────────────────────────────────────────────────┐
+│              Presentation Layer                  │
+│  ┌───────────┬──────────────┬──────────────────┐ │
+│  │   Code    │    Block     │   UI Designer    │ │
+│  │  Editor   │   Editor    │                  │ │
+│  └───────────┴──────────────┴──────────────────┘ │
+├─────────────────────────────────────────────────┤
+│              Application Layer                   │
+│    CommandBus · UndoManager · ActionManager      │
+│    SessionManager · ModuleRegistry               │
+├─────────────────────────────────────────────────┤
+│              Core Services Layer                 │
+│    GraphCompiler · BuildManager · LSPClient      │
+│    SDL2CodeGenerator · LibclangParser            │
+├─────────────────────────────────────────────────┤
+│              Data Layer                          │
+│    ProjectManager · GraphStore · UILayoutStore   │
+│    ModuleStore · FileSystem                      │
+└─────────────────────────────────────────────────┘
+```
+
+All operations go through the **CommandBus**, enabling full undo/redo support across every editor.
+
+---
+
+## Quick Start
+
+### Dependencies
+
+```bash
+# Ubuntu / Debian
+sudo apt install \
+    cmake g++ \
+    qt6-base-dev \
+    libqscintilla2-qt6-dev \
+    libclang-dev \
+    libsdl2-dev \
+    gdb clangd
+
+# Fedora
+sudo dnf install \
+    cmake gcc-c++ \
+    qt6-qtbase-devel \
+    qscintilla-qt6-devel \
+    clang-devel \
+    SDL2-devel \
+    gdb clang-tools-extra
+```
+
+**Optional dependencies:**
+- `libqscintilla2-qt6-dev` — advanced code editor (falls back to QPlainTextEdit if not found)
+- `libclang-dev` — library import/parsing (library processor is disabled without it)
+- `libsdl2-dev` — required only for building generated UI projects
+- `clangd` — LSP server for code intelligence
+- `gdb` — debugger backend
+
+### Build
+
+```bash
+git clone https://github.com/pshpsh76/DeltaQ.git
+cd DeltaQ
+
+mkdir build && cd build
+cmake .. -DCMAKE_BUILD_TYPE=Release
+cmake --build . -j$(nproc)
+```
+
+### Run
+
+```bash
+./build/src/deltaq
+```
+
+### Build Options
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `DQ_BUILD_TESTS` | `ON` | Build unit tests |
+| `DQ_USE_LSP` | `ON` | Enable LSP client (requires clangd) |
+| `DQ_USE_LIBCLANG` | `ON` | Enable libclang integration |
+
+```bash
+# Example: build without tests
+cmake .. -DCMAKE_BUILD_TYPE=Release -DDQ_BUILD_TESTS=OFF
+```
+
+---
+
+## Usage
+
+A typical workflow in DeltaQ IDE:
+
+1. **Create a project** — File → New Project, choose Console or Desktop (SDL2) template
+2. **Write modules** — create C functions with `@dqmodule` annotations, or use the Module Manager to write and test modules with instant preview
+3. **Build a graph** — open the Block Editor, drag modules from the palette, and connect their ports to define program flow
+4. **Design UI** *(Desktop projects)* — open the UI Designer, place widgets (buttons, text fields, sliders...), set properties, and bind events to graph handlers
+5. **Build & Run** — hit Build (Ctrl+B) to compile the graph into C code, generate CMakeLists.txt, and produce an executable; then Run (Ctrl+R)
+6. **Debug** — set breakpoints (F9) and start debugging (F5); the debugger highlights the active node on the graph and shows variable values on ports
+
+---
+
+## Module System
+
+DeltaQ uses a **module-centric architecture**. Every function is a module (`.dqmod`) with typed input/output ports.
+
+- **Standard Library** — ~26 built-in modules (math, I/O, string, logic, conversion, control) installed to `~/.deltaq/modules/`
+- **Local Modules** — project-specific modules in `dqmods/`
+- **Submodules (Matryoshka)** — select nodes on a graph → "Create Submodule" → the selection becomes a reusable composite module with its own internal graph. Nesting is unlimited
+- **UI Modules** — UI widgets (Button, Label, Slider...) appear as modules with property inputs and event outputs
+- **Library Import** — import C/C++ headers via libclang → functions/classes are automatically decomposed into modules
+
+---
+
+## Tech Stack
+
+| Component | Technology |
+|-----------|-----------|
+| Language | C++20 |
+| GUI Framework | Qt 6 |
+| Code Editor | QScintilla (fallback: QPlainTextEdit) |
+| Build System | CMake 3.20+ |
+| Generated UI | SDL2 |
+| C/C++ Parsing | libclang |
+| LSP Server | clangd |
+| Debugger | GDB (MI protocol) |
+| Graph Compiler | Custom IR → C code generation |
+
+---
+
+## Tests
+
+The project includes 32 test suites covering core services, data models, stores, LSP, build system, graph compiler, and UI components.
+
+```bash
+cd build
+ctest --output-on-failure
+```
+
+Or run a specific test:
+
+```bash
+./build/tests/test_command_bus
+```
+
+---
+
+## Roadmap
+
+- [ ] Cross-platform support (Windows, macOS)
+- [ ] Python and Rust language backends (IR → Python/Rust code generation)
+- [ ] CI/CD pipeline
+- [ ] AppImage / Installer / DMG packaging
+- [ ] Plugin system for third-party extensions
+- [ ] Performance optimizations for large graphs (100+ nodes)
+- [ ] User documentation and tutorials
+- [ ] Example projects
+
+---
+
+## Contributing
+
+Contributions are welcome! Here's how you can help:
+
+1. **Fork** the repository
+2. **Create a branch** for your feature (`git checkout -b feature/my-feature`)
+3. **Commit** your changes
+4. **Push** to the branch (`git push origin feature/my-feature`)
+5. **Open a Pull Request**
+
+Please make sure:
+- Code compiles without warnings
+- All existing tests pass (`ctest --output-on-failure`)
+- New functionality includes tests where appropriate
+
+---
+
+## License
+
+This project is licensed under the **GNU General Public License v3.0** — see the [LICENSE](LICENSE) file for details.
+
+```
+Copyright (c) 2024-2026 Vladimir Kononenko
+```
+
+---
+
+## Acknowledgments
+
+- [Qt Project](https://www.qt.io/) — GUI framework
+- [QScintilla](https://riverbankcomputing.com/software/qscintilla/) — code editor component
+- [LLVM/Clang](https://clang.llvm.org/) — C/C++ parsing and LSP
+- [SDL2](https://www.libsdl.org/) — target platform for generated UI
+- [CMake](https://cmake.org/) — build system
