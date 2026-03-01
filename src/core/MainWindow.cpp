@@ -8,6 +8,8 @@
 #include "ActionManager.h"
 #include "UndoManager.h"
 #include "NewProjectWizard.h"
+#include "NewFileDialog.h"
+#include "SettingsDialog.h"
 #include "ProjectTemplates.h"
 
 #include "../editor/CodeEditorWidget.h"
@@ -26,12 +28,14 @@
 #include "../blockEditor/GraphDebugger.h"
 #include "../codegen/GraphCompiler.h"
 #include "../uiDesigner/UIDesignerWidget.h"
+#include "../uiDesigner/UIModuleFactory.h"
 #include "../uiDesigner/DesignScene.h"
 #include "../uiDesigner/WidgetItem.h"
 #include "../uiDesigner/UICommands.h"
 #include "../uiDesigner/SDL2CodeGenerator.h"
 #include "../uiDesigner/UIPreview.h"
 #include "../libProcessor/LibProcessorWidget.h"
+#include "../editor/ModuleManagerWidget.h"
 
 #include <QApplication>
 #include <QCloseEvent>
@@ -97,6 +101,9 @@ void MainWindow::setupCoreServices()
 
     // GraphDebugger создаётся после setupUI, инициализируем nullptr
     m_graphDebugger = nullptr;
+
+    // Регистрация UI-модулей (фиксированные виджеты)
+    UIModuleFactory::registerAll(m_moduleRegistry);
 }
 
 void MainWindow::setupUI()
@@ -124,6 +131,10 @@ void MainWindow::setupUI()
     m_libProcessor->setGraphStore(m_graphStore);
     m_centralStack->addWidget(m_libProcessor);
 
+    // Module 5: Module Manager
+    m_moduleManager = new ModuleManagerWidget(m_moduleRegistry, this);
+    m_centralStack->addWidget(m_moduleManager);
+
     m_centralStack->setCurrentIndex(0); // Start with code editor
 }
 
@@ -131,6 +142,11 @@ void MainWindow::setupMenus()
 {
     auto *fileMenu = menuBar()->addMenu(tr("&File"));
     fileMenu->addAction(m_actionManager->newProjectAction());
+
+    auto *newFileAction = fileMenu->addAction(tr("New File..."));
+    newFileAction->setShortcut(QKeySequence(tr("Ctrl+N")));
+    connect(newFileAction, &QAction::triggered, this, &MainWindow::onNewFile);
+
     fileMenu->addAction(m_actionManager->openProjectAction());
     m_recentProjectsMenu = fileMenu->addMenu(tr("Recent Projects"));
     updateRecentProjectsMenu();
@@ -158,12 +174,20 @@ void MainWindow::setupMenus()
     editMenu->addSeparator();
     editMenu->addAction(m_actionManager->action("edit.rename"));
     editMenu->addAction(m_actionManager->action("edit.format"));
+    editMenu->addSeparator();
+    auto *settingsAction = editMenu->addAction(tr("Settings..."));
+    settingsAction->setShortcut(QKeySequence(tr("Ctrl+,")));
+    connect(settingsAction, &QAction::triggered, this, &MainWindow::onSettings);
 
     auto *viewMenu = menuBar()->addMenu(tr("&View"));
     viewMenu->addAction(m_actionManager->action("view.codeEditor"));
     viewMenu->addAction(m_actionManager->action("view.blockEditor"));
     viewMenu->addAction(m_actionManager->action("view.uiDesigner"));
     viewMenu->addAction(m_actionManager->action("view.libProcessor"));
+    viewMenu->addSeparator();
+    auto *moduleManagerAct = viewMenu->addAction(tr("Module Manager"));
+    moduleManagerAct->setShortcut(QKeySequence(tr("Ctrl+M")));
+    connect(moduleManagerAct, &QAction::triggered, this, &MainWindow::switchToModuleManager);
 
     auto *buildMenu = menuBar()->addMenu(tr("&Build"));
     buildMenu->addAction(m_actionManager->buildAction());
@@ -180,39 +204,6 @@ void MainWindow::setupMenus()
     debugMenu->addAction(m_actionManager->action("debug.stepOut"));
     debugMenu->addSeparator();
     debugMenu->addAction(m_actionManager->action("debug.toggleBreakpoint"));
-
-    auto *settingsMenu = menuBar()->addMenu(tr("&Settings"));
-    auto *langMenu = settingsMenu->addMenu(tr("Language"));
-
-    auto *langGroup = new QActionGroup(this);
-    langGroup->setExclusive(true);
-
-    // Названия языков — всегда на родном языке, без tr()
-    auto *langEn = langMenu->addAction("English");
-    langEn->setCheckable(true);
-    langEn->setData("en");
-    langGroup->addAction(langEn);
-
-    auto *langRu = langMenu->addAction(QString::fromUtf8("Русский"));
-    langRu->setCheckable(true);
-    langRu->setData("ru");
-    langGroup->addAction(langRu);
-
-    // Отмечаем текущий язык
-    QString currentLang = m_sessionManager->language();
-    if (currentLang == "ru")
-        langRu->setChecked(true);
-    else
-        langEn->setChecked(true);
-
-    connect(langGroup, &QActionGroup::triggered, this, [this](QAction *action) {
-        QString newLang = action->data().toString();
-        if (newLang == m_sessionManager->language())
-            return;
-        m_sessionManager->setLanguage(newLang);
-        QMessageBox::information(this, tr("Language Changed"),
-            tr("The language will be changed after restarting the application."));
-    });
 
     auto *helpMenu = menuBar()->addMenu(tr("&Help"));
     helpMenu->addAction(tr("About DeltaQ"), this, [this]() {
@@ -416,6 +407,11 @@ void MainWindow::setupConnections()
     // Дерево проекта: открытие файлов в редакторе
     connect(m_projectTree, &ProjectTreeView::fileSelected, this, &MainWindow::onFileActivated);
 
+    // Дерево проекта: создание файла через NewFileDialog
+    connect(m_projectTree, &ProjectTreeView::newFileRequested, this, [this](const QString &) {
+        onNewFile();
+    });
+
     // Позиция курсора в редакторе → статус-бар
     connect(m_codeEditor, &CodeEditorWidget::currentTabChanged, this, &MainWindow::updateCursorPosition);
 
@@ -539,62 +535,44 @@ void MainWindow::setupConnections()
     m_graphDebugger = new GraphDebugger(blockScene, m_debugManager, this);
 
     // Блочный редактор: соединение через CommandBus
+    connectBlockEditorSignals(m_blockEditor);
 
-    // Перетаскивание модуля из палитры → создание узла через AddNodeCommand
-    connect(blockScene, &BlockScene::nodeDropped, this,
-            [this, blockScene](const QString &moduleId, const QPointF &scenePos) {
-        Graph *graph = m_graphStore->findGraph(blockScene->currentGraphId());
-        if (!graph) return;
-        auto node = GraphNode::create(moduleId, scenePos);
-        m_commandBus->execute(std::make_unique<AddNodeCommand>(blockScene, graph, node));
-    });
-
-    // Соединение портов через ConnectCommand
-    connect(blockScene, &BlockScene::connectionRequested, this,
-            [this, blockScene](const QString &fromNodeId, const QString &fromPort,
-                               const QString &toNodeId, const QString &toPort) {
-        Graph *graph = m_graphStore->findGraph(blockScene->currentGraphId());
-        if (!graph) return;
-        GraphConnection conn;
-        conn.from = {fromNodeId, fromPort};
-        conn.to = {toNodeId, toPort};
-        m_commandBus->execute(std::make_unique<ConnectCommand>(blockScene, graph, conn));
-    });
-
-    // Перемещение узла → MoveNodeCommand
-    connect(blockScene, &BlockScene::nodeMovedByUser, this,
-            [this, blockScene](const QString &nodeId, const QPointF &oldPos, const QPointF &newPos) {
-        Graph *graph = m_graphStore->findGraph(blockScene->currentGraphId());
-        if (!graph) return;
-        m_commandBus->execute(std::make_unique<MoveNodeCommand>(blockScene, graph, nodeId, oldPos, newPos));
+    // Менеджер модулей: обновление палитры при изменении модуля
+    connect(m_moduleManager, &ModuleManagerWidget::moduleChanged, this, [this]() {
+        m_modulePalette->rebuildTree();
     });
 
     // Загрузка реестра модулей при открытии проекта
     connect(m_projectManager, &ProjectManager::projectOpened, this, [this]() {
         m_moduleRegistry->loadRegistry(m_projectManager->projectDir());
+        m_moduleManager->setProjectDir(m_projectManager->projectDir());
         int count = m_moduleRegistry->count();
         if (count > 0)
             statusBar()->showMessage(tr("Loaded %1 module(s)").arg(count), 3000);
     });
     connect(m_projectManager, &ProjectManager::projectClosed, this, [this]() {
         m_moduleRegistry->clear();
+        m_moduleManager->setProjectDir(QString());
     });
 
-    // Уведомление о регистрации модуля из аннотаций + обновление палитры
+    // Уведомление о регистрации модуля из аннотаций + обновление палитры и менеджера
     connect(m_moduleRegistry, &ModuleRegistry::moduleRegistered, this, [this](const QString &id) {
         auto *mod = m_moduleRegistry->findModule(id);
         if (mod)
             statusBar()->showMessage(tr("Module '%1' registered").arg(mod->name), 3000);
         m_modulePalette->rebuildTree();
+        m_moduleManager->rebuildTree();
     });
     connect(m_moduleRegistry, &ModuleRegistry::moduleUpdated, this, [this](const QString &id) {
         auto *mod = m_moduleRegistry->findModule(id);
         if (mod)
             statusBar()->showMessage(tr("Module '%1' updated").arg(mod->name), 3000);
         m_modulePalette->rebuildTree();
+        m_moduleManager->rebuildTree();
     });
     connect(m_moduleRegistry, &ModuleRegistry::moduleUnregistered, this, [this]() {
         m_modulePalette->rebuildTree();
+        m_moduleManager->rebuildTree();
     });
 
     // LSP: запуск при открытии проекта
@@ -661,6 +639,7 @@ void MainWindow::closeEvent(QCloseEvent *event)
 void MainWindow::onNewProject()
 {
     NewProjectWizard wizard(this);
+    wizard.setDefaultDir(m_sessionManager->defaultProjectDir());
     if (wizard.exec() != QDialog::Accepted)
         return;
 
@@ -682,6 +661,7 @@ void MainWindow::onNewProject()
 
         m_projectTree->setRootPath(dir);
         m_sessionManager->addRecentProject(m_projectManager->currentProject().projectFilePath);
+        m_sessionManager->setDefaultProjectDir(wizard.projectDir());
         updateRecentProjectsMenu();
         statusBar()->showMessage(tr("Project '%1' created").arg(name), 3000);
 
@@ -942,6 +922,7 @@ void MainWindow::switchToCodeEditor() { m_centralStack->setCurrentWidget(m_codeE
 void MainWindow::switchToBlockEditor() { m_centralStack->setCurrentWidget(m_blockEditor); }
 void MainWindow::switchToUIDesigner() { m_centralStack->setCurrentWidget(m_uiDesigner); }
 void MainWindow::switchToLibProcessor() { m_centralStack->setCurrentWidget(m_libProcessor); }
+void MainWindow::switchToModuleManager() { m_centralStack->setCurrentWidget(m_moduleManager); }
 
 void MainWindow::onFileActivated(const QString &path)
 {
@@ -970,6 +951,7 @@ void MainWindow::onFileActivated(const QString &path)
             if (!id.isEmpty()) {
                 auto *editor = new BlockEditorWidget(m_moduleRegistry, m_commandBus);
                 editor->loadGraph(id, m_graphStore);
+                connectBlockEditorSignals(editor);
                 m_codeEditor->openCustomTab(editor, name, path);
             }
         }
@@ -1014,6 +996,7 @@ void MainWindow::onFileActivated(const QString &path)
                             } else {
                                 auto *editor = new BlockEditorWidget(m_moduleRegistry, m_commandBus);
                                 editor->loadGraph(graph->id, m_graphStore);
+                                connectBlockEditorSignals(editor);
                                 m_codeEditor->openCustomTab(editor,
                                     graph->name + ".dqgraph", graphPath);
                             }
@@ -1032,6 +1015,42 @@ void MainWindow::onFileActivated(const QString &path)
 
     // Прочие файлы — открываем как текст
     m_codeEditor->openFile(path);
+}
+
+void MainWindow::connectBlockEditorSignals(BlockEditorWidget *editor)
+{
+    if (!editor) return;
+    BlockScene *scene = editor->scene();
+    if (!scene) return;
+
+    // Перетаскивание модуля из палитры → создание узла через AddNodeCommand
+    connect(scene, &BlockScene::nodeDropped, this,
+            [this, scene](const QString &moduleId, const QPointF &scenePos) {
+        Graph *graph = m_graphStore->findGraph(scene->currentGraphId());
+        if (!graph) return;
+        auto node = GraphNode::create(moduleId, scenePos);
+        m_commandBus->execute(std::make_unique<AddNodeCommand>(scene, graph, node));
+    });
+
+    // Соединение портов через ConnectCommand
+    connect(scene, &BlockScene::connectionRequested, this,
+            [this, scene](const QString &fromNodeId, const QString &fromPort,
+                           const QString &toNodeId, const QString &toPort) {
+        Graph *graph = m_graphStore->findGraph(scene->currentGraphId());
+        if (!graph) return;
+        GraphConnection conn;
+        conn.from = {fromNodeId, fromPort};
+        conn.to = {toNodeId, toPort};
+        m_commandBus->execute(std::make_unique<ConnectCommand>(scene, graph, conn));
+    });
+
+    // Перемещение узла → MoveNodeCommand
+    connect(scene, &BlockScene::nodeMovedByUser, this,
+            [this, scene](const QString &nodeId, const QPointF &oldPos, const QPointF &newPos) {
+        Graph *graph = m_graphStore->findGraph(scene->currentGraphId());
+        if (!graph) return;
+        m_commandBus->execute(std::make_unique<MoveNodeCommand>(scene, graph, nodeId, oldPos, newPos));
+    });
 }
 
 void MainWindow::connectUIDesignerSignals(UIDesignerWidget *designer)
@@ -1235,6 +1254,81 @@ void MainWindow::onCloseProject()
     m_projectTree->setRootPath("");
     updateTitle();
     statusBar()->showMessage(tr("Project closed"), 3000);
+}
+
+void MainWindow::onSettings()
+{
+    SettingsDialog dlg(m_sessionManager, this);
+    dlg.exec();
+}
+
+void MainWindow::onNewFile()
+{
+    if (!m_projectManager->isProjectOpen()) {
+        statusBar()->showMessage(tr("No project open"), 3000);
+        return;
+    }
+
+    NewFileDialog dlg(m_projectManager->projectDir(), this);
+    if (dlg.exec() != QDialog::Accepted)
+        return;
+
+    QString type = dlg.fileType();
+    QString name = dlg.fileName();
+    QString path = dlg.fullPath();
+    if (name.isEmpty() || path.isEmpty()) return;
+
+    // Создаём директорию
+    QDir().mkpath(QFileInfo(path).absolutePath());
+
+    if (type == "dqui") {
+        // Создаём UILayout и сохраняем
+        UILayout layout = UILayout::create(name);
+        QFile f(path);
+        if (f.open(QIODevice::WriteOnly | QIODevice::Text)) {
+            f.write(QJsonDocument(layout.toJson()).toJson(QJsonDocument::Indented));
+            f.close();
+        }
+        // Регистрируем в UILayoutStore
+        m_uiLayoutStore->registerLayout(layout);
+    } else if (type == "dqgraph") {
+        // Создаём Graph и сохраняем
+        Graph graph = Graph::create(name);
+        QFile f(path);
+        if (f.open(QIODevice::WriteOnly | QIODevice::Text)) {
+            f.write(QJsonDocument(graph.toJson()).toJson(QJsonDocument::Indented));
+            f.close();
+        }
+        m_graphStore->registerGraph(graph);
+    } else if (type == "dqmod") {
+        // Создаём Module и сохраняем
+        Module mod = Module::create(name);
+        QFile f(path);
+        if (f.open(QIODevice::WriteOnly | QIODevice::Text)) {
+            f.write(QJsonDocument(mod.toJson()).toJson(QJsonDocument::Indented));
+            f.close();
+        }
+        m_moduleRegistry->registerModule(mod);
+    } else {
+        // Обычный C/H файл — создаём пустой
+        QFile f(path);
+        if (f.open(QIODevice::WriteOnly | QIODevice::Text)) {
+            if (type == "h") {
+                // Добавить include guard
+                QString guard = name.toUpper() + "_H";
+                f.write(QString("#ifndef %1\n#define %1\n\n\n\n#endif // %1\n")
+                    .arg(guard).toUtf8());
+            }
+            f.close();
+        }
+    }
+
+    // Обновить дерево проекта
+    m_projectTree->setRootPath(m_projectManager->projectDir());
+
+    // Открыть файл во вкладке
+    onFileActivated(path);
+    statusBar()->showMessage(tr("File '%1' created").arg(QFileInfo(path).fileName()), 3000);
 }
 
 void MainWindow::updateRecentProjectsMenu()

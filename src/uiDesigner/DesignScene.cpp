@@ -33,6 +33,42 @@ DesignScene::DesignScene(QObject *parent)
     });
 }
 
+// --- Контейнеры ---
+
+bool DesignScene::isContainerType(const QString &type)
+{
+    return type == "Panel" || type == "GroupBox"
+        || type == "ScrollPanel" || type == "TabPanel";
+}
+
+WidgetItem *DesignScene::containerAtPos(const QPointF &scenePos, WidgetItem *exclude) const
+{
+    // Ищем самый глубоко вложенный контейнер, содержащий точку
+    WidgetItem *best = nullptr;
+    int bestDepth = -1;
+
+    for (auto it = m_widgets.begin(); it != m_widgets.end(); ++it) {
+        WidgetItem *item = it.value();
+        if (item == exclude) continue;
+        if (!isContainerType(item->widgetType())) continue;
+
+        // Проверяем, содержит ли сцено-прямоугольник виджета данную точку
+        QRectF itemRect(item->scenePos(), QSizeF(item->widgetWidth(), item->widgetHeight()));
+        if (!itemRect.contains(scenePos)) continue;
+
+        // Глубина вложенности
+        int depth = 0;
+        QGraphicsItem *p = item->parentItem();
+        while (p) { ++depth; p = p->parentItem(); }
+
+        if (depth > bestDepth) {
+            bestDepth = depth;
+            best = item;
+        }
+    }
+    return best;
+}
+
 // --- Виджеты ---
 
 WidgetItem *DesignScene::addWidgetItem(const UIWidget &widget)
@@ -225,6 +261,22 @@ void DesignScene::drawForeground(QPainter *painter, const QRectF &rect)
 {
     QGraphicsScene::drawForeground(painter, rect);
 
+    // Подсветка контейнера-цели при drag
+    if (!m_dropTargetId.isEmpty()) {
+        auto *target = widgetItem(m_dropTargetId);
+        if (target) {
+            QRectF targetRect(target->scenePos(),
+                              QSizeF(target->widgetWidth(), target->widgetHeight()));
+            if (rect.intersects(targetRect)) {
+                painter->save();
+                painter->setPen(QPen(QColor(0, 200, 80), 2.0, Qt::DashLine));
+                painter->setBrush(QColor(0, 200, 80, 30));
+                painter->drawRect(targetRect);
+                painter->restore();
+            }
+        }
+    }
+
     if (!m_showDropPreview) return;
 
     QRectF previewRect(m_dropPreviewPos.x(), m_dropPreviewPos.y(),
@@ -292,6 +344,14 @@ void DesignScene::dragMoveEvent(QGraphicsSceneDragDropEvent *event)
         // Всегда принимаем drop, но превью показываем только внутри окна
         m_dropPreviewPos = snapped;
         m_showDropPreview = isInsideWindowClient(snapped);
+
+        // Подсветка контейнера-цели
+        auto *container = containerAtPos(snapped);
+        QString newTargetId = container ? container->widgetId() : QString();
+        if (newTargetId != m_dropTargetId) {
+            m_dropTargetId = newTargetId;
+        }
+
         event->acceptProposedAction();
         update();
     } else {
@@ -303,6 +363,7 @@ void DesignScene::dragLeaveEvent(QGraphicsSceneDragDropEvent *event)
 {
     m_showDropPreview = false;
     m_dropPreviewType.clear();
+    m_dropTargetId.clear();
     update();
     QGraphicsScene::dragLeaveEvent(event);
 }
@@ -324,13 +385,18 @@ void DesignScene::dropEvent(QGraphicsSceneDragDropEvent *event)
             snapped.setY(qBound(clientRect.top(), snapped.y(), clientRect.bottom() - 40));
         }
 
-        emit widgetDropped(widgetType, snapped);
+        // Определяем родительский контейнер
+        auto *container = containerAtPos(snapped);
+        QString parentId = container ? container->widgetId() : QString();
+
+        emit widgetDropped(widgetType, snapped, parentId);
         event->acceptProposedAction();
     } else {
         QGraphicsScene::dropEvent(event);
     }
 
     m_dropPreviewType.clear();
+    m_dropTargetId.clear();
     update();
 }
 

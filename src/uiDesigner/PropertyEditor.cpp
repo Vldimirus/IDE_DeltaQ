@@ -3,6 +3,8 @@
 #include "WidgetItem.h"
 #include "DesignScene.h"
 
+#include <deltaq/UILayout.h>
+
 #include <QLineEdit>
 #include <QSpinBox>
 #include <QDoubleSpinBox>
@@ -218,6 +220,65 @@ void PropertyEditor::buildPropertyList()
         addProperty(tr("Text"), "text",
                     m_currentWidget->property("text").isValid() ?
                     m_currentWidget->property("text") : m_currentWidget->widgetName());
+    }
+
+    // Секция anchor-привязок
+    addSectionHeader(tr("Anchors"));
+    {
+        UIAnchors a = m_currentWidget->anchors();
+
+        auto addAnchorCheckbox = [&](const QString &label, bool checked, auto setter) {
+            auto *cb = new QCheckBox(label, m_contentWidget);
+            cb->setChecked(checked);
+            connect(cb, &QCheckBox::toggled, this, [this, setter](bool on) {
+                if (m_updating || !m_currentWidget) return;
+                UIAnchors anch = m_currentWidget->anchors();
+                setter(anch, on);
+                m_currentWidget->setAnchors(anch);
+                emit anchorsChanged(m_currentWidget->widgetId());
+            });
+            m_formLayout->addRow(cb);
+        };
+
+        addAnchorCheckbox(tr("Left"), a.left,
+            [](UIAnchors &a, bool v) { a.left = v; if (v) a.hCenter = false; });
+        addAnchorCheckbox(tr("Right"), a.right,
+            [](UIAnchors &a, bool v) { a.right = v; if (v) a.hCenter = false; });
+        addAnchorCheckbox(tr("Top"), a.top,
+            [](UIAnchors &a, bool v) { a.top = v; if (v) a.vCenter = false; });
+        addAnchorCheckbox(tr("Bottom"), a.bottom,
+            [](UIAnchors &a, bool v) { a.bottom = v; if (v) a.vCenter = false; });
+        addAnchorCheckbox(tr("H Center"), a.hCenter,
+            [](UIAnchors &a, bool v) { a.hCenter = v; if (v) { a.left = false; a.right = false; } });
+        addAnchorCheckbox(tr("V Center"), a.vCenter,
+            [](UIAnchors &a, bool v) { a.vCenter = v; if (v) { a.top = false; a.bottom = false; } });
+
+        // Margin-спинбоксы для активных привязок
+        auto addMarginSpin = [&](const QString &label, qreal value, bool visible, auto setter) {
+            if (!visible) return;
+            auto *sb = new QDoubleSpinBox(m_contentWidget);
+            sb->setRange(0, 9999);
+            sb->setDecimals(0);
+            sb->setValue(value);
+            connect(sb, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
+                    this, [this, setter](double val) {
+                if (m_updating || !m_currentWidget) return;
+                UIAnchors anch = m_currentWidget->anchors();
+                setter(anch, val);
+                m_currentWidget->setAnchors(anch);
+                emit anchorsChanged(m_currentWidget->widgetId());
+            });
+            m_formLayout->addRow(label + ":", sb);
+        };
+
+        addMarginSpin(tr("Left margin"), a.leftMargin, a.left,
+            [](UIAnchors &a, double v) { a.leftMargin = v; });
+        addMarginSpin(tr("Right margin"), a.rightMargin, a.right,
+            [](UIAnchors &a, double v) { a.rightMargin = v; });
+        addMarginSpin(tr("Top margin"), a.topMargin, a.top,
+            [](UIAnchors &a, double v) { a.topMargin = v; });
+        addMarginSpin(tr("Bottom margin"), a.bottomMargin, a.bottom,
+            [](UIAnchors &a, double v) { a.bottomMargin = v; });
     }
 
     // Секция событий

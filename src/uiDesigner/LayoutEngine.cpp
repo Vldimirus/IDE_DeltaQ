@@ -1,7 +1,9 @@
 // Движок компоновки — реализация
 #include "LayoutEngine.h"
 #include "WidgetItem.h"
+#include "DesignScene.h"
 
+#include <deltaq/UILayout.h>
 #include <QtMath>
 
 namespace DeltaQ {
@@ -115,6 +117,79 @@ void LayoutEngine::applyFlowLayout(WidgetItem *container, const LayoutConstraint
         child->setPos(x, y);
         x += childWidth + c.spacing;
         rowHeight = qMax(rowHeight, childHeight);
+    }
+}
+
+// --- Anchor-привязки ---
+
+void LayoutEngine::applyAnchors(WidgetItem *widget, const QSizeF &parentSize)
+{
+    if (!widget) return;
+    UIAnchors a = widget->anchors();
+    if (!a.hasAnchors()) return;
+
+    qreal x = widget->pos().x();
+    qreal y = widget->pos().y();
+    qreal w = widget->widgetWidth();
+    qreal h = widget->widgetHeight();
+    qreal parentW = parentSize.width();
+    qreal parentH = parentSize.height();
+
+    // Горизонтальные привязки
+    if (a.left && a.right) {
+        // Растяжение по ширине
+        x = a.leftMargin;
+        w = parentW - a.leftMargin - a.rightMargin;
+    } else if (a.left) {
+        x = a.leftMargin;
+    } else if (a.right) {
+        x = parentW - a.rightMargin - w;
+    } else if (a.hCenter) {
+        x = (parentW - w) / 2;
+    }
+
+    // Вертикальные привязки
+    if (a.top && a.bottom) {
+        y = a.topMargin;
+        h = parentH - a.topMargin - a.bottomMargin;
+    } else if (a.top) {
+        y = a.topMargin;
+    } else if (a.bottom) {
+        y = parentH - a.bottomMargin - h;
+    } else if (a.vCenter) {
+        y = (parentH - h) / 2;
+    }
+
+    widget->setPos(x, y);
+    widget->setWidgetSize(w, h);
+}
+
+void LayoutEngine::applyAnchorsToChildren(WidgetItem *container)
+{
+    if (!container) return;
+    QSizeF parentSize(container->widgetWidth(), container->widgetHeight());
+    for (auto *child : container->childWidgets()) {
+        applyAnchors(child, parentSize);
+    }
+}
+
+void LayoutEngine::applyAnchorsToRootWidgets(DesignScene *scene)
+{
+    if (!scene) return;
+    QRectF windowRect = scene->windowRect();
+    // Клиентская область (без title bar)
+    QSizeF clientSize(windowRect.width(), windowRect.height() - 30.0);
+
+    for (auto it = scene->widgetItems().begin(); it != scene->widgetItems().end(); ++it) {
+        WidgetItem *item = it.value();
+        // Только корневые виджеты (без родителя)
+        if (!item->parentItem()) {
+            applyAnchors(item, clientSize);
+        }
+        // Рекурсивно для дочерних контейнеров
+        if (!item->childWidgets().isEmpty()) {
+            applyAnchorsToChildren(item);
+        }
     }
 }
 

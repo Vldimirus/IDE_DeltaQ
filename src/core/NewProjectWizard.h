@@ -18,6 +18,7 @@ public:
     QString projectName() const;
     QString projectDir() const;
     QString projectType() const;  // "console" / "desktop"
+    void setDefaultDir(const QString &dir);
 
 private:
     QWizardPage *createTypePage();

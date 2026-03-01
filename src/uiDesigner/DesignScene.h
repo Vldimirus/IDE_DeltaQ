@@ -41,10 +41,16 @@ public:
     void setGridSize(qreal size) { m_gridSize = size; update(); }
     qreal gridSize() const { return m_gridSize; }
 
+    // Поиск контейнера под позицией (для drop / reparenting)
+    WidgetItem *containerAtPos(const QPointF &scenePos, WidgetItem *exclude = nullptr) const;
+
+    // Проверка, является ли тип контейнерным
+    static bool isContainerType(const QString &type);
+
 signals:
     void widgetSelected(const QString &widgetId);
     void windowSelected();  // клик по пустому месту внутри окна
-    void widgetDropped(const QString &widgetType, const QPointF &scenePos);
+    void widgetDropped(const QString &widgetType, const QPointF &scenePos, const QString &parentId);
     void widgetMoved(const QString &widgetId, const QPointF &oldPos, const QPointF &newPos);
     void widgetResized(const QString &widgetId, const QRectF &oldRect, const QRectF &newRect);
     void widgetDoubleClicked(const QString &widgetId);
@@ -79,6 +85,9 @@ private:
     QPointF m_dropPreviewPos;
     QSizeF m_dropPreviewSize = QSizeF(120, 40);
     QString m_dropPreviewType;
+
+    // Подсветка контейнера при drop
+    QString m_dropTargetId;
 };
 
 } // namespace DeltaQ

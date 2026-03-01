@@ -120,12 +120,13 @@ void WidgetItem::paint(QPainter *painter, const QStyleOptionGraphicsItem *, QWid
     else if (type == "ComboBox")    paintComboBox(painter, rect);
     else                            paintGeneric(painter, rect);
 
-    // Рамка выделения + resize-хендлы
+    // Рамка выделения + resize-хендлы + anchor-индикаторы
     if (isSelected()) {
         painter->setPen(QPen(QColor(0, 120, 215), 1.5, Qt::DashLine));
         painter->setBrush(Qt::NoBrush);
         painter->drawRect(rect);
         paintResizeHandles(painter);
+        paintAnchorIndicators(painter);
     }
 }
 
@@ -391,6 +392,43 @@ void WidgetItem::paintResizeHandles(QPainter *painter)
 
     for (auto &p : handles)
         painter->drawRect(QRectF(p.x() - hs, p.y() - hs, HandleSize, HandleSize));
+}
+
+void WidgetItem::paintAnchorIndicators(QPainter *painter)
+{
+    UIAnchors a = m_widget.anchors;
+    if (!a.hasAnchors()) return;
+
+    painter->save();
+    QPen anchorPen(QColor(255, 180, 0), 1.0, Qt::DashDotLine);
+    painter->setPen(anchorPen);
+
+    qreal w = m_widget.geometry.width();
+    qreal h = m_widget.geometry.height();
+
+    // Рисуем линии от краёв виджета к краям «родителя» (вверх/влево/вправо/вниз)
+    if (a.left) {
+        painter->drawLine(QPointF(0, h / 2), QPointF(-a.leftMargin, h / 2));
+    }
+    if (a.right) {
+        // Пунктир вправо за пределы виджета
+        painter->drawLine(QPointF(w, h / 2), QPointF(w + a.rightMargin, h / 2));
+    }
+    if (a.top) {
+        painter->drawLine(QPointF(w / 2, 0), QPointF(w / 2, -a.topMargin));
+    }
+    if (a.bottom) {
+        painter->drawLine(QPointF(w / 2, h), QPointF(w / 2, h + a.bottomMargin));
+    }
+    if (a.hCenter) {
+        // Двусторонняя стрелка по горизонтали
+        painter->drawLine(QPointF(0, h / 2 - 4), QPointF(w, h / 2 - 4));
+    }
+    if (a.vCenter) {
+        painter->drawLine(QPointF(w / 2 - 4, 0), QPointF(w / 2 - 4, h));
+    }
+
+    painter->restore();
 }
 
 int WidgetItem::resizeHandleAt(const QPointF &localPos) const

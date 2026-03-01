@@ -106,6 +106,7 @@ QString CMakeGenerator::generateContent(const QString &projectName,
     cmake += QString("target_include_directories(%1 PRIVATE\n").arg(projectName);
     cmake += "    ${CMAKE_SOURCE_DIR}\n";
     cmake += "    ${CMAKE_SOURCE_DIR}/include\n";
+    cmake += "    ${CMAKE_SOURCE_DIR}/ui\n";
     cmake += ")\n\n";
 
     // Флаги компиляции

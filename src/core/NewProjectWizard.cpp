@@ -227,11 +227,11 @@ void NewProjectWizard::updateSummary()
     if (type == "desktop") {
         files = "<ul>"
                 "<li>src/main.c</li>"
-                "<li>src/ui.h</li>"
-                "<li>src/ui.c</li>"
-                "<li>src/events.h</li>"
-                "<li>src/events.c</li>"
-                "<li>ui/main.dqui</li>"
+                "<li>ui/window1.dqui</li>"
+                "<li>ui/window1.h</li>"
+                "<li>ui/window1.c</li>"
+                "<li>ui/window1_events.h</li>"
+                "<li>ui/window1_events.c</li>"
                 "<li>modules/event_handler.dqmod</li>"
                 "<li>modules/update_label.dqmod</li>"
                 "<li>graphs/main.dqgraph</li>"
@@ -252,6 +252,12 @@ void NewProjectWizard::updateSummary()
         "<b>" + tr("Path:") + "</b> " + dir + "<br><br>"
         "<b>" + tr("Files to be created:") + "</b>" + files
     );
+}
+
+void NewProjectWizard::setDefaultDir(const QString &dir)
+{
+    if (m_dirEdit && !dir.isEmpty())
+        m_dirEdit->setText(dir);
 }
 
 } // namespace DeltaQ

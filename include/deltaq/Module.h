@@ -59,7 +59,12 @@ struct Module {
     QString sourcePath;   // relative to project
     QString headerPath;   // relative to project
     QStringList dependencies;
-    QString origin;       // "user", "library", "graph"
+    QString origin;       // "user", "library", "graph", "ui"
+
+    // Расширенные поля модульной системы
+    QStringList includes;            // Зависимости (#include), хранятся отдельно от кода
+    QString testStatus = "untested"; // passed | failed | untested | modified
+    QString sourceCode;              // Тело функции (чистый код без #include)
 
     QJsonObject toJson() const {
         QJsonObject obj;
@@ -90,6 +95,21 @@ struct Module {
             deps.append(d);
         obj["dependencies"] = deps;
 
+        // Расширенные поля
+        if (!includes.isEmpty()) {
+            QJsonArray incArr;
+            for (const auto &inc : includes)
+                incArr.append(inc);
+            obj["includes"] = incArr;
+        }
+        if (!sourceCode.isEmpty())
+            obj["source_code"] = sourceCode;
+        if (!testStatus.isEmpty() && testStatus != "untested") {
+            QJsonObject testing;
+            testing["status"] = testStatus;
+            obj["testing"] = testing;
+        }
+
         return obj;
     }
 
@@ -113,6 +133,13 @@ struct Module {
 
         for (const auto &v : obj["dependencies"].toArray())
             m.dependencies.append(v.toString());
+
+        // Расширенные поля
+        for (const auto &v : obj["includes"].toArray())
+            m.includes.append(v.toString());
+        m.sourceCode = obj["source_code"].toString();
+        if (obj.contains("testing"))
+            m.testStatus = obj["testing"].toObject()["status"].toString("untested");
 
         return m;
     }

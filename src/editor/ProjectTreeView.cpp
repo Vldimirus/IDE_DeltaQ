@@ -149,18 +149,7 @@ void ProjectTreeView::showContextMenu(const QPoint &pos)
     QString dir = fi.isDir() ? path : fi.absolutePath();
 
     menu.addAction(tr("New File..."), this, [this, dir]() {
-        QString name = QInputDialog::getText(this, tr("New File"), tr("File name:"));
-        if (name.isEmpty()) return;
-        QString filePath = dir + "/" + name;
-        QFile file(filePath);
-        if (file.exists()) {
-            QMessageBox::warning(this, tr("Error"), tr("File already exists"));
-            return;
-        }
-        if (file.open(QIODevice::WriteOnly)) {
-            file.close();
-            emit fileSelected(filePath);
-        }
+        emit newFileRequested(dir);
     });
 
     menu.addAction(tr("New Folder..."), this, [this, dir]() {

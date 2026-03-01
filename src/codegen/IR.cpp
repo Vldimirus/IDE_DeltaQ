@@ -90,12 +90,20 @@ QString IR::emitCCode() const
 {
     QString code;
 
-    // Includes
+    // Секция 1: Includes (дедуплицированные)
     for (const auto &inc : includes)
         code += QString("#include %1\n").arg(inc);
     if (!includes.isEmpty())
         code += "\n";
 
+    // Секция 2: Определения модулей (каждый ровно один раз)
+    if (!moduleSources.isEmpty()) {
+        for (const auto &src : moduleSources) {
+            code += src + "\n\n";
+        }
+    }
+
+    // Секция 3: main()
     code += "int main(void) {\n";
 
     // Инструкции

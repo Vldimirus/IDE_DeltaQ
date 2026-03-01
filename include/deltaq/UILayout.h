@@ -8,8 +8,59 @@
 #include <QVector>
 #include <QMap>
 #include <QVariant>
+#include <QtMath>
 
 namespace DeltaQ {
+
+struct UIAnchors {
+    bool left = false, right = false, top = false, bottom = false;
+    bool hCenter = false, vCenter = false;
+    qreal leftMargin = 0, rightMargin = 0, topMargin = 0, bottomMargin = 0;
+
+    bool hasAnchors() const {
+        return left || right || top || bottom || hCenter || vCenter;
+    }
+
+    bool operator==(const UIAnchors &other) const {
+        return left == other.left && right == other.right
+            && top == other.top && bottom == other.bottom
+            && hCenter == other.hCenter && vCenter == other.vCenter
+            && qFuzzyCompare(leftMargin, other.leftMargin)
+            && qFuzzyCompare(rightMargin, other.rightMargin)
+            && qFuzzyCompare(topMargin, other.topMargin)
+            && qFuzzyCompare(bottomMargin, other.bottomMargin);
+    }
+
+    QJsonObject toJson() const {
+        QJsonObject obj;
+        if (left) obj["left"] = true;
+        if (right) obj["right"] = true;
+        if (top) obj["top"] = true;
+        if (bottom) obj["bottom"] = true;
+        if (hCenter) obj["hCenter"] = true;
+        if (vCenter) obj["vCenter"] = true;
+        if (leftMargin != 0) obj["leftMargin"] = leftMargin;
+        if (rightMargin != 0) obj["rightMargin"] = rightMargin;
+        if (topMargin != 0) obj["topMargin"] = topMargin;
+        if (bottomMargin != 0) obj["bottomMargin"] = bottomMargin;
+        return obj;
+    }
+
+    static UIAnchors fromJson(const QJsonObject &obj) {
+        UIAnchors a;
+        a.left = obj["left"].toBool();
+        a.right = obj["right"].toBool();
+        a.top = obj["top"].toBool();
+        a.bottom = obj["bottom"].toBool();
+        a.hCenter = obj["hCenter"].toBool();
+        a.vCenter = obj["vCenter"].toBool();
+        a.leftMargin = obj["leftMargin"].toDouble();
+        a.rightMargin = obj["rightMargin"].toDouble();
+        a.topMargin = obj["topMargin"].toDouble();
+        a.bottomMargin = obj["bottomMargin"].toDouble();
+        return a;
+    }
+};
 
 struct UIWidget {
     QString id;
@@ -19,6 +70,7 @@ struct UIWidget {
     QString layout;       // "None", "HBox", "VBox", "Grid", "Flow"
     QMap<QString, QVariant> properties;
     QMap<QString, QString> events;   // событие → обработчик
+    UIAnchors anchors;               // anchor-привязки
     QVector<UIWidget> children;      // вложенные виджеты
 
     bool operator==(const UIWidget &other) const {
@@ -29,6 +81,7 @@ struct UIWidget {
             && layout == other.layout
             && properties == other.properties
             && events == other.events
+            && anchors == other.anchors
             && children == other.children;
     }
 
@@ -57,6 +110,9 @@ struct UIWidget {
                 ev[it.key()] = it.value();
             obj["events"] = ev;
         }
+
+        if (anchors.hasAnchors())
+            obj["anchors"] = anchors.toJson();
 
         if (!children.isEmpty()) {
             QJsonArray arr;
@@ -88,6 +144,9 @@ struct UIWidget {
         auto ev = obj["events"].toObject();
         for (auto it = ev.begin(); it != ev.end(); ++it)
             w.events[it.key()] = it.value().toString();
+
+        if (obj.contains("anchors"))
+            w.anchors = UIAnchors::fromJson(obj["anchors"].toObject());
 
         auto arr = obj["children"].toArray();
         for (const auto &v : arr)

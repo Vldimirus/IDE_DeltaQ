@@ -20,6 +20,8 @@
 #include <QWheelEvent>
 #include <QKeyEvent>
 #include <QShowEvent>
+#include <QMouseEvent>
+#include <QScrollBar>
 
 namespace DeltaQ {
 
@@ -33,10 +35,11 @@ BlockEditorWidget::BlockEditorWidget(ModuleRegistry *registry, CommandBus *bus,
 
     m_view = new QGraphicsView(m_scene, this);
     m_view->setRenderHint(QPainter::Antialiasing);
-    m_view->setDragMode(QGraphicsView::ScrollHandDrag);
+    m_view->setDragMode(QGraphicsView::NoDrag);
     m_view->setViewportUpdateMode(QGraphicsView::SmartViewportUpdate);
     m_view->setTransformationAnchor(QGraphicsView::AnchorUnderMouse);
     m_view->setAcceptDrops(true);
+    m_view->viewport()->installEventFilter(this);
 
     setupToolBar();
 
@@ -133,6 +136,55 @@ void BlockEditorWidget::zoomFit()
     }
 }
 
+bool BlockEditorWidget::eventFilter(QObject *obj, QEvent *event)
+{
+    if (obj != m_view->viewport())
+        return QWidget::eventFilter(obj, event);
+
+    // Панорамирование средней кнопкой мыши
+    if (event->type() == QEvent::MouseButtonPress) {
+        auto *me = static_cast<QMouseEvent *>(event);
+        if (me->button() == Qt::MiddleButton) {
+            m_middleDragging = true;
+            m_lastPanPos = me->pos();
+            m_view->setCursor(Qt::ClosedHandCursor);
+            return true;
+        }
+        // Space + ЛКМ → панорамирование
+        if (me->button() == Qt::LeftButton && m_spacePressed) {
+            m_middleDragging = true;
+            m_lastPanPos = me->pos();
+            m_view->setCursor(Qt::ClosedHandCursor);
+            return true;
+        }
+    }
+
+    if (event->type() == QEvent::MouseMove) {
+        auto *me = static_cast<QMouseEvent *>(event);
+        if (m_middleDragging) {
+            QPoint delta = me->pos() - m_lastPanPos;
+            m_lastPanPos = me->pos();
+            m_view->horizontalScrollBar()->setValue(
+                m_view->horizontalScrollBar()->value() - delta.x());
+            m_view->verticalScrollBar()->setValue(
+                m_view->verticalScrollBar()->value() - delta.y());
+            return true;
+        }
+    }
+
+    if (event->type() == QEvent::MouseButtonRelease) {
+        auto *me = static_cast<QMouseEvent *>(event);
+        if (me->button() == Qt::MiddleButton ||
+            (me->button() == Qt::LeftButton && m_middleDragging)) {
+            m_middleDragging = false;
+            m_view->setCursor(m_spacePressed ? Qt::OpenHandCursor : Qt::ArrowCursor);
+            return true;
+        }
+    }
+
+    return QWidget::eventFilter(obj, event);
+}
+
 void BlockEditorWidget::wheelEvent(QWheelEvent *event)
 {
     if (event->modifiers() & Qt::ControlModifier) {
@@ -169,12 +221,29 @@ void BlockEditorWidget::keyPressEvent(QKeyEvent *event)
         }
     }
 
+    if (event->key() == Qt::Key_Space && !event->isAutoRepeat()) {
+        m_spacePressed = true;
+        m_view->setCursor(Qt::OpenHandCursor);
+        return;
+    }
+
     if (event->key() == Qt::Key_Delete) {
         deleteSelected();
         return;
     }
 
     QWidget::keyPressEvent(event);
+}
+
+void BlockEditorWidget::keyReleaseEvent(QKeyEvent *event)
+{
+    if (event->key() == Qt::Key_Space && !event->isAutoRepeat()) {
+        m_spacePressed = false;
+        if (!m_middleDragging)
+            m_view->setCursor(Qt::ArrowCursor);
+        return;
+    }
+    QWidget::keyReleaseEvent(event);
 }
 
 void BlockEditorWidget::showEvent(QShowEvent *event)

@@ -15,6 +15,8 @@ add_executable(deltaq
     core/MainWindow.cpp
     core/NewProjectWizard.cpp
     core/ProjectTemplates.cpp
+    core/SettingsDialog.cpp
+    core/NewFileDialog.cpp
 )
 
 target_include_directories(deltaq PRIVATE

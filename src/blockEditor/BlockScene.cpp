@@ -320,12 +320,29 @@ void BlockScene::mouseReleaseEvent(QGraphicsSceneMouseEvent *event)
 
 PortItem *BlockScene::portItemAt(const QPointF &scenePos) const
 {
-    auto items = this->items(scenePos);
-    for (auto *item : items) {
+    // Ищем порт в области 28×28px вокруг курсора для удобства попадания
+    constexpr qreal hitRadius = 14.0;
+    QRectF hitArea(scenePos.x() - hitRadius, scenePos.y() - hitRadius,
+                   hitRadius * 2, hitRadius * 2);
+
+    PortItem *closest = nullptr;
+    qreal closestDist = hitRadius * hitRadius;
+
+    auto hitItems = this->items(hitArea);
+    for (auto *item : hitItems) {
         auto *port = dynamic_cast<PortItem *>(item);
-        if (port) return port;
+        if (!port) continue;
+
+        QPointF center = port->centerInScene();
+        qreal dx = center.x() - scenePos.x();
+        qreal dy = center.y() - scenePos.y();
+        qreal dist2 = dx * dx + dy * dy;
+        if (dist2 < closestDist) {
+            closestDist = dist2;
+            closest = port;
+        }
     }
-    return nullptr;
+    return closest;
 }
 
 } // namespace DeltaQ

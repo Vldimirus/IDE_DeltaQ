@@ -11,6 +11,7 @@ add_library(dq_ui_designer STATIC
     EventBindingDialog.cpp
     SDL2CodeGenerator.cpp
     UIPreview.cpp
+    UIModuleFactory.cpp
 )
 
 target_include_directories(dq_ui_designer PUBLIC

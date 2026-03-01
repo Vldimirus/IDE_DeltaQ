@@ -33,6 +33,7 @@ signals:
                          const QVariant &oldValue, const QVariant &newValue);
     void eventBindRequested(const QString &widgetId);
     void windowPropertyChanged();
+    void anchorsChanged(const QString &widgetId);
 
 private:
     void buildPropertyList();

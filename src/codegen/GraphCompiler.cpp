@@ -2,6 +2,7 @@
 #include "GraphCompiler.h"
 #include "IR.h"
 #include "../core/ModuleRegistry.h"
+#include "../uiDesigner/UIModuleFactory.h"
 #include <deltaq/Graph.h>
 #include <deltaq/Module.h>
 
@@ -68,6 +69,30 @@ CompilationResult GraphCompiler::compile(const Graph &graph)
                     QObject::tr("Type mismatch: '%1' (%2) → '%3' (%4)")
                     .arg(conn.from.portName, outPort->type, conn.to.portName, inPort->type));
             }
+        }
+    }
+
+    if (!result.errors.isEmpty()) {
+        result.success = false;
+        return result;
+    }
+
+    // 1.5. Проверка совместимости языков модулей
+    QSet<QString> usedLanguages;
+    for (const auto &node : graph.nodes) {
+        const Module *mod = m_registry->findModule(node.moduleId);
+        if (mod && !mod->language.isEmpty())
+            usedLanguages.insert(mod->language);
+    }
+    // C и C++ совместимы, но Python/Rust — нет
+    QSet<QString> incompatible = usedLanguages;
+    incompatible.remove("c");
+    incompatible.remove("cpp");
+    if (!incompatible.isEmpty() && (usedLanguages.contains("c") || usedLanguages.contains("cpp"))) {
+        for (const auto &lang : incompatible) {
+            result.errors.append(
+                QObject::tr("Language '%1' is not compatible with C/C++ modules in this graph")
+                .arg(lang));
         }
     }
 
@@ -164,6 +189,30 @@ IR GraphCompiler::generateIR(const Graph &graph, const QStringList &sortedNodes,
     IR ir;
     ir.addInclude("<stdio.h>");
 
+    // Сбор уникальных модулей — дедупликация includes и определений
+    QSet<QString> processedModuleIds;
+    for (const auto &node : graph.nodes) {
+        if (processedModuleIds.contains(node.moduleId))
+            continue;
+        processedModuleIds.insert(node.moduleId);
+
+        const Module *mod = m_registry->findModule(node.moduleId);
+        if (!mod) continue;
+
+        // Собираем includes модуля
+        for (const auto &inc : mod->includes) {
+            QString header = inc;
+            if (!header.startsWith('<') && !header.startsWith('"'))
+                header = QString("<%1>").arg(inc);
+            ir.addInclude(header);
+        }
+
+        // Собираем sourceCode модуля (определение функции)
+        if (!mod->sourceCode.isEmpty()) {
+            ir.moduleSources.append(mod->sourceCode);
+        }
+    }
+
     // Маппинг: nodeId:portName → имя переменной в C-коде
     QMap<QString, QString> portVarMap;
 
@@ -232,15 +281,52 @@ IR GraphCompiler::generateIR(const Graph &graph, const QStringList &sortedNodes,
         }
 
         // Генерируем вызов функции
-        QString funcName = QString("dq_%1").arg(mod->name.toLower().replace(' ', '_'));
+        if (UIModuleFactory::isUIModule(node->moduleId) ||
+            UIModuleFactory::isUIModuleByName(mod->name)) {
+            // UI-модуль: SDL2-специфичный код
+            QString widgetVar = QString("widget_%1").arg(nodeId.left(8).replace('-', '_'));
 
-        if (mod->outputs.isEmpty()) {
-            // Функция без возвращаемого значения
-            ir.addInstruction(IRInstruction::makeCall({}, funcName, callArgs, nodeId));
+            if (mod->name == "UI_Button") {
+                ir.addInstruction(IRInstruction::makeComment(
+                    QString("UI: Button '%1'").arg(callArgs.value(0))));
+                // onClick → будет обработан как callback
+                if (!mod->outputs.isEmpty()) {
+                    QString targetVar = portVarMap.value(nodeId + ":" + mod->outputs.first().name);
+                    ir.addInstruction(IRInstruction::makeAssign(
+                        targetVar, "0 /* onClick callback */", nodeId));
+                }
+            } else if (mod->name == "UI_Label") {
+                ir.addInstruction(IRInstruction::makeComment(
+                    QString("UI: Label, text=%1").arg(callArgs.value(0))));
+                QString funcName = "ui_label_set_text";
+                ir.addInstruction(IRInstruction::makeCall(
+                    {}, funcName, {"&" + widgetVar, callArgs.value(0)}, nodeId));
+            } else if (mod->name == "UI_Slider") {
+                ir.addInstruction(IRInstruction::makeComment(
+                    QString("UI: Slider [%1..%2]").arg(callArgs.value(0), callArgs.value(1))));
+                if (mod->outputs.size() > 1) {
+                    QString targetVar = portVarMap.value(nodeId + ":" + mod->outputs[1].name);
+                    ir.addInstruction(IRInstruction::makeAssign(
+                        targetVar, callArgs.value(2), nodeId));
+                }
+            } else {
+                // Общий вариант для остальных UI-модулей
+                QString funcName = QString("ui_%1_create").arg(
+                    mod->name.toLower().replace("ui_", ""));
+                ir.addInstruction(IRInstruction::makeCall({}, funcName, callArgs, nodeId));
+            }
         } else {
-            // Функция с возвращаемым значением
-            QString targetVar = portVarMap.value(nodeId + ":" + mod->outputs.first().name);
-            ir.addInstruction(IRInstruction::makeCall(targetVar, funcName, callArgs, nodeId));
+            // Обычный модуль
+            QString funcName = QString("dq_%1").arg(mod->name.toLower().replace(' ', '_'));
+
+            if (mod->outputs.isEmpty()) {
+                // Функция без возвращаемого значения
+                ir.addInstruction(IRInstruction::makeCall({}, funcName, callArgs, nodeId));
+            } else {
+                // Функция с возвращаемым значением
+                QString targetVar = portVarMap.value(nodeId + ":" + mod->outputs.first().name);
+                ir.addInstruction(IRInstruction::makeCall(targetVar, funcName, callArgs, nodeId));
+            }
         }
     }
 

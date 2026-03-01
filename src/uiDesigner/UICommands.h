@@ -12,10 +12,11 @@ namespace DeltaQ {
 
 class DesignScene;
 
-// Добавление виджета
+// Добавление виджета (с опциональным родителем-контейнером)
 class AddWidgetCommand : public Command {
 public:
-    AddWidgetCommand(DesignScene *scene, UILayout *layout, const UIWidget &widget);
+    AddWidgetCommand(DesignScene *scene, UILayout *layout, const UIWidget &widget,
+                     const QString &parentId = {});
     void execute() override;
     void undo() override;
     QString description() const override;
@@ -24,6 +25,7 @@ private:
     DesignScene *m_scene;
     UILayout *m_layout;
     UIWidget m_widget;
+    QString m_parentId;
 };
 
 // Удаление виджета (с сохранением для undo)
@@ -131,6 +133,46 @@ private:
     QString m_eventName;
     QString m_oldHandler;
     QString m_newHandler;
+};
+
+// Перенос виджета в другой контейнер (reparenting)
+class ReparentWidgetCommand : public Command {
+public:
+    ReparentWidgetCommand(DesignScene *scene, UILayout *layout,
+                          const QString &widgetId,
+                          const QString &oldParentId, const QString &newParentId,
+                          const QPointF &oldPos, const QPointF &newPos);
+    void execute() override;
+    void undo() override;
+    QString description() const override;
+
+private:
+    DesignScene *m_scene;
+    UILayout *m_layout;
+    QString m_widgetId;
+    QString m_oldParentId;
+    QString m_newParentId;
+    QPointF m_oldPos;
+    QPointF m_newPos;
+};
+
+// Изменение anchor-привязок виджета
+struct UIAnchors;
+class ChangeAnchorsCommand : public Command {
+public:
+    ChangeAnchorsCommand(DesignScene *scene, UILayout *layout,
+                         const QString &widgetId,
+                         const UIAnchors &oldAnchors, const UIAnchors &newAnchors);
+    void execute() override;
+    void undo() override;
+    QString description() const override;
+
+private:
+    DesignScene *m_scene;
+    UILayout *m_layout;
+    QString m_widgetId;
+    UIAnchors m_oldAnchors;
+    UIAnchors m_newAnchors;
 };
 
 } // namespace DeltaQ

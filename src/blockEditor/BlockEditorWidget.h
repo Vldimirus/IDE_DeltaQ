@@ -38,8 +38,10 @@ public:
     void zoomFit();
 
 protected:
+    bool eventFilter(QObject *obj, QEvent *event) override;
     void wheelEvent(QWheelEvent *event) override;
     void keyPressEvent(QKeyEvent *event) override;
+    void keyReleaseEvent(QKeyEvent *event) override;
     void showEvent(QShowEvent *event) override;
 
 private:
@@ -54,6 +56,9 @@ private:
     QSplitter *m_splitter = nullptr;
 
     bool m_firstShow = true;
+    bool m_spacePressed = false;
+    bool m_middleDragging = false;
+    QPoint m_lastPanPos;
     qreal m_currentZoom = 1.0;
     static constexpr qreal MinZoom = 0.1;
     static constexpr qreal MaxZoom = 5.0;

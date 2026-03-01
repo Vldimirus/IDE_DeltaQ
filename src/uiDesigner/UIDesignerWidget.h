@@ -58,7 +58,7 @@ protected:
     void keyPressEvent(QKeyEvent *event) override;
 
 private slots:
-    void handleWidgetDropped(const QString &widgetType, const QPointF &scenePos);
+    void handleWidgetDropped(const QString &widgetType, const QPointF &scenePos, const QString &parentId);
     void handleWidgetMoved(const QString &widgetId, const QPointF &oldPos, const QPointF &newPos);
     void handleWidgetResized(const QString &widgetId, const QRectF &oldRect, const QRectF &newRect);
     void handleDeleteSelected();

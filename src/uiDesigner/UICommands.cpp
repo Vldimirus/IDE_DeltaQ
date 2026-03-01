@@ -29,22 +29,57 @@ static void removeWidgetFromTree(UIWidget &root, const QString &id)
     }
 }
 
+// --- Поиск родителя в дереве ---
+
+static UIWidget *findParentOf(UIWidget &root, const QString &childId)
+{
+    for (auto &child : root.children) {
+        if (child.id == childId) return &root;
+        auto *found = findParentOf(child, childId);
+        if (found) return found;
+    }
+    return nullptr;
+}
+
 // --- AddWidgetCommand ---
 
 AddWidgetCommand::AddWidgetCommand(DesignScene *scene, UILayout *layout,
-                                     const UIWidget &widget)
-    : m_scene(scene), m_layout(layout), m_widget(widget)
+                                     const UIWidget &widget, const QString &parentId)
+    : m_scene(scene), m_layout(layout), m_widget(widget), m_parentId(parentId)
 {
 }
 
 void AddWidgetCommand::execute()
 {
-    m_scene->addWidgetItem(m_widget);
-    m_layout->window.children.append(m_widget);
+    auto *item = m_scene->addWidgetItem(m_widget);
+
+    if (!m_parentId.isEmpty()) {
+        // Добавить в контейнер на сцене
+        auto *parentItem = m_scene->widgetItem(m_parentId);
+        if (parentItem) {
+            // Координаты относительно родителя
+            QPointF relPos = item->pos() - parentItem->scenePos();
+            parentItem->addChildWidget(item);
+            item->setPos(relPos);
+        }
+        // Добавить в дерево данных
+        auto *parentWidget = findWidgetInTree(m_layout->window, m_parentId);
+        if (parentWidget)
+            parentWidget->children.append(m_widget);
+    } else {
+        m_layout->window.children.append(m_widget);
+    }
 }
 
 void AddWidgetCommand::undo()
 {
+    // Убрать из родителя на сцене
+    if (!m_parentId.isEmpty()) {
+        auto *parentItem = m_scene->widgetItem(m_parentId);
+        auto *childItem = m_scene->widgetItem(m_widget.id);
+        if (parentItem && childItem)
+            parentItem->removeChildWidget(childItem);
+    }
     m_scene->removeWidgetItem(m_widget.id);
     removeWidgetFromTree(m_layout->window, m_widget.id);
 }
@@ -309,6 +344,130 @@ void BindEventCommand::undo()
 QString BindEventCommand::description() const
 {
     return QObject::tr("Bind event '%1'").arg(m_eventName);
+}
+
+// --- ReparentWidgetCommand ---
+
+ReparentWidgetCommand::ReparentWidgetCommand(DesignScene *scene, UILayout *layout,
+                                               const QString &widgetId,
+                                               const QString &oldParentId, const QString &newParentId,
+                                               const QPointF &oldPos, const QPointF &newPos)
+    : m_scene(scene), m_layout(layout), m_widgetId(widgetId)
+    , m_oldParentId(oldParentId), m_newParentId(newParentId)
+    , m_oldPos(oldPos), m_newPos(newPos)
+{
+}
+
+static void reparentOnScene(DesignScene *scene, const QString &widgetId,
+                             const QString &fromParentId, const QString &toParentId,
+                             const QPointF &newPos)
+{
+    auto *item = scene->widgetItem(widgetId);
+    if (!item) return;
+
+    // Снять с текущего родителя
+    if (!fromParentId.isEmpty()) {
+        auto *oldParent = scene->widgetItem(fromParentId);
+        if (oldParent)
+            oldParent->removeChildWidget(item);
+    }
+
+    // Добавить к новому родителю
+    if (!toParentId.isEmpty()) {
+        auto *newParent = scene->widgetItem(toParentId);
+        if (newParent)
+            newParent->addChildWidget(item);
+    }
+
+    item->setPos(newPos);
+}
+
+static void reparentInLayout(UILayout *layout, const QString &widgetId,
+                              const QString &fromParentId, const QString &toParentId)
+{
+    // Находим виджет и сохраняем копию
+    auto *widget = findWidgetInTree(layout->window, widgetId);
+    if (!widget) return;
+    UIWidget widgetCopy = *widget;
+    widgetCopy.children = widget->children; // сохраняем дочерних
+
+    // Удаляем из старого родителя
+    if (!fromParentId.isEmpty()) {
+        auto *oldParent = findWidgetInTree(layout->window, fromParentId);
+        if (oldParent) {
+            for (int i = 0; i < oldParent->children.size(); ++i) {
+                if (oldParent->children[i].id == widgetId) {
+                    oldParent->children.removeAt(i);
+                    break;
+                }
+            }
+        }
+    } else {
+        removeWidgetFromTree(layout->window, widgetId);
+    }
+
+    // Добавляем к новому родителю
+    if (!toParentId.isEmpty()) {
+        auto *newParent = findWidgetInTree(layout->window, toParentId);
+        if (newParent)
+            newParent->children.append(widgetCopy);
+    } else {
+        layout->window.children.append(widgetCopy);
+    }
+}
+
+void ReparentWidgetCommand::execute()
+{
+    reparentOnScene(m_scene, m_widgetId, m_oldParentId, m_newParentId, m_newPos);
+    reparentInLayout(m_layout, m_widgetId, m_oldParentId, m_newParentId);
+}
+
+void ReparentWidgetCommand::undo()
+{
+    reparentOnScene(m_scene, m_widgetId, m_newParentId, m_oldParentId, m_oldPos);
+    reparentInLayout(m_layout, m_widgetId, m_newParentId, m_oldParentId);
+}
+
+QString ReparentWidgetCommand::description() const
+{
+    return QObject::tr("Reparent widget");
+}
+
+// --- ChangeAnchorsCommand ---
+
+ChangeAnchorsCommand::ChangeAnchorsCommand(DesignScene *scene, UILayout *layout,
+                                             const QString &widgetId,
+                                             const UIAnchors &oldAnchors, const UIAnchors &newAnchors)
+    : m_scene(scene), m_layout(layout), m_widgetId(widgetId)
+    , m_oldAnchors(oldAnchors), m_newAnchors(newAnchors)
+{
+}
+
+void ChangeAnchorsCommand::execute()
+{
+    auto *item = m_scene->widgetItem(m_widgetId);
+    if (item)
+        item->setAnchors(m_newAnchors);
+
+    auto *w = findWidgetInTree(m_layout->window, m_widgetId);
+    if (w)
+        w->anchors = m_newAnchors;
+}
+
+void ChangeAnchorsCommand::undo()
+{
+    auto *item = m_scene->widgetItem(m_widgetId);
+    if (item)
+        item->setAnchors(m_oldAnchors);
+
+    auto *w = findWidgetInTree(m_layout->window, m_widgetId);
+    if (w)
+        w->anchors = m_oldAnchors;
+}
+
+QString ChangeAnchorsCommand::description() const
+{
+    return QObject::tr("Change anchors");
 }
 
 } // namespace DeltaQ

@@ -52,6 +52,12 @@ void ModulePalette::setFilter(const QString &text)
     m_searchEdit->setText(text);
 }
 
+void ModulePalette::setLanguageFilter(const QString &lang)
+{
+    m_languageFilter = lang;
+    buildTree();
+}
+
 void ModulePalette::buildTree()
 {
     m_tree->clear();
@@ -72,12 +78,24 @@ void ModulePalette::buildTree()
         else if (cat == "logic")  color = QColor(50, 140, 80);
         else if (cat == "io")     color = QColor(200, 120, 40);
         else if (cat == "string") color = QColor(140, 80, 180);
+        else if (cat == "ui")     color = QColor(220, 80, 80);
         else                      color = QColor(100, 100, 100);
         px.fill(color);
         catItem->setIcon(0, QIcon(px));
 
         auto modules = m_registry->modulesByCategory(cat);
+        bool hasVisibleChild = false;
+
         for (const auto *mod : modules) {
+            // Фильтрация по языку: C и C++ совместимы
+            if (!m_languageFilter.isEmpty()) {
+                bool compatible = (mod->language == m_languageFilter) ||
+                    (m_languageFilter == "c" && mod->language == "cpp") ||
+                    (m_languageFilter == "cpp" && mod->language == "c") ||
+                    mod->language.isEmpty();
+                if (!compatible) continue;
+            }
+
             auto *modItem = new QTreeWidgetItem(catItem, {mod->name});
             modItem->setData(0, Qt::UserRole, mod->id);
             modItem->setFlags(modItem->flags() | Qt::ItemIsDragEnabled);
@@ -95,8 +113,10 @@ void ModulePalette::buildTree()
                     tip += QString("\n  %1 (%2)").arg(p.name, p.type);
             }
             modItem->setToolTip(0, tip);
+            hasVisibleChild = true;
         }
 
+        catItem->setHidden(!hasVisibleChild);
         catItem->setExpanded(true);
     }
 }

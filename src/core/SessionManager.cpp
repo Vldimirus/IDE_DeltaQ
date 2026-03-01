@@ -1,4 +1,5 @@
 #include "SessionManager.h"
+#include <QDir>
 
 namespace DeltaQ {
 
@@ -82,6 +83,16 @@ QByteArray SessionManager::windowState() const
 void SessionManager::setWindowState(const QByteArray &state)
 {
     m_settings.setValue("window/state", state);
+}
+
+QString SessionManager::defaultProjectDir() const
+{
+    return m_settings.value("defaultProjectDir", QDir::homePath()).toString();
+}
+
+void SessionManager::setDefaultProjectDir(const QString &path)
+{
+    m_settings.setValue("defaultProjectDir", path);
 }
 
 int SessionManager::tabWidth() const

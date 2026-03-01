@@ -45,6 +45,7 @@ struct IRInstruction {
 
 struct IR {
     QStringList includes;                    // #include директивы
+    QStringList moduleSources;              // Тела функций модулей (дедуплицированные)
     QVector<IRInstruction> instructions;     // Список инструкций
     QMap<QString, QString> variables;        // имя → тип
 

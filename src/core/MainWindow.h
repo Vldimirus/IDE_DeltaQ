@@ -26,6 +26,7 @@ class BlockEditorWidget;
 class ModulePalette;
 class UIDesignerWidget;
 class LibProcessorWidget;
+class ModuleManagerWidget;
 class ProjectTreeView;
 class BuildManager;
 class LSPClient;
@@ -52,6 +53,8 @@ private slots:
     void onOpenProject();
     void onCloseProject();
     void onSaveFile();
+    void onSettings();
+    void onNewFile();
     void onBuild();
     void onClean();
     void onRun();
@@ -62,10 +65,12 @@ private slots:
     void switchToBlockEditor();
     void switchToUIDesigner();
     void switchToLibProcessor();
+    void switchToModuleManager();
     void updateTitle();
     void updateStatusBar(const QString &message);
     void updateCursorPosition();
     void onFileActivated(const QString &path);
+    void connectBlockEditorSignals(BlockEditorWidget *editor);
     void connectUIDesignerSignals(UIDesignerWidget *designer);
 
 private:
@@ -101,6 +106,7 @@ private:
     ModulePalette *m_modulePalette = nullptr;
     UIDesignerWidget *m_uiDesigner = nullptr;
     LibProcessorWidget *m_libProcessor = nullptr;
+    ModuleManagerWidget *m_moduleManager = nullptr;
 
     // Docks
     QDockWidget *m_projectDock = nullptr;

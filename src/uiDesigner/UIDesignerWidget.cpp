@@ -6,6 +6,7 @@
 #include "ObjectTreeWidget.h"
 #include "WidgetItem.h"
 #include "UICommands.h"
+#include "LayoutEngine.h"
 
 #include "../core/CommandBus.h"
 #include "../core/ModuleRegistry.h"
@@ -107,6 +108,28 @@ UIDesignerWidget::UIDesignerWidget(ModuleRegistry *registry, CommandBus *bus,
     connect(m_scene, &DesignScene::windowSelected, this, [this]() {
         m_propertyEditor->setWindowProperties(m_scene);
         m_objectTree->selectWindow();
+    });
+
+    // При изменении свойств окна (размер) → пересчитать anchor-привязки
+    connect(m_propertyEditor, &PropertyEditor::windowPropertyChanged, this, [this]() {
+        LayoutEngine::applyAnchorsToRootWidgets(m_scene);
+    });
+
+    // При изменении anchors виджета → применить
+    connect(m_propertyEditor, &PropertyEditor::anchorsChanged, this, [this](const QString &widgetId) {
+        auto *item = m_scene->widgetItem(widgetId);
+        if (!item) return;
+        // Авто-захват текущего отступа как margin при первом включении
+        UIAnchors a = item->anchors();
+        auto *parentWidget = qobject_cast<WidgetItem *>(
+            dynamic_cast<QGraphicsObject *>(item->parentItem()));
+        QSizeF parentSize;
+        if (parentWidget)
+            parentSize = QSizeF(parentWidget->widgetWidth(), parentWidget->widgetHeight());
+        else
+            parentSize = QSizeF(m_scene->windowRect().width(),
+                                m_scene->windowRect().height() - 30.0);
+        LayoutEngine::applyAnchors(item, parentSize);
     });
 
     // Клик по пустому месту вне окна → снять выделение
@@ -246,7 +269,8 @@ UILayout *UIDesignerWidget::currentLayout()
     return m_layoutStore->findLayout(newLayout.id);
 }
 
-void UIDesignerWidget::handleWidgetDropped(const QString &widgetType, const QPointF &scenePos)
+void UIDesignerWidget::handleWidgetDropped(const QString &widgetType, const QPointF &scenePos,
+                                             const QString &parentId)
 {
     UILayout *layout = currentLayout();
     if (!layout) return;
@@ -268,7 +292,7 @@ void UIDesignerWidget::handleWidgetDropped(const QString &widgetType, const QPoi
 
     w.properties["text"] = w.name;
 
-    m_commandBus->execute(std::make_unique<AddWidgetCommand>(m_scene, layout, w));
+    m_commandBus->execute(std::make_unique<AddWidgetCommand>(m_scene, layout, w, parentId));
 
     // Обновить дерево объектов
     m_objectTree->rebuild(m_scene);
@@ -280,11 +304,31 @@ void UIDesignerWidget::handleWidgetMoved(const QString &widgetId,
     UILayout *layout = currentLayout();
     if (!layout) return;
 
-    m_commandBus->execute(std::make_unique<MoveWidgetCommand>(
-        m_scene, layout, widgetId, oldPos, newPos));
+    auto *item = m_scene->widgetItem(widgetId);
+    if (!item) return;
+
+    // Определяем текущего родителя
+    auto *currentParent = qobject_cast<WidgetItem *>(
+        dynamic_cast<QGraphicsObject *>(item->parentItem()));
+    QString oldParentId = currentParent ? currentParent->widgetId() : QString();
+
+    // Определяем нового потенциального родителя (исключаем сам виджет)
+    QPointF scenePos = item->scenePos();
+    auto *newContainer = m_scene->containerAtPos(scenePos, item);
+    QString newParentId = newContainer ? newContainer->widgetId() : QString();
+
+    if (oldParentId != newParentId) {
+        // Reparenting
+        m_commandBus->execute(std::make_unique<ReparentWidgetCommand>(
+            m_scene, layout, widgetId, oldParentId, newParentId, oldPos, newPos));
+        m_objectTree->rebuild(m_scene);
+    } else {
+        // Обычное перемещение
+        m_commandBus->execute(std::make_unique<MoveWidgetCommand>(
+            m_scene, layout, widgetId, oldPos, newPos));
+    }
 
     // Обновить PropertyEditor если перемещённый виджет сейчас выделен
-    auto *item = m_scene->widgetItem(widgetId);
     if (item && m_propertyEditor->currentWidget() == item) {
         m_propertyEditor->setWidget(item);
     }

@@ -22,6 +22,9 @@ public:
     // Фильтрация по поисковой строке
     void setFilter(const QString &text);
 
+    // Фильтрация по языку проекта
+    void setLanguageFilter(const QString &lang);
+
 private:
     void buildTree();
     void filterTree(const QString &text);
@@ -30,6 +33,7 @@ private:
     ModuleRegistry *m_registry;
     QLineEdit *m_searchEdit = nullptr;
     QTreeWidget *m_tree = nullptr;
+    QString m_languageFilter; // "" = все, "c", "cpp"
 };
 
 } // namespace DeltaQ

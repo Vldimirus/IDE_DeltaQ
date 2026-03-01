@@ -47,8 +47,8 @@ private:
     QGraphicsTextItem *m_label = nullptr;
     QVector<ConnectionItem *> m_connections;
 
-    static constexpr qreal NormalRadius = 6.0;
-    static constexpr qreal HoverRadius = 8.0;
+    static constexpr qreal NormalRadius = 8.0;
+    static constexpr qreal HoverRadius = 11.0;
 };
 
 } // namespace DeltaQ

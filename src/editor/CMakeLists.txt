@@ -9,6 +9,8 @@ set(EDITOR_SOURCES
     CMakeGenerator.cpp
     AnnotationParser.cpp
     SyntaxHighlighter.cpp
+    ModuleManagerWidget.cpp
+    ModuleTestRunner.cpp
 )
 
 add_library(dq_editor STATIC ${EDITOR_SOURCES})

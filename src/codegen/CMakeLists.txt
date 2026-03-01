@@ -11,5 +11,6 @@ target_include_directories(dq_codegen PUBLIC
 
 target_link_libraries(dq_codegen PUBLIC
     dq_core
+    dq_ui_designer
     Qt6::Core
 )

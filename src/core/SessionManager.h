@@ -37,6 +37,10 @@ public:
     QString language() const;
     void setLanguage(const QString &lang);
 
+    // Путь к проектам по умолчанию
+    QString defaultProjectDir() const;
+    void setDefaultProjectDir(const QString &path);
+
     // Editor settings
     int tabWidth() const;
     void setTabWidth(int width);

@@ -38,6 +38,7 @@ public:
 
 signals:
     void fileSelected(const QString &path);
+    void newFileRequested(const QString &directory);
 
 private slots:
     void onDoubleClicked(const QModelIndex &index);

@@ -42,6 +42,10 @@ public:
     void setEvent(const QString &event, const QString &handler);
     void removeEvent(const QString &event);
 
+    // Anchor-привязки
+    UIAnchors anchors() const { return m_widget.anchors; }
+    void setAnchors(const UIAnchors &a) { m_widget.anchors = a; update(); }
+
     // Дочерние виджеты
     void addChildWidget(WidgetItem *child);
     void removeChildWidget(WidgetItem *child);
@@ -85,6 +89,7 @@ private:
     void paintComboBox(QPainter *painter, const QRectF &rect);
     void paintGeneric(QPainter *painter, const QRectF &rect);
     void paintResizeHandles(QPainter *painter);
+    void paintAnchorIndicators(QPainter *painter);
 
     UIWidget m_widget;
     QVector<WidgetItem *> m_children;

@@ -1,6 +1,6 @@
 # DeltaQ IDE — Прогресс разработки
 
-> Последнее обновление: 2026-03-01 (Фаза 5.7 — Сохранение, координаты, события и генерация UI Designer)
+> Последнее обновление: 2026-03-01 (Фаза 7 — Конфиг, создание файлов, группировка виджетов, авто-компоновка)
 
 ---
 
@@ -11,12 +11,13 @@
 Фаза 1: Ядро + Редактор кода  [████████████████████] 100%  ✓ завершена
 Фаза 2: Блочный редактор      [████████████████████] 100%  ✓ завершена
 Фаза 3: Дизайнер UI + Библ.    [████████████████████] 100%  ✓ завершена
-Фаза 4: Интеграция             [██████████░░░░░░░░░░]  50%
+Фаза 4: Интеграция             [████████████████████] 100%  ✓ завершена
+Фаза 7: Конфиг + группировка   [████████████████████] 100%  ✓ завершена
 ─────────────────────────────────────────────────────
-Общий прогресс проекта:                                ~85%
+Общий прогресс проекта:                                ~95%
 ```
 
-**Текущая фаза:** 4 — Интеграция
+**Текущая фаза:** Стабилизация и документация
 
 ---
 
@@ -62,6 +63,8 @@
 |---|------------|----------|
 | 29 | Фаза 5.6: Исправление UI Designer | **Drag&Drop (критический):** Убран конфликт RubberBandDrag с внешним drag — переключено на NoDrag. Отключён встроенный drag QTreeWidget в палитре (конфликтовал с ручным QDrag). Логика создания/перемещения/ресайза виджетов перенесена из MainWindow в UIDesignerWidget (модуль стал самодостаточным). **Layout Selector:** подключён к ChangeLayoutCommand, обновляется при выделении виджета. **Удаление:** Delete/Backspace → RemoveWidgetCommand, поддержка макрокоманд при мульти-выделении, кнопка Delete в тулбаре. **Именование файлов:** SDL2CodeGenerator параметризован baseName, файлы генерируются как {baseName}.h/.c/{baseName}_events.h/.c (имя из .dqui). **Дерево объектов:** ObjectTreeWidget — иерархическое QTreeWidget с корнем "Window", клик → выделение на сцене + центрирование + PropertyEditor, интеграция в правый сплиттер. **Ограничение drop зоны:** drop разрешён только внутри клиентской области окна (без title bar). **Ghost-preview:** полупрозрачный прямоугольник в позиции будущего drop с названием типа. 2 новых файла, 8 изменённых, все 32 теста проходят. |
 | 30 | Фаза 5.7: Сохранение, координаты, события, генерация | **Сохранение (критический):** onSaveFile() расширен — проверяет текущую вкладку (UIDesignerWidget → saveLayout + saveAll, BlockEditorWidget → saveGraph + saveAll, иначе → saveCurrentFile). Добавлен CodeEditorWidget::currentCustomTabWidget(). Автосохранение при закрытии проекта (saveProject() в onCloseProject). **Координаты:** handleWidgetMoved/Resized обновляют PropertyEditor после выполнения команды. **Система событий:** WidgetItem::mouseDoubleClickEvent → widgetDoubleClicked сигнал → DesignScene → UIDesignerWidget::openEventHandler (определение события по типу виджета: onClick, onTextChanged, onValueChanged, onToggled, onSelectionChanged) → MainWindow создаёт/открывает граф-обработчик (Graph::create + GraphStore + BlockEditorWidget). **Генерация:** UI-файлы (.h/.c/_events.h/_events.c) генерируются в ui/ (не в src/), main.c создаётся только если нет, #include "../ui/{baseName}.h" добавляется автоматически. 9 файлов изменены, все 32 теста проходят. |
+| 31 | Фаза 7: Конфиг, создание файлов, группировка, anchor-привязки | **7.1 Запоминание пути проектов + диалог настроек:** SessionManager — defaultProjectDir()/setDefaultProjectDir(). NewProjectWizard — setDefaultDir() (предзаполнение пути). SettingsDialog (новый, QTabWidget): вкладка «Общие» (путь по умолчанию + Browse), «Редактор» (шрифт, размер, табуляция), «Язык» (переключение локализации). Меню Edit → Settings (Ctrl+,). MainWindow сохраняет путь при создании проекта. **7.2 Обновление сводки визарда + CMake:** Исправлена сводка desktop-проекта (ui/window1.dqui, ui/window1.h, ui/window1.c, ui/window1_events.h, ui/window1_events.c, src/main.c). CMakeGenerator — добавлен ${CMAKE_SOURCE_DIR}/ui в target_include_directories. **7.3 Создание файлов внутри проекта:** NewFileDialog (новый): выбор типа (UI-окно .dqui, Граф .dqgraph, Модуль .dqmod, C-файл .c, Заголовок .h), имя, превью пути. MainWindow::onNewFile() — создание файлов в правильных подкаталогах (ui/, graphs/, modules/, src/). Меню File → New File (Ctrl+N). ProjectTreeView::newFileRequested → вместо inline-создания. **7.4 Группировка виджетов (drag в контейнер):** DesignScene::containerAtPos() — поиск глубоко вложенного контейнера (Panel, GroupBox, ScrollPanel, TabPanel). Подсветка контейнера при drag (зелёная пунктирная рамка) через drawForeground + m_dropTargetId. widgetDropped сигнал с parentId. AddWidgetCommand — поддержка parentId (вложение в контейнер на сцене + в data model). ReparentWidgetCommand (новый) — перемещение виджета между контейнерами (mapFromScene/mapToScene). handleWidgetMoved() — автодетекция смены родителя. **7.5 Авто-компоновка / Anchor-привязки:** UIAnchors (новая структура в UILayout.h): left/right/top/bottom/hCenter/vCenter + margins, toJson/fromJson, operator==. Добавлено поле anchors в UIWidget. LayoutEngine: applyAnchors() — горизонтальные (left+right=растяжение, left, right, hCenter) и вертикальные (top+bottom=растяжение, top, bottom, vCenter) привязки. applyAnchorsToChildren/applyAnchorsToRootWidgets. PropertyEditor — секция «Привязки» (6 чекбоксов + margin-спинбоксы, взаимоисключение hCenter↔left/right, vCenter↔top/bottom). ChangeAnchorsCommand (новый). Визуальные индикаторы: оранжевые пунктирные линии при выделении виджета с anchor. Автоприменение при ресайзе окна/контейнера. **Файлы:** 4 новых (SettingsDialog.h/.cpp, NewFileDialog.h/.cpp), ~15 изменённых, все 32 теста проходят. |
+| 32 | Фаза 6: Модульная система — полная доработка | **6.1 Исправление соединений:** connectBlockEditorSignals(BlockEditorWidget*) — аналог connectUIDesignerSignals. Подключение nodeDropped/connectionRequested/nodeMovedByUser для вкладочных BlockEditorWidget (.dqgraph и .dqmod). Вызов в setupConnections() и onFileActivated(). **6.2 Панорамирование:** ScrollHandDrag → NoDrag (убран конфликт с портами). eventFilter: средняя кнопка мыши + Space+ЛКМ для панорамирования. keyPressEvent/keyReleaseEvent для отслеживания Space. **6.3 Порты:** NormalRadius 6→8, HoverRadius 8→11. portItemAt() — поиск ближайшего порта в области 28×28px (вместо точечного попадания). **6.4 Расширение Module:** includes (QStringList), testStatus (passed/failed/untested/modified), sourceCode (тело функции). Обновлены toJson/fromJson для сериализации. **6.5 Полная сборка GraphCompiler:** IR::moduleSources — тела функций модулей (дедуплицированные). emitCCode() генерирует 3 секции: includes → определения модулей → main(). GraphCompiler собирает уникальные moduleId, их includes и sourceCode. Проверка совместимости языков модулей в графе. **6.6 ModuleTestRunner:** compile() — gcc -fsyntax-only для проверки синтаксиса. generateTestHarness() — генерация test_main.c с вызовом функции и printf("OUTPUT:port=value"). runTest() — компиляция + запуск с таймаутом 5 сек. parseOutput() — парсинг OUTPUT:port=value. **6.7 ModuleManagerWidget:** Splitter: библиотека слева (QTreeWidget + поиск + фильтр языка + кнопки New/Delete), редактор справа (имя/описание/категория/язык, зависимости #include, QPlainTextEdit для кода, таблица портов, кнопки Compile/Test, панель тестирования, журнал). Автоанализ сигнатуры dq_name() → определение портов. Иконки статусов: passed (зелёный), failed (красный), modified (оранжевый), untested (серый). Предупреждение при удалении модуля. Статус сбрасывается на modified при изменении кода. **6.8 Интеграция:** 5-й виджет в QStackedWidget, меню View → Module Manager (Ctrl+M). moduleChanged → rebuildTree палитры. **6.9 Мультиязычная фильтрация:** ModulePalette::setLanguageFilter() — C и C++ совместимы. ModuleManagerWidget — QComboBox фильтр по языку. GraphCompiler — проверка совместимости языков модулей. **6.10 UI-виджеты как модули:** UIModuleFactory — 8 модулей (Button, TextField, Label, Slider, Checkbox, ProgressBar, Image, ComboBox). Фиксированные порты: входы = свойства, выходы = события/значения. origin="ui", category="ui". Регистрация при инициализации (setupCoreServices). Категория "ui" в палитре с красной иконкой. GraphCompiler: SDL2-специфичная генерация для UI-модулей. **Файлы:** 4 новых (ModuleManagerWidget.h/.cpp, ModuleTestRunner.h/.cpp, UIModuleFactory.h/.cpp), 11 изменённых (MainWindow.h/.cpp, BlockEditorWidget.h/.cpp, BlockScene.cpp, PortItem.h, ModulePalette.h/.cpp, Module.h, GraphCompiler.cpp, IR.h/.cpp), 3 CMakeLists.txt обновлены. |
 
 > **Черновики** (п. 5–6) были созданы до утверждения планов и доработаны при первой сборке.
 
@@ -94,8 +97,12 @@
 - [x] Фаза 5.5: Маршрутизация файлов + вкладки для графов/UI + удаление связей
 - [x] Фаза 5.6: Исправление UI Designer (drag&drop, удаление, дерево объектов, именование файлов, ghost-preview)
 - [x] Фаза 5.7: Сохранение, координаты, события, генерация UI Designer
+- [x] Фаза 6: Модульная система — полная доработка (соединения, панорамирование, порты, Module struct, GraphCompiler, ModuleManager, мультиязычность, UI-модули)
+- [x] Фаза 7: Конфиг, создание файлов, группировка виджетов, авто-компоновка (настройки IDE, NewFileDialog, контейнерная группировка, anchor-привязки)
 
-### Известные проблемы (Фаза 5.7)
+| 33 | Фаза 6.1: Интеграция модульной системы | **setProjectDir:** ModuleManagerWidget получает путь проекта при открытии/закрытии (projectOpened/projectClosed → setProjectDir). **Синхронизация дерева:** moduleRegistered/Updated/Unregistered → rebuildTree и в палитре, и в менеджере модулей. **UI-модули — только просмотр:** loadModuleToEditor() блокирует все поля редактирования (имя, описание, категория, язык, includes, код, кнопки Save/Compile/Test/Delete) для модулей с origin=="ui". **Персистентность:** onNewModule, onSaveModule, onDeleteModule записывают/удаляют .dqmod файлы в {projectDir}/modules/. 2 файла изменены, все 32 теста проходят. |
+
+### Известные проблемы (Фаза 6)
 
 - [ ] Блочный редактор (.dqgraph): узлы слишком приближены при открытии — zoomFit масштабирует чрезмерно для малого числа узлов
 
@@ -107,12 +114,16 @@
 
 **Фаза 4 (Дизайнер UI + Обработчик библиотек) — завершена на 100%.**
 
-**Фаза 5 (Интеграция) — начата (50%).**
+**Фаза 5 (Интеграция) — завершена (100%).**
+
+**Фаза 6 (Модульная система) — завершена (100%).**
+
+**Фаза 7 (Конфиг, создание файлов, группировка, anchor) — завершена (100%).**
 
 Реализовано:
 - UI Designer: DesignScene, WidgetItem (12 типов), WidgetPalette (23 типа, 4 категории), PropertyEditor
-- UICommands: 7 команд undo/redo (Add/Remove/Move/Resize/ChangeProperty/ChangeLayout/BindEvent)
-- LayoutEngine: HBox, VBox, Grid, Flow компоновки
+- UICommands: 10 команд undo/redo (Add/Remove/Move/Resize/ChangeProperty/ChangeLayout/BindEvent/Reparent/ChangeAnchors)
+- LayoutEngine: HBox, VBox, Grid, Flow компоновки + Anchor-привязки (left/right/top/bottom/hCenter/vCenter)
 - SDL2 Code Generator: 5 файлов C-кода из UILayout
 - EventBindingDialog: привязка событий (Module Function / Graph Trigger / Custom)
 - UIPreview: генерация → gcc → запуск SDL2-приложения
@@ -120,9 +131,16 @@
 - LibraryDecomposer: функции→модули, классы→модули (create/destroy/methods)
 - WrapperGenerator: extern "C" обёртки для C++ классов
 - LibraryImportWizard: 5-шаговый мастер импорта
-- 8 новых тестов (~52 тест-кейса), всего 32 теста
+- ModuleManagerWidget: полный менеджер модулей с компиляцией и тестированием
+- ModuleTestRunner: gcc -fsyntax-only + тестовая обвязка + запуск
+- UIModuleFactory: 8 UI-виджетов как модули (Button, TextField, Label, Slider, Checkbox, ProgressBar, Image, ComboBox)
+- GraphCompiler: полная сборка с дедупликацией includes и определений, проверка совместимости языков
+- SettingsDialog: диалог настроек IDE (путь проектов, шрифт, язык)
+- NewFileDialog: создание файлов внутри проекта (.dqui, .dqgraph, .dqmod, .c, .h)
+- Группировка виджетов: drag в контейнер (Panel/GroupBox), ReparentWidgetCommand, подсветка при drag
+- Anchor-привязки: UIAnchors, LayoutEngine::applyAnchors, визуальные индикаторы, автоприменение при ресайзе
 
-**Фаза 5 (Интеграция)** — см. детальные планы в `docs/plan/09_roadmap.md`
+**Следующие шаги:** Тестирование, стабилизация, документация пользователя.
 
 ---
 
@@ -140,6 +158,7 @@
 | `docs/plan/07_codegen.md` | Генерация кода, IR, бэкенды |
 | `docs/plan/08_project_structure.md` | Структура каталогов |
 | `docs/plan/09_roadmap.md` | Дорожная карта и фазы |
+| `docs/plan/10_module_system_rework.md` | Модульная система: полная доработка |
 
 ---
 
