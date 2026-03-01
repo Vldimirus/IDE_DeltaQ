@@ -4,8 +4,12 @@
 #include "../core/ModuleRegistry.h"
 #include <deltaq/Module.h>
 
+#include "SyntaxHighlighter.h"
+#include "../blockEditor/NodeItem.h"
+
 #include <QVBoxLayout>
 #include <QHBoxLayout>
+#include <QGridLayout>
 #include <QGroupBox>
 #include <QFormLayout>
 #include <QHeaderView>
@@ -14,6 +18,9 @@
 #include <QRegularExpression>
 #include <QDir>
 #include <QFile>
+#include <QGraphicsScene>
+#include <QGraphicsView>
+#include <QTabWidget>
 
 namespace DeltaQ {
 
@@ -69,9 +76,11 @@ ModuleManagerWidget::ModuleManagerWidget(ModuleRegistry *registry, QWidget *pare
 void ModuleManagerWidget::setupUI()
 {
     auto *mainLayout = new QHBoxLayout(this);
+    mainLayout->setContentsMargins(0, 0, 0, 0);
 
-    // === Левая панель: библиотека ===
+    // === Левая панель: библиотека модулей ===
     auto *leftPanel = new QWidget(this);
+    leftPanel->setMaximumWidth(260);
     auto *leftLayout = new QVBoxLayout(leftPanel);
     leftLayout->setContentsMargins(4, 4, 4, 4);
 
@@ -96,7 +105,7 @@ void ModuleManagerWidget::setupUI()
 
     // Кнопки
     auto *btnLayout = new QHBoxLayout;
-    m_newBtn = new QPushButton(tr("Новый модуль"), this);
+    m_newBtn = new QPushButton(tr("Новый"), this);
     m_deleteBtn = new QPushButton(tr("Удалить"), this);
     m_deleteBtn->setEnabled(false);
     btnLayout->addWidget(m_newBtn);
@@ -107,59 +116,110 @@ void ModuleManagerWidget::setupUI()
     auto *rightPanel = new QWidget(this);
     auto *rightLayout = new QVBoxLayout(rightPanel);
     rightLayout->setContentsMargins(4, 4, 4, 4);
+    rightLayout->setSpacing(4);
 
-    // Шапка: имя, описание, категория, язык
-    auto *headerGroup = new QGroupBox(tr("Свойства модуля"), this);
-    auto *headerLayout = new QFormLayout(headerGroup);
+    // --- Верхняя метаполоса (компактная горизонтальная) ---
+    auto *metaBar = new QHBoxLayout;
+    metaBar->setSpacing(6);
+
+    // 1. Свойства (QGridLayout 2x4)
+    auto *propsGroup = new QGroupBox(tr("Свойства"), this);
+    auto *propsGrid = new QGridLayout(propsGroup);
+    propsGrid->setContentsMargins(4, 4, 4, 4);
+    propsGrid->setSpacing(2);
 
     m_nameEdit = new QLineEdit(this);
-    headerLayout->addRow(tr("Имя:"), m_nameEdit);
-
-    m_descEdit = new QLineEdit(this);
-    headerLayout->addRow(tr("Описание:"), m_descEdit);
+    m_nameEdit->setPlaceholderText(tr("имя_модуля"));
+    propsGrid->addWidget(new QLabel(tr("Имя:"), this), 0, 0);
+    propsGrid->addWidget(m_nameEdit, 0, 1);
 
     m_categoryCombo = new QComboBox(this);
     m_categoryCombo->setEditable(true);
     m_categoryCombo->addItems({"math", "logic", "io", "string", "ui", "custom"});
-    headerLayout->addRow(tr("Категория:"), m_categoryCombo);
+    propsGrid->addWidget(new QLabel(tr("Кат:"), this), 0, 2);
+    propsGrid->addWidget(m_categoryCombo, 0, 3);
+
+    m_descEdit = new QLineEdit(this);
+    m_descEdit->setPlaceholderText(tr("Описание модуля"));
+    propsGrid->addWidget(new QLabel(tr("Опис:"), this), 1, 0);
+    propsGrid->addWidget(m_descEdit, 1, 1);
 
     m_langCombo = new QComboBox(this);
     m_langCombo->addItems({"c", "cpp"});
-    headerLayout->addRow(tr("Язык:"), m_langCombo);
+    propsGrid->addWidget(new QLabel(tr("Яз:"), this), 1, 2);
+    propsGrid->addWidget(m_langCombo, 1, 3);
 
-    rightLayout->addWidget(headerGroup);
+    metaBar->addWidget(propsGroup, 2);
 
-    // Зависимости (#include)
-    auto *includesGroup = new QGroupBox(tr("Зависимости (#include)"), this);
+    // 2. Зависимости (#include)
+    auto *includesGroup = new QGroupBox(tr("Зависимости"), this);
     auto *includesLayout = new QVBoxLayout(includesGroup);
+    includesLayout->setContentsMargins(4, 4, 4, 4);
     m_includesEdit = new QTextEdit(this);
-    m_includesEdit->setMaximumHeight(60);
-    m_includesEdit->setPlaceholderText(tr("По одному на строку: stdlib.h, math.h ..."));
+    m_includesEdit->setMaximumHeight(80);
+    m_includesEdit->setPlaceholderText(tr("stdlib.h\nmath.h"));
+    m_includesEdit->setFont(QFont("Monospace", 9));
     includesLayout->addWidget(m_includesEdit);
-    rightLayout->addWidget(includesGroup);
+    metaBar->addWidget(includesGroup, 1);
 
-    // Редактор кода
-    auto *codeGroup = new QGroupBox(tr("Исходный код (тело функции)"), this);
-    auto *codeLayout = new QVBoxLayout(codeGroup);
+    // 3. Порты (компактная таблица)
+    auto *portGroup = new QGroupBox(tr("Порты"), this);
+    auto *portLayout = new QVBoxLayout(portGroup);
+    portLayout->setContentsMargins(4, 4, 4, 4);
+    m_portTable = new QTableWidget(0, 3, this);
+    m_portTable->setHorizontalHeaderLabels({tr("Имя"), tr("Тип"), tr("Напр.")});
+    m_portTable->horizontalHeader()->setStretchLastSection(true);
+    m_portTable->horizontalHeader()->setDefaultSectionSize(55);
+    m_portTable->setMaximumHeight(80);
+    m_portTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    m_portTable->verticalHeader()->setDefaultSectionSize(18);
+    m_portTable->verticalHeader()->hide();
+    m_portTable->setFont(QFont("Monospace", 8));
+    portLayout->addWidget(m_portTable);
+    metaBar->addWidget(portGroup, 1);
+
+    // 4. Превью блока на графе
+    auto *previewFrame = new QFrame(this);
+    previewFrame->setFixedWidth(200);
+    previewFrame->setFrameShape(QFrame::StyledPanel);
+    previewFrame->setStyleSheet("QFrame { background: #1e1e1e; border-radius: 4px; }");
+    auto *previewLayout = new QVBoxLayout(previewFrame);
+    previewLayout->setContentsMargins(2, 2, 2, 2);
+
+    m_previewScene = new QGraphicsScene(this);
+    m_previewView = new QGraphicsView(m_previewScene, this);
+    m_previewView->setRenderHint(QPainter::Antialiasing);
+    m_previewView->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    m_previewView->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    m_previewView->setStyleSheet("QGraphicsView { background: #1e1e1e; border: none; }");
+    m_previewView->setInteractive(false);
+    previewLayout->addWidget(m_previewView);
+
+    metaBar->addWidget(previewFrame, 0);
+
+    rightLayout->addLayout(metaBar);
+
+    // --- Центральный вертикальный сплиттер: код + табы внизу ---
+    auto *centerSplitter = new QSplitter(Qt::Vertical, this);
+
+    // Верх: редактор кода с подсветкой синтаксиса
+    auto *codeWidget = new QWidget(this);
+    auto *codeLayout = new QVBoxLayout(codeWidget);
+    codeLayout->setContentsMargins(0, 0, 0, 0);
+    codeLayout->setSpacing(4);
+
     m_codeEdit = new QPlainTextEdit(this);
-    m_codeEdit->setFont(QFont("Monospace", 10));
+    m_codeEdit->setFont(QFont("Monospace", 11));
     m_codeEdit->setPlaceholderText(
         tr("int dq_example(int a, int b) {\n    return a + b;\n}"));
-    codeLayout->addWidget(m_codeEdit);
-    rightLayout->addWidget(codeGroup);
+    m_codeEdit->setTabStopDistance(QFontMetricsF(m_codeEdit->font()).horizontalAdvance(' ') * 4);
 
-    // Таблица портов (автоопределение)
-    auto *portGroup = new QGroupBox(tr("Порты (автоопределение из сигнатуры)"), this);
-    auto *portLayout = new QVBoxLayout(portGroup);
-    m_portTable = new QTableWidget(0, 3, this);
-    m_portTable->setHorizontalHeaderLabels({tr("Имя"), tr("Тип"), tr("Направление")});
-    m_portTable->horizontalHeader()->setStretchLastSection(true);
-    m_portTable->setMaximumHeight(120);
-    m_portTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
-    portLayout->addWidget(m_portTable);
-    rightLayout->addWidget(portGroup);
+    // Подсветка синтаксиса C/C++
+    m_highlighter = new SyntaxHighlighter(m_codeEdit->document());
 
-    // Кнопки: Сохранить, Компилировать, Тестировать
+    codeLayout->addWidget(m_codeEdit, 1);
+
+    // Кнопки под кодом
     auto *actionLayout = new QHBoxLayout;
     m_saveBtn = new QPushButton(tr("Сохранить"), this);
     m_compileBtn = new QPushButton(tr("Компилировать"), this);
@@ -170,39 +230,52 @@ void ModuleManagerWidget::setupUI()
     actionLayout->addWidget(m_saveBtn);
     actionLayout->addWidget(m_compileBtn);
     actionLayout->addWidget(m_testBtn);
-    rightLayout->addLayout(actionLayout);
+    actionLayout->addStretch();
+    codeLayout->addLayout(actionLayout);
 
-    // Панель тестирования
-    auto *testGroup = new QGroupBox(tr("Тестирование"), this);
-    auto *testLayout = new QVBoxLayout(testGroup);
+    centerSplitter->addWidget(codeWidget);
+
+    // Низ: QTabWidget (Журнал / Тестирование)
+    m_bottomTabs = new QTabWidget(this);
+
+    // Вкладка «Журнал»
+    m_logView = new QTextEdit(this);
+    m_logView->setReadOnly(true);
+    m_logView->setFont(QFont("Monospace", 9));
+    m_bottomTabs->addTab(m_logView, tr("Журнал"));
+
+    // Вкладка «Тестирование»
+    auto *testWidget = new QWidget(this);
+    auto *testLayout = new QVBoxLayout(testWidget);
+    testLayout->setContentsMargins(4, 4, 4, 4);
     m_testInputs = new QTableWidget(0, 2, this);
     m_testInputs->setHorizontalHeaderLabels({tr("Порт (вход)"), tr("Значение")});
     m_testInputs->horizontalHeader()->setStretchLastSection(true);
-    m_testInputs->setMaximumHeight(80);
     testLayout->addWidget(m_testInputs);
     m_testOutputLabel = new QLabel(tr("Результат: —"), this);
     testLayout->addWidget(m_testOutputLabel);
-    rightLayout->addWidget(testGroup);
+    m_bottomTabs->addTab(testWidget, tr("Тестирование"));
 
-    // Журнал
-    auto *logGroup = new QGroupBox(tr("Журнал компиляции/запуска"), this);
-    auto *logLayout = new QVBoxLayout(logGroup);
-    m_logView = new QTextEdit(this);
-    m_logView->setReadOnly(true);
-    m_logView->setMaximumHeight(100);
-    m_logView->setFont(QFont("Monospace", 9));
-    logLayout->addWidget(m_logView);
-    rightLayout->addWidget(logGroup);
+    centerSplitter->addWidget(m_bottomTabs);
 
-    // Splitter
+    // Пропорции: код ~70%, табы ~30%
+    centerSplitter->setStretchFactor(0, 3);
+    centerSplitter->setStretchFactor(1, 1);
+    centerSplitter->setCollapsible(1, true);
+
+    rightLayout->addWidget(centerSplitter, 1);
+
+    // === Горизонтальный сплиттер: лево (библиотека) + право (редактор) ===
     auto *splitter = new QSplitter(Qt::Horizontal, this);
     splitter->addWidget(leftPanel);
     splitter->addWidget(rightPanel);
-    splitter->setSizes({250, 600});
+    splitter->setSizes({220, 700});
+    splitter->setStretchFactor(0, 0);
+    splitter->setStretchFactor(1, 1);
 
     mainLayout->addWidget(splitter);
 
-    // Подключения сигналов
+    // === Подключение сигналов ===
     connect(m_tree, &QTreeWidget::currentItemChanged, this, &ModuleManagerWidget::onModuleSelected);
     connect(m_newBtn, &QPushButton::clicked, this, &ModuleManagerWidget::onNewModule);
     connect(m_deleteBtn, &QPushButton::clicked, this, &ModuleManagerWidget::onDeleteModule);
@@ -375,6 +448,9 @@ void ModuleManagerWidget::loadModuleToEditor(const Module &module)
     // Порты
     updatePortTable(module);
 
+    // Превью блока на графе
+    updatePreview(module);
+
     // Тестовые входы
     m_testInputs->setRowCount(module.inputs.size());
     for (int i = 0; i < module.inputs.size(); ++i) {
@@ -424,9 +500,29 @@ void ModuleManagerWidget::clearEditor()
     m_testOutputLabel->setText(tr("Результат: —"));
     m_testOutputLabel->setStyleSheet("");
     m_logView->clear();
+    m_previewScene->clear();
     m_saveBtn->setEnabled(false);
     m_compileBtn->setEnabled(false);
     m_testBtn->setEnabled(false);
+}
+
+void ModuleManagerWidget::updatePreview(const Module &module)
+{
+    m_previewScene->clear();
+    if (module.name.isEmpty()) return;
+
+    auto *node = new NodeItem("preview", module.name, module.category);
+    node->setFlag(QGraphicsItem::ItemIsMovable, false);
+    node->setFlag(QGraphicsItem::ItemIsSelectable, false);
+
+    for (const auto &p : module.inputs)
+        node->addInputPort(p.name, p.type);
+    for (const auto &p : module.outputs)
+        node->addOutputPort(p.name, p.type);
+
+    m_previewScene->addItem(node);
+    m_previewView->fitInView(node->boundingRect().adjusted(-10, -10, 10, 10),
+                              Qt::KeepAspectRatio);
 }
 
 void ModuleManagerWidget::updatePortTable(const Module &module)
@@ -534,6 +630,9 @@ void ModuleManagerWidget::onSaveModule()
 
     // Автоанализ сигнатуры
     parseSignature(mod->sourceCode);
+
+    // Обновляем превью блока
+    updatePreview(*mod);
 
     // Сохраняем на диск (.dqmod)
     if (saveToDisk(*mod)) {

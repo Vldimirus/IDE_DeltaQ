@@ -22,6 +22,7 @@ target_include_directories(dq_editor PUBLIC
 
 target_link_libraries(dq_editor PUBLIC
     dq_core
+    dq_block_editor
     Qt6::Core
     Qt6::Widgets
 )

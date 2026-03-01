@@ -1,6 +1,6 @@
 # DeltaQ IDE — Прогресс разработки
 
-> Последнее обновление: 2026-03-01 (Фаза 7 — Конфиг, создание файлов, группировка виджетов, авто-компоновка)
+> Последнее обновление: 2026-03-01 (Фаза 8.1 — Редизайн ModuleManagerWidget: код-центричный UI)
 
 ---
 
@@ -101,6 +101,7 @@
 - [x] Фаза 7: Конфиг, создание файлов, группировка виджетов, авто-компоновка (настройки IDE, NewFileDialog, контейнерная группировка, anchor-привязки)
 
 | 33 | Фаза 6.1: Интеграция модульной системы | **setProjectDir:** ModuleManagerWidget получает путь проекта при открытии/закрытии (projectOpened/projectClosed → setProjectDir). **Синхронизация дерева:** moduleRegistered/Updated/Unregistered → rebuildTree и в палитре, и в менеджере модулей. **UI-модули — только просмотр:** loadModuleToEditor() блокирует все поля редактирования (имя, описание, категория, язык, includes, код, кнопки Save/Compile/Test/Delete) для модулей с origin=="ui". **Персистентность:** onNewModule, onSaveModule, onDeleteModule записывают/удаляют .dqmod файлы в {projectDir}/modules/. 2 файла изменены, все 32 теста проходят. |
+| 34 | Фаза 8.1: Редизайн ModuleManagerWidget — код-центричный UI | **Новая раскладка:** код — основная область (~70% высоты) с подсветкой синтаксиса (SyntaxHighlighter на QPlainTextEdit, Monospace 11pt), метаданные компактно в горизонтальной полосе сверху (QGridLayout 2×4: Свойства + Зависимости + Порты + Превью блока). **Превью блока:** QGraphicsScene + QGraphicsView (фон #1e1e1e, без скроллбаров), NodeItem из blockEditor с портами модуля, fitInView, обновляется при загрузке/сохранении модуля. **Табы внизу:** QTabWidget (Журнал + Тестирование), collapsible через QSplitter. **CMakeLists.txt:** dq_editor линкуется с dq_block_editor для NodeItem/PortItem. 3 файла изменены, все 32 теста проходят. |
 
 ### Известные проблемы (Фаза 6)
 
@@ -131,7 +132,7 @@
 - LibraryDecomposer: функции→модули, классы→модули (create/destroy/methods)
 - WrapperGenerator: extern "C" обёртки для C++ классов
 - LibraryImportWizard: 5-шаговый мастер импорта
-- ModuleManagerWidget: полный менеджер модулей с компиляцией и тестированием
+- ModuleManagerWidget: полный менеджер модулей с компиляцией и тестированием (код-центричный UI с превью блока)
 - ModuleTestRunner: gcc -fsyntax-only + тестовая обвязка + запуск
 - UIModuleFactory: 8 UI-виджетов как модули (Button, TextField, Label, Slider, Checkbox, ProgressBar, Image, ComboBox)
 - GraphCompiler: полная сборка с дедупликацией includes и определений, проверка совместимости языков

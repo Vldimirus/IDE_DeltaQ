@@ -12,11 +12,17 @@
 #include <QTableWidget>
 
 class QPlainTextEdit;
+class QGraphicsScene;
+class QGraphicsView;
+class QTabWidget;
+class QGridLayout;
 
 namespace DeltaQ {
 
 class ModuleRegistry;
 class ModuleTestRunner;
+class NodeItem;
+class SyntaxHighlighter;
 struct Module;
 
 class ModuleManagerWidget : public QWidget {
@@ -52,6 +58,7 @@ private:
     void loadModuleToEditor(const Module &module);
     void clearEditor();
     void updatePortTable(const Module &module);
+    void updatePreview(const Module &module);
     void parseSignature(const QString &code);
     void updateStatusIcon(QTreeWidgetItem *item, const QString &status);
     QString moduleFilePath(const QString &moduleId) const;
@@ -94,6 +101,16 @@ private:
 
     // Журнал
     QTextEdit *m_logView = nullptr;
+
+    // Превью блока на графе
+    QGraphicsScene *m_previewScene = nullptr;
+    QGraphicsView  *m_previewView  = nullptr;
+
+    // Табы внизу (Журнал / Тестирование)
+    QTabWidget *m_bottomTabs = nullptr;
+
+    // Подсветка синтаксиса
+    SyntaxHighlighter *m_highlighter = nullptr;
 
     // Текущий модуль
     QString m_currentModuleId;
