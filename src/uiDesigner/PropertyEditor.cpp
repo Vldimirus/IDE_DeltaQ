@@ -1,6 +1,7 @@
 // Редактор свойств виджета — реализация
 #include "PropertyEditor.h"
 #include "WidgetItem.h"
+#include "DesignScene.h"
 
 #include <QLineEdit>
 #include <QSpinBox>
@@ -47,7 +48,65 @@ void PropertyEditor::setWidget(WidgetItem *widget)
 void PropertyEditor::clearWidget()
 {
     m_currentWidget = nullptr;
+    m_windowScene = nullptr;
     clearLayout();
+}
+
+void PropertyEditor::setWindowProperties(DesignScene *scene)
+{
+    m_currentWidget = nullptr;
+    m_windowScene = scene;
+    buildWindowPropertyList();
+}
+
+void PropertyEditor::buildWindowPropertyList()
+{
+    clearLayout();
+    if (!m_windowScene) return;
+
+    m_updating = true;
+
+    addSectionHeader(tr("Window"));
+    addProperty(tr("Type"), "type", "Window", "readonly");
+
+    // Заголовок окна
+    auto *titleEdit = new QLineEdit(m_windowScene->windowTitle(), m_contentWidget);
+    connect(titleEdit, &QLineEdit::editingFinished, this, [this, titleEdit]() {
+        if (m_updating || !m_windowScene) return;
+        m_windowScene->setWindowTitle(titleEdit->text());
+        emit windowPropertyChanged();
+    });
+    m_formLayout->addRow(tr("Title:"), titleEdit);
+
+    // Ширина окна
+    auto *widthSb = new QDoubleSpinBox(m_contentWidget);
+    widthSb->setRange(200, 4000);
+    widthSb->setDecimals(0);
+    widthSb->setValue(m_windowScene->windowRect().width());
+    connect(widthSb, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
+            this, [this](double val) {
+        if (m_updating || !m_windowScene) return;
+        QRectF r = m_windowScene->windowRect();
+        m_windowScene->setWindowRect(QRectF(r.x(), r.y(), val, r.height()));
+        emit windowPropertyChanged();
+    });
+    m_formLayout->addRow(tr("Width:"), widthSb);
+
+    // Высота окна
+    auto *heightSb = new QDoubleSpinBox(m_contentWidget);
+    heightSb->setRange(150, 4000);
+    heightSb->setDecimals(0);
+    heightSb->setValue(m_windowScene->windowRect().height());
+    connect(heightSb, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
+            this, [this](double val) {
+        if (m_updating || !m_windowScene) return;
+        QRectF r = m_windowScene->windowRect();
+        m_windowScene->setWindowRect(QRectF(r.x(), r.y(), r.width(), val));
+        emit windowPropertyChanged();
+    });
+    m_formLayout->addRow(tr("Height:"), heightSb);
+
+    m_updating = false;
 }
 
 void PropertyEditor::buildPropertyList()

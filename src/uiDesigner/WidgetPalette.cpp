@@ -2,8 +2,6 @@
 #include "WidgetPalette.h"
 
 #include <QHeaderView>
-#include <QDrag>
-#include <QMimeData>
 
 namespace DeltaQ {
 
@@ -65,11 +63,14 @@ WidgetPalette::WidgetPalette(QWidget *parent)
     m_searchEdit->setPlaceholderText(tr("Search widgets..."));
     layout->addWidget(m_searchEdit);
 
-    m_tree = new QTreeWidget(this);
+    m_tree = new PaletteTreeWidget(this);
     m_tree->setHeaderHidden(true);
-    m_tree->setDragEnabled(true);
     m_tree->setSelectionMode(QAbstractItemView::SingleSelection);
+
+    // Встроенный drag Qt — PaletteTreeWidget::mimeData() даёт правильный MIME
+    m_tree->setDragEnabled(true);
     m_tree->setDragDropMode(QAbstractItemView::DragOnly);
+
     layout->addWidget(m_tree);
 
     connect(m_searchEdit, &QLineEdit::textChanged, this, &WidgetPalette::filterTree);
@@ -104,11 +105,6 @@ void WidgetPalette::buildTree()
 
         catItem->setExpanded(true);
     }
-
-    // Drag из дерева
-    connect(m_tree, &QTreeWidget::itemPressed, this, [this](QTreeWidgetItem *item, int) {
-        startDragForItem(item);
-    }, Qt::UniqueConnection);
 }
 
 void WidgetPalette::filterTree(const QString &text)
@@ -127,20 +123,6 @@ void WidgetPalette::filterTree(const QString &text)
 
         catItem->setHidden(!catVisible);
     }
-}
-
-void WidgetPalette::startDragForItem(QTreeWidgetItem *item)
-{
-    if (!item || !item->parent()) return;
-
-    QString widgetType = item->data(0, Qt::UserRole).toString();
-    if (widgetType.isEmpty()) return;
-
-    auto *drag = new QDrag(this);
-    auto *mimeData = new QMimeData;
-    mimeData->setData("application/x-dqwidget", widgetType.toUtf8());
-    drag->setMimeData(mimeData);
-    drag->exec(Qt::CopyAction);
 }
 
 } // namespace DeltaQ

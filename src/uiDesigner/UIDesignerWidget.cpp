@@ -3,7 +3,9 @@
 #include "DesignScene.h"
 #include "WidgetPalette.h"
 #include "PropertyEditor.h"
+#include "ObjectTreeWidget.h"
 #include "WidgetItem.h"
+#include "UICommands.h"
 
 #include "../core/CommandBus.h"
 #include "../core/ModuleRegistry.h"
@@ -17,6 +19,7 @@
 #include <QLabel>
 #include <QWheelEvent>
 #include <QShowEvent>
+#include <QKeyEvent>
 #include <QAction>
 
 namespace DeltaQ {
@@ -39,8 +42,9 @@ UIDesignerWidget::UIDesignerWidget(ModuleRegistry *registry, CommandBus *bus,
     m_scene = new DesignScene(this);
     m_view = new QGraphicsView(m_scene, this);
     m_view->setRenderHints(QPainter::Antialiasing | QPainter::SmoothPixmapTransform);
-    m_view->setDragMode(QGraphicsView::RubberBandDrag);
+    m_view->setDragMode(QGraphicsView::NoDrag);
     m_view->setAcceptDrops(true);
+    m_view->viewport()->setAcceptDrops(true);
     m_view->setViewportUpdateMode(QGraphicsView::SmartViewportUpdate);
 
     // Палитра виджетов
@@ -53,30 +57,87 @@ UIDesignerWidget::UIDesignerWidget(ModuleRegistry *registry, CommandBus *bus,
     m_propertyEditor->setMinimumWidth(200);
     m_propertyEditor->setMaximumWidth(300);
 
-    // Splitter: палитра | холст | свойства
+    // Дерево объектов
+    m_objectTree = new ObjectTreeWidget(this);
+    m_objectTree->setMinimumWidth(200);
+    m_objectTree->setMaximumWidth(300);
+
+    // Правая панель: дерево объектов (сверху) + свойства (снизу)
+    auto *rightSplitter = new QSplitter(Qt::Vertical, this);
+    rightSplitter->addWidget(m_objectTree);
+    rightSplitter->addWidget(m_propertyEditor);
+    rightSplitter->setSizes({200, 300});
+    rightSplitter->setStretchFactor(0, 0);
+    rightSplitter->setStretchFactor(1, 1);
+
+    // Splitter: палитра | холст | правая панель
     m_splitter = new QSplitter(Qt::Horizontal, this);
     m_splitter->addWidget(m_widgetPalette);
     m_splitter->addWidget(m_view);
-    m_splitter->addWidget(m_propertyEditor);
+    m_splitter->addWidget(rightSplitter);
     m_splitter->setSizes({200, 600, 250});
     m_splitter->setStretchFactor(0, 0);
     m_splitter->setStretchFactor(1, 1);
     m_splitter->setStretchFactor(2, 0);
     mainLayout->addWidget(m_splitter);
 
-    // Подключения
+    // Подключение сигналов сцены — виджет сам обрабатывает drop/move/resize
+    connect(m_scene, &DesignScene::widgetDropped,
+            this, &UIDesignerWidget::handleWidgetDropped);
+    connect(m_scene, &DesignScene::widgetMoved,
+            this, &UIDesignerWidget::handleWidgetMoved);
+    connect(m_scene, &DesignScene::widgetResized,
+            this, &UIDesignerWidget::handleWidgetResized);
+
+    // Выделение виджета → обновить PropertyEditor и Layout Selector
     connect(m_scene, &DesignScene::widgetSelected, this, [this](const QString &widgetId) {
         auto *item = m_scene->widgetItem(widgetId);
-        if (item)
+        if (item) {
             m_propertyEditor->setWidget(item);
+            // Обновить layout selector по текущему виджету
+            m_layoutSelector->blockSignals(true);
+            int idx = m_layoutSelector->findText(item->layoutType());
+            m_layoutSelector->setCurrentIndex(idx >= 0 ? idx : 0);
+            m_layoutSelector->blockSignals(false);
+        }
+        m_objectTree->selectWidget(widgetId);
     });
 
-    // Клик по пустому месту → снять выделение
+    // Клик по пустому месту внутри окна → показать свойства окна
+    connect(m_scene, &DesignScene::windowSelected, this, [this]() {
+        m_propertyEditor->setWindowProperties(m_scene);
+        m_objectTree->selectWindow();
+    });
+
+    // Клик по пустому месту вне окна → снять выделение
     connect(m_scene, &QGraphicsScene::selectionChanged, this, [this]() {
         auto sel = m_scene->selectedItems();
-        if (sel.isEmpty())
-            m_propertyEditor->clearWidget();
+        if (sel.isEmpty()) {
+            // Не очищать, если показываются свойства окна
+        }
+        // Обновить дерево объектов
+        m_objectTree->rebuild(m_scene);
     });
+
+    // Дерево объектов: клик по элементу → выделение на сцене
+    connect(m_objectTree, &ObjectTreeWidget::widgetSelected, this, [this](const QString &widgetId) {
+        if (widgetId.isEmpty()) {
+            // Клик по "Window" в дереве → показать свойства окна
+            m_scene->clearSelection();
+            m_propertyEditor->setWindowProperties(m_scene);
+            return;
+        }
+        // Снять текущее выделение
+        m_scene->clearSelection();
+        auto *item = m_scene->widgetItem(widgetId);
+        if (item) {
+            item->setSelected(true);
+            m_view->centerOn(item);
+            m_propertyEditor->setWidget(item);
+        }
+    });
+
+    setFocusPolicy(Qt::StrongFocus);
 }
 
 void UIDesignerWidget::setupToolBar()
@@ -105,6 +166,30 @@ void UIDesignerWidget::setupToolBar()
     m_layoutSelector->addItems({"None", "HBox", "VBox", "Grid", "Flow"});
     m_toolbar->addWidget(m_layoutSelector);
 
+    // Подключение Layout Selector к ChangeLayoutCommand
+    connect(m_layoutSelector, &QComboBox::currentTextChanged, this, [this](const QString &newLayout) {
+        auto sel = m_scene->selectedItems();
+        if (sel.isEmpty()) return;
+        auto *item = qobject_cast<WidgetItem *>(
+            dynamic_cast<QGraphicsObject *>(sel.first()));
+        if (!item) return;
+
+        UILayout *layout = currentLayout();
+        if (!layout) return;
+
+        QString oldLayout = item->layoutType();
+        if (oldLayout == newLayout) return;
+
+        m_commandBus->execute(std::make_unique<ChangeLayoutCommand>(
+            m_scene, layout, item->widgetId(), oldLayout, newLayout));
+    });
+
+    m_toolbar->addSeparator();
+
+    // Delete
+    auto *deleteAction = m_toolbar->addAction(tr("Delete"));
+    connect(deleteAction, &QAction::triggered, this, &UIDesignerWidget::handleDeleteSelected);
+
     m_toolbar->addSeparator();
 
     // Preview и Generate Code
@@ -116,6 +201,124 @@ void UIDesignerWidget::setupToolBar()
     });
 }
 
+// --- Обработчики drag/move/resize ---
+
+UILayout *UIDesignerWidget::currentLayout()
+{
+    if (!m_layoutStore) return nullptr;
+
+    // Ищем по текущему layoutId
+    if (!m_currentLayoutId.isEmpty()) {
+        UILayout *layout = m_layoutStore->findLayout(m_currentLayoutId);
+        if (layout) return layout;
+    }
+
+    // Ищем первый доступный
+    auto layouts = m_layoutStore->allLayouts();
+    if (!layouts.isEmpty()) {
+        return m_layoutStore->findLayout(layouts.first()->id);
+    }
+
+    // Создаём Default
+    UILayout newLayout = UILayout::create("Default");
+    m_layoutStore->registerLayout(newLayout);
+    m_currentLayoutId = newLayout.id;
+    return m_layoutStore->findLayout(newLayout.id);
+}
+
+void UIDesignerWidget::handleWidgetDropped(const QString &widgetType, const QPointF &scenePos)
+{
+    UILayout *layout = currentLayout();
+    if (!layout) return;
+
+    UIWidget w = UIWidget::create(widgetType, widgetType + "_" +
+        QString::number(m_scene->widgetItems().size() + 1));
+    w.geometry = QRectF(scenePos.x(), scenePos.y(), 120, 40);
+
+    if (widgetType == "Panel" || widgetType == "GroupBox")
+        w.geometry.setSize(QSizeF(200, 150));
+    else if (widgetType == "TextField" || widgetType == "ComboBox")
+        w.geometry.setSize(QSizeF(150, 30));
+    else if (widgetType == "Slider")
+        w.geometry.setSize(QSizeF(200, 30));
+    else if (widgetType == "ProgressBar")
+        w.geometry.setSize(QSizeF(200, 24));
+    else if (widgetType == "Image")
+        w.geometry.setSize(QSizeF(100, 100));
+
+    w.properties["text"] = w.name;
+
+    m_commandBus->execute(std::make_unique<AddWidgetCommand>(m_scene, layout, w));
+
+    // Обновить дерево объектов
+    m_objectTree->rebuild(m_scene);
+}
+
+void UIDesignerWidget::handleWidgetMoved(const QString &widgetId,
+                                          const QPointF &oldPos, const QPointF &newPos)
+{
+    UILayout *layout = currentLayout();
+    if (!layout) return;
+
+    m_commandBus->execute(std::make_unique<MoveWidgetCommand>(
+        m_scene, layout, widgetId, oldPos, newPos));
+}
+
+void UIDesignerWidget::handleWidgetResized(const QString &widgetId,
+                                            const QRectF &oldRect, const QRectF &newRect)
+{
+    UILayout *layout = currentLayout();
+    if (!layout) return;
+
+    m_commandBus->execute(std::make_unique<ResizeWidgetCommand>(
+        m_scene, layout, widgetId, oldRect, newRect));
+}
+
+void UIDesignerWidget::handleDeleteSelected()
+{
+    auto sel = m_scene->selectedItems();
+    if (sel.isEmpty()) return;
+
+    UILayout *layout = currentLayout();
+    if (!layout) return;
+
+    if (sel.size() == 1) {
+        auto *item = qobject_cast<WidgetItem *>(
+            dynamic_cast<QGraphicsObject *>(sel.first()));
+        if (item) {
+            m_commandBus->execute(std::make_unique<RemoveWidgetCommand>(
+                m_scene, layout, item->widgetId()));
+        }
+    } else {
+        // Макрокоманда для удаления нескольких виджетов
+        m_commandBus->beginMacro(tr("Delete %1 widgets").arg(sel.size()));
+        for (auto *graphicsItem : sel) {
+            auto *item = qobject_cast<WidgetItem *>(
+                dynamic_cast<QGraphicsObject *>(graphicsItem));
+            if (item) {
+                m_commandBus->execute(std::make_unique<RemoveWidgetCommand>(
+                    m_scene, layout, item->widgetId()));
+            }
+        }
+        m_commandBus->endMacro();
+    }
+
+    m_propertyEditor->clearWidget();
+    m_objectTree->rebuild(m_scene);
+}
+
+// --- Клавиатура ---
+
+void UIDesignerWidget::keyPressEvent(QKeyEvent *event)
+{
+    if (event->key() == Qt::Key_Delete || event->key() == Qt::Key_Backspace) {
+        handleDeleteSelected();
+        event->accept();
+    } else {
+        QWidget::keyPressEvent(event);
+    }
+}
+
 // --- Загрузка/сохранение ---
 
 void UIDesignerWidget::loadLayout(const QString &layoutId, UILayoutStore *store)
@@ -124,8 +327,10 @@ void UIDesignerWidget::loadLayout(const QString &layoutId, UILayoutStore *store)
     auto *layout = store->findLayout(layoutId);
     if (!layout) return;
 
+    m_layoutStore = store;
     m_currentLayoutId = layoutId;
     m_scene->loadFromLayout(*layout);
+    m_objectTree->rebuild(m_scene);
 }
 
 void UIDesignerWidget::saveLayout(UILayoutStore *store)

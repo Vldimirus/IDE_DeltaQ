@@ -11,6 +11,7 @@
 namespace DeltaQ {
 
 class WidgetItem;
+class DesignScene;
 
 class PropertyEditor : public QWidget {
     Q_OBJECT
@@ -22,15 +23,20 @@ public:
     void setWidget(WidgetItem *widget);
     void clearWidget();
 
+    // Показать свойства окна (Title, Width, Height)
+    void setWindowProperties(DesignScene *scene);
+
     WidgetItem *currentWidget() const { return m_currentWidget; }
 
 signals:
     void propertyChanged(const QString &widgetId, const QString &key,
                          const QVariant &oldValue, const QVariant &newValue);
     void eventBindRequested(const QString &widgetId);
+    void windowPropertyChanged();
 
 private:
     void buildPropertyList();
+    void buildWindowPropertyList();
     void addProperty(const QString &label, const QString &key, const QVariant &value,
                      const QString &type = "string");
     void addSectionHeader(const QString &title);
@@ -38,6 +44,7 @@ private:
     void clearLayout();
 
     WidgetItem *m_currentWidget = nullptr;
+    DesignScene *m_windowScene = nullptr;  // для редактирования свойств окна
     QScrollArea *m_scrollArea = nullptr;
     QWidget *m_contentWidget = nullptr;
     QFormLayout *m_formLayout = nullptr;

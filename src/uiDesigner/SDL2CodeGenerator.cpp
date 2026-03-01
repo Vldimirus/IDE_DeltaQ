@@ -6,14 +6,15 @@
 
 namespace DeltaQ {
 
-GeneratedCode SDL2CodeGenerator::generate(const UILayout &layout)
+GeneratedCode SDL2CodeGenerator::generate(const UILayout &layout, const QString &baseName)
 {
     GeneratedCode code;
-    code.mainFile     = generateMainFile(layout);
-    code.uiHeader     = generateUIHeader(layout);
-    code.uiSource     = generateUISource(layout);
-    code.eventsHeader = generateEventsHeader(layout);
-    code.eventsSource = generateEventsSource(layout);
+    code.baseName     = baseName;
+    code.mainFile     = generateMainFile(layout, baseName);
+    code.uiHeader     = generateUIHeader(layout, baseName);
+    code.uiSource     = generateUISource(layout, baseName);
+    code.eventsHeader = generateEventsHeader(layout, baseName);
+    code.eventsSource = generateEventsSource(layout, baseName);
     return code;
 }
 
@@ -61,7 +62,7 @@ void SDL2CodeGenerator::collectEvents(const UIWidget &widget, QMap<QString, QStr
 
 // --- main.c ---
 
-QString SDL2CodeGenerator::generateMainFile(const UILayout &layout)
+QString SDL2CodeGenerator::generateMainFile(const UILayout &layout, const QString &baseName)
 {
     QString s;
     QTextStream out(&s);
@@ -71,8 +72,8 @@ QString SDL2CodeGenerator::generateMainFile(const UILayout &layout)
     out << "#include <SDL2/SDL.h>\n";
     out << "#include <SDL2/SDL_ttf.h>\n";
     out << "#include <stdbool.h>\n";
-    out << "#include \"ui.h\"\n";
-    out << "#include \"events.h\"\n\n";
+    out << "#include \"" << baseName << ".h\"\n";
+    out << "#include \"" << baseName << "_events.h\"\n\n";
 
     out << "int main(int argc, char *argv[]) {\n";
     out << "    (void)argc; (void)argv;\n\n";
@@ -143,7 +144,7 @@ QString SDL2CodeGenerator::generateMainFile(const UILayout &layout)
 
 // --- ui.h ---
 
-QString SDL2CodeGenerator::generateUIHeader(const UILayout &layout)
+QString SDL2CodeGenerator::generateUIHeader(const UILayout &layout, const QString &baseName)
 {
     QVector<const UIWidget *> widgets;
     collectWidgets(layout.window, widgets);
@@ -151,7 +152,7 @@ QString SDL2CodeGenerator::generateUIHeader(const UILayout &layout)
     QString s;
     QTextStream out(&s);
 
-    out << "// Автогенерация DeltaQ IDE — ui.h\n";
+    out << "// Автогенерация DeltaQ IDE — " << baseName << ".h\n";
     out << "#pragma once\n\n";
     out << "#include <SDL2/SDL.h>\n";
     out << "#include <SDL2/SDL_ttf.h>\n";
@@ -235,7 +236,7 @@ QString SDL2CodeGenerator::generateUIHeader(const UILayout &layout)
 
 // --- ui.c ---
 
-QString SDL2CodeGenerator::generateUISource(const UILayout &layout)
+QString SDL2CodeGenerator::generateUISource(const UILayout &layout, const QString &baseName)
 {
     QVector<const UIWidget *> widgets;
     collectWidgets(layout.window, widgets);
@@ -243,9 +244,9 @@ QString SDL2CodeGenerator::generateUISource(const UILayout &layout)
     QString s;
     QTextStream out(&s);
 
-    out << "// Автогенерация DeltaQ IDE — ui.c\n";
-    out << "#include \"ui.h\"\n";
-    out << "#include \"events.h\"\n";
+    out << "// Автогенерация DeltaQ IDE — " << baseName << ".c\n";
+    out << "#include \"" << baseName << ".h\"\n";
+    out << "#include \"" << baseName << "_events.h\"\n";
     out << "#include <string.h>\n\n";
 
     // Функции рисования для каждого типа
@@ -484,7 +485,7 @@ QString SDL2CodeGenerator::generateUISource(const UILayout &layout)
 
 // --- events.h ---
 
-QString SDL2CodeGenerator::generateEventsHeader(const UILayout &layout)
+QString SDL2CodeGenerator::generateEventsHeader(const UILayout &layout, const QString &baseName)
 {
     QMap<QString, QString> events;
     collectEvents(layout.window, events);
@@ -492,7 +493,7 @@ QString SDL2CodeGenerator::generateEventsHeader(const UILayout &layout)
     QString s;
     QTextStream out(&s);
 
-    out << "// Автогенерация DeltaQ IDE — events.h\n";
+    out << "// Автогенерация DeltaQ IDE — " << baseName << "_events.h\n";
     out << "#pragma once\n\n";
 
     for (auto it = events.begin(); it != events.end(); ++it) {
@@ -507,7 +508,7 @@ QString SDL2CodeGenerator::generateEventsHeader(const UILayout &layout)
 
 // --- events.c ---
 
-QString SDL2CodeGenerator::generateEventsSource(const UILayout &layout)
+QString SDL2CodeGenerator::generateEventsSource(const UILayout &layout, const QString &baseName)
 {
     QMap<QString, QString> events;
     collectEvents(layout.window, events);
@@ -515,8 +516,8 @@ QString SDL2CodeGenerator::generateEventsSource(const UILayout &layout)
     QString s;
     QTextStream out(&s);
 
-    out << "// Автогенерация DeltaQ IDE — events.c\n";
-    out << "#include \"events.h\"\n\n";
+    out << "// Автогенерация DeltaQ IDE — " << baseName << "_events.c\n";
+    out << "#include \"" << baseName << "_events.h\"\n\n";
 
     for (auto it = events.begin(); it != events.end(); ++it) {
         out << "void " << sanitizeName(it.key()) << "(void) {\n";

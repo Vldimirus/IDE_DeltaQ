@@ -11,24 +11,25 @@ struct UIWidget;
 
 // Результат генерации: 5 файлов
 struct GeneratedCode {
+    QString baseName;      // базовое имя (например "window_01")
     QString mainFile;      // main.c
-    QString uiHeader;      // ui.h
-    QString uiSource;      // ui.c
-    QString eventsHeader;  // events.h
-    QString eventsSource;  // events.c
+    QString uiHeader;      // {baseName}.h
+    QString uiSource;      // {baseName}.c
+    QString eventsHeader;  // {baseName}_events.h
+    QString eventsSource;  // {baseName}_events.c
 };
 
 class SDL2CodeGenerator {
 public:
-    // Генерация кода из UILayout
-    static GeneratedCode generate(const UILayout &layout);
+    // Генерация кода из UILayout с именованием по baseName
+    static GeneratedCode generate(const UILayout &layout, const QString &baseName = "ui");
 
 private:
-    static QString generateMainFile(const UILayout &layout);
-    static QString generateUIHeader(const UILayout &layout);
-    static QString generateUISource(const UILayout &layout);
-    static QString generateEventsHeader(const UILayout &layout);
-    static QString generateEventsSource(const UILayout &layout);
+    static QString generateMainFile(const UILayout &layout, const QString &baseName);
+    static QString generateUIHeader(const UILayout &layout, const QString &baseName);
+    static QString generateUISource(const UILayout &layout, const QString &baseName);
+    static QString generateEventsHeader(const UILayout &layout, const QString &baseName);
+    static QString generateEventsSource(const UILayout &layout, const QString &baseName);
 
     // Вспомогательные
     static QString widgetStructName(const QString &type);

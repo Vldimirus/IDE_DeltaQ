@@ -6,6 +6,7 @@
 
 #include <QPainter>
 #include <QGraphicsSceneDragDropEvent>
+#include <QGraphicsSceneMouseEvent>
 #include <QMimeData>
 #include <QUuid>
 #include <QFont>
@@ -205,35 +206,131 @@ void DesignScene::drawBackground(QPainter *painter, const QRectF &rect)
     }
 }
 
+// --- Клик по пустому месту — выделение окна ---
+
+void DesignScene::mousePressEvent(QGraphicsSceneMouseEvent *event)
+{
+    QGraphicsScene::mousePressEvent(event);
+
+    // Если клик не попал ни по одному виджету и внутри windowRect — выделяем окно
+    if (selectedItems().isEmpty() && m_windowRect.contains(event->scenePos())) {
+        emit windowSelected();
+    }
+}
+
+// --- Ghost-preview при перетаскивании ---
+
+void DesignScene::drawForeground(QPainter *painter, const QRectF &rect)
+{
+    QGraphicsScene::drawForeground(painter, rect);
+
+    if (!m_showDropPreview) return;
+
+    QRectF previewRect(m_dropPreviewPos.x(), m_dropPreviewPos.y(),
+                       m_dropPreviewSize.width(), m_dropPreviewSize.height());
+    if (!rect.intersects(previewRect)) return;
+
+    painter->save();
+    painter->setOpacity(0.4);
+    painter->setPen(QPen(QColor(0, 150, 255), 1.5, Qt::DashLine));
+    painter->setBrush(QColor(0, 150, 255, 40));
+    painter->drawRect(previewRect);
+
+    // Имя типа внутри превью
+    painter->setOpacity(0.6);
+    painter->setPen(QColor(200, 200, 200));
+    QFont font;
+    font.setPixelSize(11);
+    painter->setFont(font);
+    painter->drawText(previewRect, Qt::AlignCenter, m_dropPreviewType);
+
+    painter->restore();
+}
+
 // --- Drag & Drop ---
+
+bool DesignScene::isInsideWindowClient(const QPointF &pos) const
+{
+    // Клиентская область = windowRect минус title bar
+    QRectF clientRect(m_windowRect.x(), m_windowRect.y() + TitleBarHeight,
+                      m_windowRect.width(), m_windowRect.height() - TitleBarHeight);
+    return clientRect.contains(pos);
+}
 
 void DesignScene::dragEnterEvent(QGraphicsSceneDragDropEvent *event)
 {
-    if (event->mimeData()->hasFormat("application/x-dqwidget"))
+    if (event->mimeData()->hasFormat("application/x-dqwidget")) {
+        m_dropPreviewType = QString::fromUtf8(
+            event->mimeData()->data("application/x-dqwidget"));
+
+        // Определяем размер превью в зависимости от типа
+        if (m_dropPreviewType == "Panel" || m_dropPreviewType == "GroupBox")
+            m_dropPreviewSize = QSizeF(200, 150);
+        else if (m_dropPreviewType == "TextField" || m_dropPreviewType == "ComboBox")
+            m_dropPreviewSize = QSizeF(150, 30);
+        else if (m_dropPreviewType == "Slider")
+            m_dropPreviewSize = QSizeF(200, 30);
+        else if (m_dropPreviewType == "ProgressBar")
+            m_dropPreviewSize = QSizeF(200, 24);
+        else if (m_dropPreviewType == "Image")
+            m_dropPreviewSize = QSizeF(100, 100);
+        else
+            m_dropPreviewSize = QSizeF(120, 40);
+
         event->acceptProposedAction();
-    else
+    } else {
         QGraphicsScene::dragEnterEvent(event);
+    }
 }
 
 void DesignScene::dragMoveEvent(QGraphicsSceneDragDropEvent *event)
 {
-    if (event->mimeData()->hasFormat("application/x-dqwidget"))
+    if (event->mimeData()->hasFormat("application/x-dqwidget")) {
+        QPointF snapped = WidgetItem::snapToGrid(event->scenePos(), m_gridSize);
+
+        // Всегда принимаем drop, но превью показываем только внутри окна
+        m_dropPreviewPos = snapped;
+        m_showDropPreview = isInsideWindowClient(snapped);
         event->acceptProposedAction();
-    else
+        update();
+    } else {
         QGraphicsScene::dragMoveEvent(event);
+    }
+}
+
+void DesignScene::dragLeaveEvent(QGraphicsSceneDragDropEvent *event)
+{
+    m_showDropPreview = false;
+    m_dropPreviewType.clear();
+    update();
+    QGraphicsScene::dragLeaveEvent(event);
 }
 
 void DesignScene::dropEvent(QGraphicsSceneDragDropEvent *event)
 {
+    m_showDropPreview = false;
+
     if (event->mimeData()->hasFormat("application/x-dqwidget")) {
         QString widgetType = QString::fromUtf8(
             event->mimeData()->data("application/x-dqwidget"));
         QPointF snapped = WidgetItem::snapToGrid(event->scenePos(), m_gridSize);
+
+        // Если вне клиентской области — корректируем позицию внутрь
+        QRectF clientRect(m_windowRect.x(), m_windowRect.y() + TitleBarHeight,
+                          m_windowRect.width(), m_windowRect.height() - TitleBarHeight);
+        if (!clientRect.contains(snapped)) {
+            snapped.setX(qBound(clientRect.left(), snapped.x(), clientRect.right() - 120));
+            snapped.setY(qBound(clientRect.top(), snapped.y(), clientRect.bottom() - 40));
+        }
+
         emit widgetDropped(widgetType, snapped);
         event->acceptProposedAction();
     } else {
         QGraphicsScene::dropEvent(event);
     }
+
+    m_dropPreviewType.clear();
+    update();
 }
 
 // --- Рекурсивное создание ---

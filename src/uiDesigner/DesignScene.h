@@ -4,6 +4,7 @@
 #include <QGraphicsScene>
 #include <QMap>
 #include <QString>
+#include <QSizeF>
 
 namespace DeltaQ {
 
@@ -42,17 +43,24 @@ public:
 
 signals:
     void widgetSelected(const QString &widgetId);
+    void windowSelected();  // клик по пустому месту внутри окна
     void widgetDropped(const QString &widgetType, const QPointF &scenePos);
     void widgetMoved(const QString &widgetId, const QPointF &oldPos, const QPointF &newPos);
     void widgetResized(const QString &widgetId, const QRectF &oldRect, const QRectF &newRect);
 
 protected:
     void drawBackground(QPainter *painter, const QRectF &rect) override;
+    void drawForeground(QPainter *painter, const QRectF &rect) override;
+    void mousePressEvent(QGraphicsSceneMouseEvent *event) override;
     void dragEnterEvent(QGraphicsSceneDragDropEvent *event) override;
     void dragMoveEvent(QGraphicsSceneDragDropEvent *event) override;
+    void dragLeaveEvent(QGraphicsSceneDragDropEvent *event) override;
     void dropEvent(QGraphicsSceneDragDropEvent *event) override;
 
 private:
+    // Проверка, что позиция внутри клиентской области окна
+    bool isInsideWindowClient(const QPointF &pos) const;
+
     // Рекурсивное создание WidgetItem из UIWidget
     WidgetItem *createWidgetItems(const UIWidget &widget, WidgetItem *parent = nullptr);
 
@@ -64,6 +72,12 @@ private:
     QRectF m_windowRect = QRectF(0, 0, 800, 600);
     QString m_windowTitle = QStringLiteral("Window");
     static constexpr qreal TitleBarHeight = 30.0;
+
+    // Ghost-preview при перетаскивании
+    bool m_showDropPreview = false;
+    QPointF m_dropPreviewPos;
+    QSizeF m_dropPreviewSize = QSizeF(120, 40);
+    QString m_dropPreviewType;
 };
 
 } // namespace DeltaQ

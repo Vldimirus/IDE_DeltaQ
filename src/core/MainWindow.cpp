@@ -967,6 +967,8 @@ void MainWindow::onFileActivated(const QString &path)
             QString id = QJsonDocument::fromJson(f.readAll()).object()["id"].toString();
             if (!id.isEmpty()) {
                 auto *editor = new UIDesignerWidget(m_moduleRegistry, m_commandBus);
+                editor->setLayoutStore(m_uiLayoutStore);
+                editor->setFilePath(path);
                 editor->loadLayout(id, m_uiLayoutStore);
                 connectUIDesignerSignals(editor);
                 m_codeEditor->openCustomTab(editor, name, path);
@@ -1014,71 +1016,22 @@ void MainWindow::onFileActivated(const QString &path)
 
 void MainWindow::connectUIDesignerSignals(UIDesignerWidget *designer)
 {
-    auto *scene = designer->scene();
-
-    // Drag&drop → AddWidgetCommand
-    connect(scene, &DesignScene::widgetDropped, this,
-            [this, scene](const QString &widgetType, const QPointF &scenePos) {
-        UIWidget w = UIWidget::create(widgetType, widgetType + "_" +
-            QString::number(scene->widgetItems().size() + 1));
-        w.geometry = QRectF(scenePos.x(), scenePos.y(), 120, 40);
-
-        if (widgetType == "Panel" || widgetType == "GroupBox")
-            w.geometry.setSize(QSizeF(200, 150));
-        else if (widgetType == "TextField" || widgetType == "ComboBox")
-            w.geometry.setSize(QSizeF(150, 30));
-        else if (widgetType == "Slider")
-            w.geometry.setSize(QSizeF(200, 30));
-        else if (widgetType == "ProgressBar")
-            w.geometry.setSize(QSizeF(200, 24));
-        else if (widgetType == "Image")
-            w.geometry.setSize(QSizeF(100, 100));
-
-        w.properties["text"] = w.name;
-
-        UILayout *layout = nullptr;
-        auto layouts = m_uiLayoutStore->allLayouts();
-        if (!layouts.isEmpty()) {
-            layout = m_uiLayoutStore->findLayout(layouts.first()->id);
-        } else {
-            UILayout newLayout = UILayout::create("Default");
-            m_uiLayoutStore->registerLayout(newLayout);
-            layout = m_uiLayoutStore->findLayout(newLayout.id);
-        }
-        if (layout)
-            m_commandBus->execute(std::make_unique<AddWidgetCommand>(scene, layout, w));
-    });
-
-    // Перемещение → MoveWidgetCommand
-    connect(scene, &DesignScene::widgetMoved, this,
-            [this, scene](const QString &widgetId, const QPointF &oldPos, const QPointF &newPos) {
-        auto layouts = m_uiLayoutStore->allLayouts();
-        if (layouts.isEmpty()) return;
-        UILayout *layout = m_uiLayoutStore->findLayout(layouts.first()->id);
-        if (layout)
-            m_commandBus->execute(std::make_unique<MoveWidgetCommand>(
-                scene, layout, widgetId, oldPos, newPos));
-    });
-
-    // Resize → ResizeWidgetCommand
-    connect(scene, &DesignScene::widgetResized, this,
-            [this, scene](const QString &widgetId, const QRectF &oldRect, const QRectF &newRect) {
-        auto layouts = m_uiLayoutStore->allLayouts();
-        if (layouts.isEmpty()) return;
-        UILayout *layout = m_uiLayoutStore->findLayout(layouts.first()->id);
-        if (layout)
-            m_commandBus->execute(std::make_unique<ResizeWidgetCommand>(
-                scene, layout, widgetId, oldRect, newRect));
-    });
-
-    // Generate Code
+    // Generate Code — с именованием файлов по имени .dqui
     connect(designer, &UIDesignerWidget::generateCodeRequested, this, [this, designer]() {
         if (!m_projectManager->isProjectOpen()) {
             statusBar()->showMessage(tr("No project open"), 3000);
             return;
         }
-        UILayout layout = designer->scene()->toLayout("ui_layout");
-        GeneratedCode code = SDL2CodeGenerator::generate(layout);
+
+        // Определяем baseName из пути к .dqui файлу
+        QString baseName = "ui";
+        QString filePath = designer->filePath();
+        if (!filePath.isEmpty()) {
+            baseName = QFileInfo(filePath).baseName();
+        }
+
+        UILayout layout = designer->scene()->toLayout(baseName);
+        GeneratedCode code = SDL2CodeGenerator::generate(layout, baseName);
 
         QString srcDir = m_projectManager->projectDir() + "/src";
         QDir().mkpath(srcDir);
@@ -1092,14 +1045,15 @@ void MainWindow::connectUIDesignerSignals(UIDesignerWidget *designer)
         };
 
         writeFile("main.c", code.mainFile);
-        writeFile("ui.h", code.uiHeader);
-        writeFile("ui.c", code.uiSource);
-        writeFile("events.h", code.eventsHeader);
-        writeFile("events.c", code.eventsSource);
+        writeFile(baseName + ".h", code.uiHeader);
+        writeFile(baseName + ".c", code.uiSource);
+        writeFile(baseName + "_events.h", code.eventsHeader);
+        writeFile(baseName + "_events.c", code.eventsSource);
 
         m_buildOutput->clear();
         m_buildOutput->append(tr("=== SDL2 code generated in %1 ===\n").arg(srcDir));
-        m_buildOutput->append(tr("Files: main.c, ui.h, ui.c, events.h, events.c"));
+        m_buildOutput->append(tr("Files: main.c, %1.h, %1.c, %1_events.h, %1_events.c")
+                                  .arg(baseName));
         m_outputTabs->setCurrentWidget(m_buildOutput);
         m_outputDock->show();
         statusBar()->showMessage(tr("SDL2 code generated"), 3000);

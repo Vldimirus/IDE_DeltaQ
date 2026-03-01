@@ -6,6 +6,7 @@ add_library(dq_ui_designer STATIC
     PropertyEditor.cpp
     UIDesignerWidget.cpp
     UICommands.cpp
+    ObjectTreeWidget.cpp
     LayoutEngine.cpp
     EventBindingDialog.cpp
     SDL2CodeGenerator.cpp
