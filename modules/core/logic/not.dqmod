@@ -1,0 +1,28 @@
+{
+    "category": "logic",
+    "dependencies": [
+    ],
+    "description": "Логическое НЕ",
+    "header": "",
+    "id": "core.logic.not",
+    "language": "c",
+    "name": "not",
+    "origin": "core",
+    "ports": {
+        "input": [
+            {
+                "name": "value",
+                "type": "bool"
+            }
+        ],
+        "output": [
+            {
+                "name": "result",
+                "type": "bool"
+            }
+        ]
+    },
+    "source": "",
+    "source_code": "int dq_not(int value) {\n    return !value;\n}",
+    "version": "1.1"
+}

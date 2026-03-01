@@ -31,10 +31,10 @@ private slots:
 
         // Проверяем создание поддиректорий
         QDir projDir(tmpDir.path() + "/proj");
-        QVERIFY(projDir.exists("modules"));
         QVERIFY(projDir.exists("graphs"));
         QVERIFY(projDir.exists("ui"));
         QVERIFY(projDir.exists("src"));
+        QVERIFY(projDir.exists("dqmods"));
 
         // Проверяем создание .dqproj файла
         QVERIFY(QFile::exists(tmpDir.path() + "/proj/TestProject.dqproj"));

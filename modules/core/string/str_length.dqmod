@@ -1,0 +1,31 @@
+{
+    "category": "string",
+    "dependencies": [
+    ],
+    "description": "Длина строки",
+    "header": "",
+    "id": "core.string.str_length",
+    "includes": [
+        "string.h"
+    ],
+    "language": "c",
+    "name": "str_length",
+    "origin": "core",
+    "ports": {
+        "input": [
+            {
+                "name": "text",
+                "type": "string"
+            }
+        ],
+        "output": [
+            {
+                "name": "length",
+                "type": "int"
+            }
+        ]
+    },
+    "source": "",
+    "source_code": "int dq_str_length(const char *text) {\n    return (int)strlen(text);\n}",
+    "version": "1.1"
+}

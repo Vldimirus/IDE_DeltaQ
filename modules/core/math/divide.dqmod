@@ -1,0 +1,32 @@
+{
+    "category": "math",
+    "dependencies": [
+    ],
+    "description": "Деление",
+    "header": "",
+    "id": "core.math.divide",
+    "language": "c",
+    "name": "divide",
+    "origin": "core",
+    "ports": {
+        "input": [
+            {
+                "name": "a",
+                "type": "int"
+            },
+            {
+                "name": "b",
+                "type": "int"
+            }
+        ],
+        "output": [
+            {
+                "name": "result",
+                "type": "int"
+            }
+        ]
+    },
+    "source": "",
+    "source_code": "int dq_divide(int a, int b) {\n    if (b == 0) return 0;\n    return a / b;\n}",
+    "version": "1.1"
+}

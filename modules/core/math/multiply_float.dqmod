@@ -1,0 +1,32 @@
+{
+    "category": "math",
+    "dependencies": [
+    ],
+    "description": "Умножение (float)",
+    "header": "",
+    "id": "core.math.multiply_float",
+    "language": "c",
+    "name": "multiply_float",
+    "origin": "core",
+    "ports": {
+        "input": [
+            {
+                "name": "a",
+                "type": "float"
+            },
+            {
+                "name": "b",
+                "type": "float"
+            }
+        ],
+        "output": [
+            {
+                "name": "result",
+                "type": "float"
+            }
+        ]
+    },
+    "source": "",
+    "source_code": "float dq_multiply_float(float a, float b) {\n    return a * b;\n}",
+    "version": "1.1"
+}

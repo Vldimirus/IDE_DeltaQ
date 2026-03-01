@@ -14,6 +14,7 @@ class CommandBus;
 class GraphStore;
 class BlockScene;
 class ModulePalette;
+class BreadcrumbBar;
 
 class BlockEditorWidget : public QWidget {
     Q_OBJECT
@@ -25,6 +26,9 @@ public:
     // Загрузка графа по id
     void loadGraph(const QString &graphId, GraphStore *store);
     void saveGraph(GraphStore *store);
+
+    // Установить GraphStore для навигации
+    void setGraphStore(GraphStore *store) { m_graphStore = store; }
 
     // Доступ к сцене
     BlockScene *scene() const { return m_scene; }
@@ -44,16 +48,34 @@ protected:
     void keyReleaseEvent(QKeyEvent *event) override;
     void showEvent(QShowEvent *event) override;
 
+    // Навигация по подмодулям
+    void navigateInto(const QString &graphId, const QString &label);
+    void navigateBack();
+    void navigateTo(int level);
+
+private slots:
+    void onSubModuleRequested(const QStringList &selectedNodeIds);
+    void onNodeDoubleClicked(const QString &nodeId);
+
 private:
     void setupToolBar();
     void deleteSelected();
 
     ModuleRegistry *m_registry;
     CommandBus *m_commandBus;
+    GraphStore *m_graphStore = nullptr;
     BlockScene *m_scene = nullptr;
     QGraphicsView *m_view = nullptr;
     QToolBar *m_toolbar = nullptr;
     QSplitter *m_splitter = nullptr;
+    BreadcrumbBar *m_breadcrumb = nullptr;
+
+    // Стек навигации по подмодулям
+    struct NavLevel {
+        QString graphId;
+        QString label;
+    };
+    QVector<NavLevel> m_navStack;
 
     bool m_firstShow = true;
     bool m_spacePressed = false;

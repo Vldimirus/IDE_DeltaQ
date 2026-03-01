@@ -1,0 +1,35 @@
+{
+    "category": "math",
+    "dependencies": [
+    ],
+    "description": "Возведение в степень",
+    "header": "",
+    "id": "core.math.pow",
+    "includes": [
+        "math.h"
+    ],
+    "language": "c",
+    "name": "pow",
+    "origin": "core",
+    "ports": {
+        "input": [
+            {
+                "name": "base",
+                "type": "float"
+            },
+            {
+                "name": "exp",
+                "type": "float"
+            }
+        ],
+        "output": [
+            {
+                "name": "result",
+                "type": "float"
+            }
+        ]
+    },
+    "source": "",
+    "source_code": "float dq_pow(float base, float exp) {\n    return powf(base, exp);\n}",
+    "version": "1.1"
+}

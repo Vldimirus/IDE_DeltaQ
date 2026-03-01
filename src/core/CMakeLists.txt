@@ -8,6 +8,7 @@ add_library(dq_core STATIC
     SessionManager.cpp
     ActionManager.cpp
     UndoManager.cpp
+    StandardLibrary.cpp
 )
 
 target_include_directories(dq_core PUBLIC

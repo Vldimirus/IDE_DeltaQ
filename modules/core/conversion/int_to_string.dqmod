@@ -1,0 +1,31 @@
+{
+    "category": "conversion",
+    "dependencies": [
+    ],
+    "description": "Преобразование int в string",
+    "header": "",
+    "id": "core.conversion.int_to_string",
+    "includes": [
+        "stdio.h"
+    ],
+    "language": "c",
+    "name": "int_to_string",
+    "origin": "core",
+    "ports": {
+        "input": [
+            {
+                "name": "value",
+                "type": "int"
+            }
+        ],
+        "output": [
+            {
+                "name": "result",
+                "type": "string"
+            }
+        ]
+    },
+    "source": "",
+    "source_code": "const char *dq_int_to_string(int value) {\n    static char buf[64];\n    snprintf(buf, sizeof(buf), \"%d\", value);\n    return buf;\n}",
+    "version": "1.1"
+}

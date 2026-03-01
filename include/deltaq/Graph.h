@@ -106,6 +106,7 @@ struct GraphConnection {
 struct Graph {
     QString id;
     QString name;
+    QString parentModuleId;  // ID модуля-владельца (пусто для корневых графов)
     QVector<GraphNode> nodes;
     QVector<GraphConnection> connections;
 
@@ -195,6 +196,8 @@ struct Graph {
         QJsonObject obj;
         obj["id"] = id;
         obj["name"] = name;
+        if (!parentModuleId.isEmpty())
+            obj["parent_module_id"] = parentModuleId;
         QJsonArray nodeArr, connArr;
         for (const auto &n : nodes)
             nodeArr.append(n.toJson());
@@ -209,6 +212,7 @@ struct Graph {
         Graph g;
         g.id = obj["id"].toString();
         g.name = obj["name"].toString();
+        g.parentModuleId = obj["parent_module_id"].toString();
         for (const auto &v : obj["nodes"].toArray())
             g.nodes.append(GraphNode::fromJson(v.toObject()));
         for (const auto &v : obj["connections"].toArray())

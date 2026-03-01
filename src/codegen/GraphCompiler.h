@@ -4,6 +4,7 @@
 #include <QString>
 #include <QStringList>
 #include <QMap>
+#include <QSet>
 
 namespace DeltaQ {
 
@@ -20,9 +21,14 @@ struct CompilationResult {
     QMap<int, QString> sourceMap;  // строка кода → nodeId (для отладки)
 };
 
+class GraphStore;
+
 class GraphCompiler {
 public:
     explicit GraphCompiler(ModuleRegistry *registry);
+
+    // Установить GraphStore для рекурсивной компиляции подмодулей
+    void setGraphStore(GraphStore *store) { m_graphStore = store; }
 
     // Компиляция графа в C-код
     CompilationResult compile(const Graph &graph);
@@ -34,6 +40,9 @@ private:
     // Генерация IR из отсортированного графа
     IR generateIR(const Graph &graph, const QStringList &sortedNodes, CompilationResult &result);
 
+    // Рекурсивная компиляция подмодуля
+    QString compileSubModule(const Module &mod, CompilationResult &result);
+
     // Проверка совместимости типов
     bool areTypesCompatible(const QString &from, const QString &to) const;
     bool needsTypeConversion(const QString &from, const QString &to) const;
@@ -42,6 +51,8 @@ private:
     QString toCType(const QString &portType) const;
 
     ModuleRegistry *m_registry;
+    GraphStore *m_graphStore = nullptr;
+    QSet<QString> m_compiledSubModules; // Отслеживание уже скомпилированных подмодулей
 };
 
 } // namespace DeltaQ

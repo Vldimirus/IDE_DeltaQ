@@ -8,6 +8,9 @@ add_library(dq_block_editor STATIC
     ModulePalette.cpp
     GraphCommands.cpp
     GraphDebugger.cpp
+    SubModuleFactory.cpp
+    BreadcrumbBar.cpp
+    CycleDetector.cpp
 )
 
 target_include_directories(dq_block_editor PUBLIC

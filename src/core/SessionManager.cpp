@@ -1,12 +1,16 @@
 #include "SessionManager.h"
 #include <QDir>
+#include <QCoreApplication>
 
 namespace DeltaQ {
 
 SessionManager::SessionManager(QObject *parent)
     : QObject(parent)
-    , m_settings("DeltaQ", "IDE")
+    , m_settings(QCoreApplication::applicationDirPath() + "/config/settings.ini",
+                 QSettings::IniFormat)
 {
+    // Создаём директорию config/ если не существует
+    QDir().mkpath(QCoreApplication::applicationDirPath() + "/config");
 }
 
 SessionManager::SessionManager(const QString &org, const QString &app, QObject *parent)
@@ -83,6 +87,21 @@ QByteArray SessionManager::windowState() const
 void SessionManager::setWindowState(const QByteArray &state)
 {
     m_settings.setValue("window/state", state);
+}
+
+QString SessionManager::globalModulesDir() const
+{
+    return QCoreApplication::applicationDirPath() + "/modules";
+}
+
+QString SessionManager::coreModulesDir() const
+{
+    return globalModulesDir() + "/core";
+}
+
+void SessionManager::ensureGlobalDirs() const
+{
+    QDir().mkpath(coreModulesDir());
 }
 
 QString SessionManager::defaultProjectDir() const

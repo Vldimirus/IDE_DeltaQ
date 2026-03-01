@@ -2,6 +2,8 @@
 #include "BlockEditorWidget.h"
 #include "BlockScene.h"
 #include "ModulePalette.h"
+#include "BreadcrumbBar.h"
+#include "SubModuleFactory.h"
 
 #include "NodeItem.h"
 #include "ConnectionItem.h"
@@ -10,6 +12,7 @@
 
 #include "../core/GraphStore.h"
 #include "../core/CommandBus.h"
+#include "../core/ModuleRegistry.h"
 
 #include <QGraphicsView>
 #include <QGraphicsItem>
@@ -22,6 +25,8 @@
 #include <QShowEvent>
 #include <QMouseEvent>
 #include <QScrollBar>
+#include <QInputDialog>
+#include <QMessageBox>
 
 namespace DeltaQ {
 
@@ -43,11 +48,24 @@ BlockEditorWidget::BlockEditorWidget(ModuleRegistry *registry, CommandBus *bus,
 
     setupToolBar();
 
+    // Хлебные крошки
+    m_breadcrumb = new BreadcrumbBar(this);
+    connect(m_breadcrumb, &BreadcrumbBar::backClicked, this, &BlockEditorWidget::navigateBack);
+    connect(m_breadcrumb, &BreadcrumbBar::levelClicked, this, &BlockEditorWidget::navigateTo);
+
+    // Сигналы подмодулей
+    connect(m_scene, &BlockScene::subModuleRequested,
+            this, &BlockEditorWidget::onSubModuleRequested);
+    connect(m_scene, &BlockScene::nodeDoubleClicked,
+            this, &BlockEditorWidget::onNodeDoubleClicked);
+
     // Основной layout
     auto *mainLayout = new QVBoxLayout(this);
     mainLayout->setContentsMargins(0, 0, 0, 0);
     mainLayout->setSpacing(0);
 
+    mainLayout->addWidget(m_breadcrumb);
+    m_breadcrumb->setVisible(false); // Показывается только при навигации
     mainLayout->addWidget(m_toolbar);
 
     // Splitter: палитра слева (будет добавлена в 3.2), холст справа
@@ -297,6 +315,156 @@ void BlockEditorWidget::deleteSelected()
     // Удаляем узлы по сохранённым ID
     for (const auto &id : nodesToRemove)
         m_scene->removeNodeItem(id);
+}
+
+// --- Подмодули ---
+
+void BlockEditorWidget::onSubModuleRequested(const QStringList &selectedNodeIds)
+{
+    if (!m_graphStore || selectedNodeIds.size() < 2) return;
+
+    // Запрашиваем имя у пользователя
+    bool ok = false;
+    QString name = QInputDialog::getText(this, tr("Создать подмодуль"),
+        tr("Имя подмодуля:"), QLineEdit::Normal, "SubModule", &ok);
+    if (!ok || name.trimmed().isEmpty()) return;
+    name = name.trimmed().replace(' ', '_');
+
+    // Получаем текущий граф
+    QString graphId = m_scene->currentGraphId();
+    Graph *currentGraph = m_graphStore->findGraph(graphId);
+    if (!currentGraph) return;
+
+    // Создаём подмодуль через фабрику
+    auto result = SubModuleFactory::createFromSelection(
+        *currentGraph, selectedNodeIds, name, m_registry);
+
+    // Регистрируем модуль и граф
+    m_registry->registerModule(result.module);
+    m_graphStore->registerGraph(result.innerGraph);
+
+    // Вычисляем среднюю позицию выделенных узлов
+    QPointF avgPos;
+    int count = 0;
+    for (const auto &nodeId : selectedNodeIds) {
+        const GraphNode *node = currentGraph->findNode(nodeId);
+        if (node) {
+            avgPos += node->position;
+            count++;
+        }
+    }
+    if (count > 0) avgPos /= count;
+
+    // Удаляем выделенные узлы из текущего графа
+    for (const auto &nodeId : selectedNodeIds)
+        currentGraph->removeNode(nodeId);
+
+    // Добавляем узел подмодуля в текущий граф
+    GraphNode subNode = GraphNode::create(result.module.id, avgPos);
+    currentGraph->addNode(subNode);
+
+    // Перезагружаем граф на сцене
+    m_scene->loadFromGraph(*currentGraph);
+
+    // Сохраняем .dqmod в dqmods/ если проект открыт
+    if (m_graphStore) {
+        m_registry->saveModuleFile(result.module,
+            m_graphStore->findGraph(graphId) ? "" : "");
+    }
+}
+
+void BlockEditorWidget::onNodeDoubleClicked(const QString &nodeId)
+{
+    if (!m_graphStore) return;
+
+    // Найти граф с этим узлом
+    QString graphId = m_scene->currentGraphId();
+    Graph *currentGraph = m_graphStore->findGraph(graphId);
+    if (!currentGraph) return;
+
+    const GraphNode *node = currentGraph->findNode(nodeId);
+    if (!node) return;
+
+    // Проверяем, есть ли у модуля graphId (является ли он композитным)
+    const Module *mod = m_registry->findModule(node->moduleId);
+    if (!mod || mod->graphId.isEmpty()) return;
+
+    // Навигация внутрь подмодуля
+    navigateInto(mod->graphId, mod->name);
+}
+
+// --- Навигация по подмодулям ---
+
+void BlockEditorWidget::navigateInto(const QString &graphId, const QString &label)
+{
+    if (!m_graphStore) return;
+
+    Graph *innerGraph = m_graphStore->findGraph(graphId);
+    if (!innerGraph) return;
+
+    // Сохраняем текущий уровень в стек
+    if (m_navStack.isEmpty()) {
+        // Первый переход — сохраняем корневой граф
+        m_navStack.append({m_scene->currentGraphId(), tr("Главный граф")});
+    }
+    m_navStack.append({graphId, label});
+
+    // Загружаем внутренний граф
+    m_scene->loadFromGraph(*innerGraph);
+
+    // Обновляем хлебные крошки
+    QStringList labels;
+    for (const auto &level : m_navStack)
+        labels.append(level.label);
+    m_breadcrumb->setPath(labels);
+    m_breadcrumb->setVisible(true);
+}
+
+void BlockEditorWidget::navigateBack()
+{
+    if (m_navStack.size() <= 1) return;
+
+    m_navStack.removeLast();
+    const NavLevel &level = m_navStack.last();
+
+    Graph *graph = m_graphStore->findGraph(level.graphId);
+    if (graph)
+        m_scene->loadFromGraph(*graph);
+
+    if (m_navStack.size() <= 1) {
+        // Вернулись на корневой уровень
+        m_navStack.clear();
+        m_breadcrumb->setVisible(false);
+    } else {
+        QStringList labels;
+        for (const auto &l : m_navStack)
+            labels.append(l.label);
+        m_breadcrumb->setPath(labels);
+    }
+}
+
+void BlockEditorWidget::navigateTo(int level)
+{
+    if (level < 0 || level >= m_navStack.size()) return;
+
+    // Обрезаем стек до нужного уровня
+    while (m_navStack.size() > level + 1)
+        m_navStack.removeLast();
+
+    const NavLevel &nav = m_navStack.last();
+    Graph *graph = m_graphStore->findGraph(nav.graphId);
+    if (graph)
+        m_scene->loadFromGraph(*graph);
+
+    if (m_navStack.size() <= 1) {
+        m_navStack.clear();
+        m_breadcrumb->setVisible(false);
+    } else {
+        QStringList labels;
+        for (const auto &l : m_navStack)
+            labels.append(l.label);
+        m_breadcrumb->setPath(labels);
+    }
 }
 
 } // namespace DeltaQ

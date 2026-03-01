@@ -1,0 +1,32 @@
+{
+    "category": "math",
+    "dependencies": [
+    ],
+    "description": "Вычитание",
+    "header": "",
+    "id": "core.math.subtract",
+    "language": "c",
+    "name": "subtract",
+    "origin": "core",
+    "ports": {
+        "input": [
+            {
+                "name": "a",
+                "type": "int"
+            },
+            {
+                "name": "b",
+                "type": "int"
+            }
+        ],
+        "output": [
+            {
+                "name": "result",
+                "type": "int"
+            }
+        ]
+    },
+    "source": "",
+    "source_code": "int dq_subtract(int a, int b) {\n    return a - b;\n}",
+    "version": "1.1"
+}

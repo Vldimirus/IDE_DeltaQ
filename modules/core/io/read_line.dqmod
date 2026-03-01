@@ -1,0 +1,28 @@
+{
+    "category": "io",
+    "dependencies": [
+    ],
+    "description": "Чтение строки",
+    "header": "",
+    "id": "core.io.read_line",
+    "includes": [
+        "stdio.h",
+        "string.h"
+    ],
+    "language": "c",
+    "name": "read_line",
+    "origin": "core",
+    "ports": {
+        "input": [
+        ],
+        "output": [
+            {
+                "name": "text",
+                "type": "string"
+            }
+        ]
+    },
+    "source": "",
+    "source_code": "const char *dq_read_line(void) {\n    static char buf[1024];\n    if (fgets(buf, sizeof(buf), stdin)) {\n        buf[strcspn(buf, \"\\n\")] = '\\0';\n        return buf;\n    }\n    return \"\";\n}",
+    "version": "1.1"
+}

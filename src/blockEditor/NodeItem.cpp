@@ -91,10 +91,15 @@ void NodeItem::paint(QPainter *painter, const QStyleOptionGraphicsItem *option,
 
     // Рисуем заголовок с закруглением только сверху
     QPainterPath headerPath;
-    headerPath.addRoundedRect(headerRect, 6, 6);
-    // Закрываем нижние углы
-    headerPath.addRect(0, HeaderHeight - 6, Width, 6);
-    painter->drawPath(headerPath.simplified());
+    headerPath.moveTo(6, HeaderHeight);
+    headerPath.lineTo(0, HeaderHeight);         // нижний левый угол (прямой)
+    headerPath.lineTo(0, 6);
+    headerPath.arcTo(0, 0, 12, 12, 180, -90);  // верхний левый (скруглённый)
+    headerPath.lineTo(Width - 6, 0);
+    headerPath.arcTo(Width - 12, 0, 12, 12, 90, -90); // верхний правый (скруглённый)
+    headerPath.lineTo(Width, HeaderHeight);     // нижний правый угол (прямой)
+    headerPath.closeSubpath();
+    painter->drawPath(headerPath);
 
     // Текст заголовка
     painter->setPen(Qt::white);
@@ -164,6 +169,12 @@ void NodeItem::mouseReleaseEvent(QGraphicsSceneMouseEvent *event)
     // Если позиция реально изменилась — сигнализируем для MoveCommand
     if (pos() != m_dragStartPos)
         emit positionChanged(m_nodeId, pos());
+}
+
+void NodeItem::mouseDoubleClickEvent(QGraphicsSceneMouseEvent *event)
+{
+    Q_UNUSED(event)
+    emit doubleClicked(m_nodeId);
 }
 
 void NodeItem::updatePortPositions()

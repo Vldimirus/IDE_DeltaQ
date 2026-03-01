@@ -121,69 +121,54 @@ bool ProjectTemplates::generateDesktopTemplate(const QString &projectDir,
     return generateDesktopModulesAndGraphs(projectDir);
 }
 
-// --- Console: модуль hello + граф main ---
+// --- Console: граф main с узлом println (из стандартной библиотеки) ---
 
 bool ProjectTemplates::generateConsoleModulesAndGraphs(const QString &projectDir)
 {
-    QDir().mkpath(projectDir + "/modules");
     QDir().mkpath(projectDir + "/graphs");
 
-    // Модуль hello (category=io, вход text:string)
-    Module hello = Module::create("hello");
-    hello.category = "io";
-    hello.description = "Выводит текст в консоль";
-    hello.inputs.append(Port{"text", "string", "Hello from DeltaQ!"});
-    if (!writeJsonFile(projectDir + "/modules/hello.dqmod", hello.toJson()))
-        return false;
-
-    // Граф main (1 узел — hello)
+    // Граф main — узел println из стандартной библиотеки
     Graph mainGraph = Graph::create("main");
-    GraphNode helloNode = GraphNode::create(hello.id, QPointF(100, 100));
-    mainGraph.addNode(helloNode);
+    GraphNode printNode = GraphNode::create("core.io.println", QPointF(100, 100));
+    mainGraph.addNode(printNode);
     if (!writeJsonFile(projectDir + "/graphs/main.dqgraph", mainGraph.toJson()))
         return false;
 
     return true;
 }
 
-// --- Desktop: модули event_handler + update_label + граф main ---
+// --- Desktop: граф main + onClick-обработчик для кнопки ---
 
 bool ProjectTemplates::generateDesktopModulesAndGraphs(const QString &projectDir)
 {
-    QDir().mkpath(projectDir + "/modules");
     QDir().mkpath(projectDir + "/graphs");
 
-    // Модуль event_handler (category=events, вход event → выход action)
-    Module eventHandler = Module::create("event_handler");
-    eventHandler.category = "events";
-    eventHandler.description = "Обрабатывает SDL-события";
-    eventHandler.inputs.append(Port{"event", "SDL_Event", ""});
-    eventHandler.outputs.append(Port{"action", "string", ""});
-    if (!writeJsonFile(projectDir + "/modules/event_handler.dqmod", eventHandler.toJson()))
-        return false;
-
-    // Модуль update_label (category=ui, входы action + text)
-    Module updateLabel = Module::create("update_label");
-    updateLabel.category = "ui";
-    updateLabel.description = "Обновляет текст метки";
-    updateLabel.inputs.append(Port{"action", "string", ""});
-    updateLabel.inputs.append(Port{"text", "string", "Hello DeltaQ"});
-    if (!writeJsonFile(projectDir + "/modules/update_label.dqmod", updateLabel.toJson()))
-        return false;
-
-    // Граф main (2 узла, 1 соединение action→action)
+    // Граф main — узел println с приветствием
     Graph mainGraph = Graph::create("main");
-    GraphNode ehNode = GraphNode::create(eventHandler.id, QPointF(100, 100));
-    GraphNode ulNode = GraphNode::create(updateLabel.id, QPointF(350, 100));
-    mainGraph.addNode(ehNode);
-    mainGraph.addNode(ulNode);
-
-    GraphConnection conn;
-    conn.from = {ehNode.id, "action"};
-    conn.to = {ulNode.id, "action"};
-    mainGraph.addConnection(conn);
-
+    GraphNode printNode = GraphNode::create("core.io.println", QPointF(100, 100));
+    printNode.properties["text"] = "\"Application started\"";
+    mainGraph.addNode(printNode);
     if (!writeJsonFile(projectDir + "/graphs/main.dqgraph", mainGraph.toJson()))
+        return false;
+
+    // Граф onClick_btnClickMe — обработчик нажатия кнопки
+    // string_constant("Hello World!!!") → println
+    Graph onClickGraph = Graph::create("onClick_btnClickMe");
+
+    GraphNode constNode = GraphNode::create("core.io.string_constant", QPointF(80, 100));
+    constNode.properties["value"] = "\"Hello World!!!\"";
+    onClickGraph.addNode(constNode);
+
+    GraphNode printNode2 = GraphNode::create("core.io.println", QPointF(350, 100));
+    onClickGraph.addNode(printNode2);
+
+    // Соединение: string_constant.out → println.text
+    GraphConnection conn;
+    conn.from = {constNode.id, "out"};
+    conn.to = {printNode2.id, "text"};
+    onClickGraph.addConnection(conn);
+
+    if (!writeJsonFile(projectDir + "/graphs/onClick_btnClickMe.dqgraph", onClickGraph.toJson()))
         return false;
 
     return true;

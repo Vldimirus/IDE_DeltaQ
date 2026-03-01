@@ -14,13 +14,18 @@
 #include <QFormLayout>
 #include <QHeaderView>
 #include <QMessageBox>
+#include <QInputDialog>
 #include <QPlainTextEdit>
 #include <QRegularExpression>
 #include <QDir>
 #include <QFile>
+#include <QFileInfo>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QGraphicsScene>
 #include <QGraphicsView>
 #include <QTabWidget>
+#include <functional>
 
 namespace DeltaQ {
 
@@ -106,9 +111,11 @@ void ModuleManagerWidget::setupUI()
     // Кнопки
     auto *btnLayout = new QHBoxLayout;
     m_newBtn = new QPushButton(tr("Новый"), this);
+    m_newPackBtn = new QPushButton(tr("Пакет"), this);
     m_deleteBtn = new QPushButton(tr("Удалить"), this);
     m_deleteBtn->setEnabled(false);
     btnLayout->addWidget(m_newBtn);
+    btnLayout->addWidget(m_newPackBtn);
     btnLayout->addWidget(m_deleteBtn);
     leftLayout->addLayout(btnLayout);
 
@@ -278,6 +285,7 @@ void ModuleManagerWidget::setupUI()
     // === Подключение сигналов ===
     connect(m_tree, &QTreeWidget::currentItemChanged, this, &ModuleManagerWidget::onModuleSelected);
     connect(m_newBtn, &QPushButton::clicked, this, &ModuleManagerWidget::onNewModule);
+    connect(m_newPackBtn, &QPushButton::clicked, this, &ModuleManagerWidget::onNewPack);
     connect(m_deleteBtn, &QPushButton::clicked, this, &ModuleManagerWidget::onDeleteModule);
     connect(m_saveBtn, &QPushButton::clicked, this, &ModuleManagerWidget::onSaveModule);
     connect(m_compileBtn, &QPushButton::clicked, this, &ModuleManagerWidget::onCompileModule);
@@ -285,17 +293,34 @@ void ModuleManagerWidget::setupUI()
     connect(m_codeEdit, &QPlainTextEdit::textChanged, this, &ModuleManagerWidget::onCodeChanged);
 
     connect(m_searchEdit, &QLineEdit::textChanged, this, [this](const QString &text) {
+        // Рекурсивная фильтрация 3-уровневого дерева
         for (int i = 0; i < m_tree->topLevelItemCount(); ++i) {
-            auto *catItem = m_tree->topLevelItem(i);
-            bool catVisible = false;
-            for (int j = 0; j < catItem->childCount(); ++j) {
-                auto *modItem = catItem->child(j);
-                bool match = text.isEmpty() ||
-                             modItem->text(0).contains(text, Qt::CaseInsensitive);
-                modItem->setHidden(!match);
-                if (match) catVisible = true;
+            auto *sectionItem = m_tree->topLevelItem(i);
+            bool sectionVisible = false;
+
+            for (int j = 0; j < sectionItem->childCount(); ++j) {
+                auto *child = sectionItem->child(j);
+                if (child->childCount() > 0) {
+                    // Подкатегория — фильтруем детей
+                    bool catVisible = false;
+                    for (int k = 0; k < child->childCount(); ++k) {
+                        auto *modItem = child->child(k);
+                        bool match = text.isEmpty() ||
+                                     modItem->text(0).contains(text, Qt::CaseInsensitive);
+                        modItem->setHidden(!match);
+                        if (match) catVisible = true;
+                    }
+                    child->setHidden(!catVisible);
+                    if (catVisible) sectionVisible = true;
+                } else {
+                    // Модуль напрямую в секции
+                    bool match = text.isEmpty() ||
+                                 child->text(0).contains(text, Qt::CaseInsensitive);
+                    child->setHidden(!match);
+                    if (match) sectionVisible = true;
+                }
             }
-            catItem->setHidden(!catVisible);
+            sectionItem->setHidden(!sectionVisible);
         }
     });
 
@@ -304,59 +329,167 @@ void ModuleManagerWidget::setupUI()
     });
 }
 
+// Цвет иконки по категории
+static QColor managerCategoryColor(const QString &cat)
+{
+    if (cat == "math")        return QColor(50, 100, 180);
+    if (cat == "logic")       return QColor(50, 140, 80);
+    if (cat == "io")          return QColor(200, 120, 40);
+    if (cat == "string")      return QColor(140, 80, 180);
+    if (cat == "conversion")  return QColor(100, 140, 200);
+    if (cat == "control")     return QColor(180, 100, 50);
+    if (cat == "ui")          return QColor(220, 80, 80);
+    return QColor(100, 100, 100);
+}
+
 void ModuleManagerWidget::buildTree()
 {
     m_tree->clear();
     if (!m_registry) return;
-
-    QStringList cats = m_registry->categories();
-    cats.sort();
 
     QString langFilter;
     if (m_langFilter && m_langFilter->currentIndex() > 0) {
         langFilter = (m_langFilter->currentIndex() == 1) ? "c" : "cpp";
     }
 
-    for (const auto &cat : cats) {
-        auto *catItem = new QTreeWidgetItem(m_tree, {cat});
-        catItem->setFlags(catItem->flags() & ~Qt::ItemIsDragEnabled);
+    auto allModules = m_registry->allModules();
 
-        // Цветная иконка по категории
-        QPixmap px(12, 12);
-        QColor color;
-        if (cat == "math")        color = QColor(50, 100, 180);
-        else if (cat == "logic")  color = QColor(50, 140, 80);
-        else if (cat == "io")     color = QColor(200, 120, 40);
-        else if (cat == "string") color = QColor(140, 80, 180);
-        else if (cat == "ui")     color = QColor(220, 80, 80);
-        else                      color = QColor(100, 100, 100);
-        px.fill(color);
+    QFont boldFont = m_tree->font();
+    boldFont.setBold(true);
+
+    // === Секция 1: Стандартная библиотека (core) ===
+    auto *coreRoot = new QTreeWidgetItem(m_tree, {tr("Стандартная библиотека")});
+    coreRoot->setFont(0, boldFont);
+    {
+        QPixmap px(12, 12); px.fill(QColor(50, 120, 200));
+        coreRoot->setIcon(0, QIcon(px));
+    }
+
+    QMap<QString, QVector<const Module *>> coreByCategory;
+    for (const auto *mod : allModules) {
+        if (mod->origin == "core")
+            coreByCategory[mod->category].append(mod);
+    }
+
+    QStringList coreCats = coreByCategory.keys();
+    coreCats.sort();
+    bool coreHasChildren = false;
+
+    for (const auto &cat : coreCats) {
+        auto *catItem = new QTreeWidgetItem(coreRoot, {cat});
+        QPixmap px(12, 12); px.fill(managerCategoryColor(cat));
         catItem->setIcon(0, QIcon(px));
 
-        auto modules = m_registry->modulesByCategory(cat);
-        bool hasVisibleChild = false;
-
-        for (const auto *mod : modules) {
-            // Фильтрация по языку
+        bool catHasChildren = false;
+        for (const auto *mod : coreByCategory[cat]) {
             if (!langFilter.isEmpty()) {
-                bool compatible = (mod->language == langFilter) ||
+                bool compat = (mod->language == langFilter) ||
                     (langFilter == "c" && mod->language == "cpp") ||
                     (langFilter == "cpp" && mod->language == "c");
-                if (!compatible) continue;
+                if (!compat) continue;
             }
-
-            auto *modItem = new QTreeWidgetItem(catItem, {mod->name});
-            modItem->setData(0, Qt::UserRole, mod->id);
-
-            // Иконка статуса тестов
-            updateStatusIcon(modItem, mod->testStatus);
-
-            hasVisibleChild = true;
+            auto *item = new QTreeWidgetItem(catItem, {mod->name});
+            item->setData(0, Qt::UserRole, mod->id);
+            updateStatusIcon(item, mod->testStatus);
+            catHasChildren = true;
         }
-
-        catItem->setHidden(!hasVisibleChild);
-        catItem->setExpanded(true);
+        catItem->setHidden(!catHasChildren);
+        if (catHasChildren) coreHasChildren = true;
     }
+    coreRoot->setHidden(!coreHasChildren);
+    coreRoot->setExpanded(true);
+
+    // === Секция 2: UI-виджеты ===
+    auto *uiRoot = new QTreeWidgetItem(m_tree, {tr("UI-виджеты")});
+    uiRoot->setFont(0, boldFont);
+    {
+        QPixmap px(12, 12); px.fill(QColor(220, 80, 80));
+        uiRoot->setIcon(0, QIcon(px));
+    }
+
+    bool uiHasChildren = false;
+    for (const auto *mod : allModules) {
+        if (mod->origin == "ui") {
+            auto *item = new QTreeWidgetItem(uiRoot, {mod->name});
+            item->setData(0, Qt::UserRole, mod->id);
+            updateStatusIcon(item, mod->testStatus);
+            uiHasChildren = true;
+        }
+    }
+    uiRoot->setHidden(!uiHasChildren);
+    uiRoot->setExpanded(true);
+
+    // === Секция 3: Расширения ===
+    auto *extRoot = new QTreeWidgetItem(m_tree, {tr("Расширения")});
+    extRoot->setFont(0, boldFont);
+    {
+        QPixmap px(12, 12); px.fill(QColor(80, 180, 80));
+        extRoot->setIcon(0, QIcon(px));
+    }
+
+    // Группировка по категориям для расширений и пользовательских модулей
+    QMap<QString, QVector<const Module *>> extByCategory;
+    for (const auto *mod : allModules) {
+        if (mod->origin != "core" && mod->origin != "ui"
+            && mod->origin != "local" && mod->origin != "graph") {
+            QString cat = mod->category.isEmpty() ? "custom" : mod->category;
+            extByCategory[cat].append(mod);
+        }
+    }
+
+    bool extHasChildren = false;
+    QStringList extCats = extByCategory.keys();
+    extCats.sort();
+
+    for (const auto &cat : extCats) {
+        auto *catItem = new QTreeWidgetItem(extRoot, {cat});
+        QPixmap px(12, 12); px.fill(managerCategoryColor(cat));
+        catItem->setIcon(0, QIcon(px));
+
+        bool catHasChildren = false;
+        for (const auto *mod : extByCategory[cat]) {
+            if (!langFilter.isEmpty()) {
+                bool compat = (mod->language == langFilter) ||
+                    (langFilter == "c" && mod->language == "cpp") ||
+                    (langFilter == "cpp" && mod->language == "c");
+                if (!compat) continue;
+            }
+            auto *item = new QTreeWidgetItem(catItem, {mod->name});
+            item->setData(0, Qt::UserRole, mod->id);
+            updateStatusIcon(item, mod->testStatus);
+            catHasChildren = true;
+        }
+        catItem->setHidden(!catHasChildren);
+        if (catHasChildren) extHasChildren = true;
+    }
+    extRoot->setHidden(!extHasChildren);
+    extRoot->setExpanded(true);
+
+    // === Секция 4: Проектные модули (local + graph) ===
+    auto *localRoot = new QTreeWidgetItem(m_tree, {tr("Проектные модули")});
+    localRoot->setFont(0, boldFont);
+    {
+        QPixmap px(12, 12); px.fill(QColor(180, 140, 50));
+        localRoot->setIcon(0, QIcon(px));
+    }
+
+    bool localHasChildren = false;
+    for (const auto *mod : allModules) {
+        if (mod->origin == "local" || mod->origin == "graph") {
+            if (!langFilter.isEmpty()) {
+                bool compat = (mod->language == langFilter) ||
+                    (langFilter == "c" && mod->language == "cpp") ||
+                    (langFilter == "cpp" && mod->language == "c");
+                if (!compat && !mod->language.isEmpty()) continue;
+            }
+            auto *item = new QTreeWidgetItem(localRoot, {mod->name});
+            item->setData(0, Qt::UserRole, mod->id);
+            updateStatusIcon(item, mod->testStatus);
+            localHasChildren = true;
+        }
+    }
+    localRoot->setHidden(!localHasChildren);
+    localRoot->setExpanded(true);
 }
 
 void ModuleManagerWidget::rebuildTree()
@@ -376,21 +509,36 @@ void ModuleManagerWidget::setLanguageFilter(const QString &lang)
     buildTree();
 }
 
+void ModuleManagerWidget::setGlobalModulesDir(const QString &dir)
+{
+    m_globalModulesDir = dir;
+}
+
 QString ModuleManagerWidget::moduleFilePath(const QString &moduleId) const
 {
-    if (m_projectDir.isEmpty()) return {};
-    return m_projectDir + "/modules/" + moduleId + ".dqmod";
+    // Проверяем, является ли модуль локальным (проектным)
+    const Module *mod = m_registry->findModule(moduleId);
+    if (mod && (mod->origin == "local" || mod->origin == "graph")) {
+        if (!m_projectDir.isEmpty())
+            return m_projectDir + "/dqmods/" + moduleId + ".dqmod";
+    }
+
+    // Расширения сохраняются в глобальную папку модулей
+    if (!m_globalModulesDir.isEmpty())
+        return m_globalModulesDir + "/user_modules/" + moduleId + ".dqmod";
+    if (!m_projectDir.isEmpty())
+        return m_projectDir + "/modules/" + moduleId + ".dqmod";
+    return {};
 }
 
 bool ModuleManagerWidget::saveToDisk(const Module &module)
 {
-    if (m_projectDir.isEmpty()) return false;
-
-    // Создаём директорию modules/ если нет
-    QString modulesDir = m_projectDir + "/modules";
-    QDir().mkpath(modulesDir);
-
     QString path = moduleFilePath(module.id);
+    if (path.isEmpty()) return false;
+
+    // Создаём директорию если нет
+    QDir().mkpath(QFileInfo(path).absolutePath());
+
     return m_registry->saveModuleFile(module, path);
 }
 
@@ -403,13 +551,20 @@ bool ModuleManagerWidget::deleteFromDisk(const QString &moduleId)
 
 void ModuleManagerWidget::onModuleSelected(QTreeWidgetItem *item, QTreeWidgetItem *)
 {
-    if (!item || !item->parent()) {
+    if (!item) {
         clearEditor();
         m_deleteBtn->setEnabled(false);
         return;
     }
 
+    // Только листовые элементы с moduleId
     QString moduleId = item->data(0, Qt::UserRole).toString();
+    if (moduleId.isEmpty()) {
+        clearEditor();
+        m_deleteBtn->setEnabled(false);
+        return;
+    }
+
     const Module *mod = m_registry->findModule(moduleId);
     if (!mod) {
         clearEditor();
@@ -424,8 +579,8 @@ void ModuleManagerWidget::loadModuleToEditor(const Module &module)
     m_currentModuleId = module.id;
     m_modified = false;
 
-    // UI-модули — только для просмотра
-    bool isUI = (module.origin == "ui");
+    // Core и UI модули — только для просмотра, local и graph — полностью редактируемые
+    bool isReadOnly = (module.origin == "ui" || module.origin == "core");
 
     m_nameEdit->setText(module.name);
     m_descEdit->setText(module.description);
@@ -468,20 +623,22 @@ void ModuleManagerWidget::loadModuleToEditor(const Module &module)
     else
         m_testOutputLabel->setStyleSheet("color: #9E9E9E;");
 
-    // UI-модули: только просмотр, блокируем редактирование
-    m_nameEdit->setReadOnly(isUI);
-    m_descEdit->setReadOnly(isUI);
-    m_categoryCombo->setEnabled(!isUI);
-    m_langCombo->setEnabled(!isUI);
-    m_includesEdit->setReadOnly(isUI);
-    m_codeEdit->setReadOnly(isUI);
-    m_saveBtn->setEnabled(!isUI);
-    m_compileBtn->setEnabled(!isUI);
-    m_testBtn->setEnabled(!isUI);
-    m_deleteBtn->setEnabled(!isUI);
+    // Core и UI модули: только просмотр, блокируем редактирование
+    m_nameEdit->setReadOnly(isReadOnly);
+    m_descEdit->setReadOnly(isReadOnly);
+    m_categoryCombo->setEnabled(!isReadOnly);
+    m_langCombo->setEnabled(!isReadOnly);
+    m_includesEdit->setReadOnly(isReadOnly);
+    m_codeEdit->setReadOnly(isReadOnly);
+    m_saveBtn->setEnabled(!isReadOnly);
+    m_compileBtn->setEnabled(!isReadOnly);
+    m_testBtn->setEnabled(!isReadOnly);
+    m_deleteBtn->setEnabled(!isReadOnly);
 
-    if (isUI) {
+    if (module.origin == "ui") {
         m_logView->append(tr("UI-модуль '%1' — только для просмотра").arg(module.name));
+    } else if (module.origin == "core") {
+        m_logView->append(tr("Стандартный модуль '%1' — только для просмотра").arg(module.name));
     }
 }
 
@@ -552,6 +709,8 @@ void ModuleManagerWidget::onNewModule()
     Module mod = Module::create("new_module", m_langCombo->currentText());
     mod.category = "custom";
     mod.description = tr("Новый модуль");
+    // Если проект открыт — создаём локальный модуль, иначе — расширение
+    mod.origin = m_projectDir.isEmpty() ? "extension" : "local";
     mod.testStatus = "untested";
     mod.sourceCode = QString("int dq_new_module(int a) {\n    return a;\n}");
 
@@ -559,17 +718,65 @@ void ModuleManagerWidget::onNewModule()
     saveToDisk(mod);
     buildTree();
 
-    // Выбираем созданный модуль
-    for (int i = 0; i < m_tree->topLevelItemCount(); ++i) {
-        auto *catItem = m_tree->topLevelItem(i);
-        for (int j = 0; j < catItem->childCount(); ++j) {
-            auto *modItem = catItem->child(j);
-            if (modItem->data(0, Qt::UserRole).toString() == mod.id) {
-                m_tree->setCurrentItem(modItem);
-                return;
+    // Рекурсивно ищем и выбираем созданный модуль
+    std::function<bool(QTreeWidgetItem *)> findAndSelect;
+    findAndSelect = [&](QTreeWidgetItem *parent) -> bool {
+        for (int i = 0; i < parent->childCount(); ++i) {
+            auto *child = parent->child(i);
+            if (child->data(0, Qt::UserRole).toString() == mod.id) {
+                m_tree->setCurrentItem(child);
+                return true;
             }
+            if (findAndSelect(child)) return true;
         }
+        return false;
+    };
+    for (int i = 0; i < m_tree->topLevelItemCount(); ++i) {
+        if (findAndSelect(m_tree->topLevelItem(i)))
+            break;
     }
+}
+
+void ModuleManagerWidget::onNewPack()
+{
+    if (m_globalModulesDir.isEmpty()) {
+        QMessageBox::warning(this, tr("Ошибка"),
+            tr("Глобальная папка модулей не настроена."));
+        return;
+    }
+
+    bool ok = false;
+    QString packName = QInputDialog::getText(this, tr("Новый пакет"),
+        tr("Имя пакета (латиница, без пробелов):"),
+        QLineEdit::Normal, "my_pack", &ok);
+
+    if (!ok || packName.trimmed().isEmpty()) return;
+
+    packName = packName.trimmed().replace(' ', '_').toLower();
+    QString packDir = m_globalModulesDir + "/" + packName;
+
+    if (QDir(packDir).exists()) {
+        QMessageBox::warning(this, tr("Ошибка"),
+            tr("Пакет '%1' уже существует.").arg(packName));
+        return;
+    }
+
+    QDir().mkpath(packDir);
+
+    // Создаём pack.json
+    QJsonObject pack;
+    pack["name"] = packName;
+    pack["version"] = "1.0";
+    pack["author"] = "User";
+    pack["description"] = "";
+
+    QFile packFile(packDir + "/pack.json");
+    if (packFile.open(QIODevice::WriteOnly)) {
+        QJsonDocument doc(pack);
+        packFile.write(doc.toJson(QJsonDocument::Indented));
+    }
+
+    m_logView->append(tr("Создан пакет '%1' в %2").arg(packName, packDir));
 }
 
 void ModuleManagerWidget::onDeleteModule()
@@ -600,9 +807,9 @@ void ModuleManagerWidget::onSaveModule()
     Module *mod = m_registry->findModule(m_currentModuleId);
     if (!mod) return;
 
-    // UI-модули нельзя редактировать
-    if (mod->origin == "ui") {
-        m_logView->append(tr("UI-модули фиксированы и не могут быть изменены."));
+    // Core и UI модули нельзя редактировать
+    if (mod->origin == "ui" || mod->origin == "core") {
+        m_logView->append(tr("Стандартные и UI-модули фиксированы и не могут быть изменены."));
         return;
     }
 

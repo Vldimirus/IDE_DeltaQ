@@ -1,0 +1,27 @@
+{
+    "category": "io",
+    "dependencies": [
+    ],
+    "description": "Вывод числа",
+    "header": "",
+    "id": "core.io.print_int",
+    "includes": [
+        "stdio.h"
+    ],
+    "language": "c",
+    "name": "print_int",
+    "origin": "core",
+    "ports": {
+        "input": [
+            {
+                "name": "value",
+                "type": "int"
+            }
+        ],
+        "output": [
+        ]
+    },
+    "source": "",
+    "source_code": "void dq_print_int(int value) {\n    printf(\"%d\", value);\n}",
+    "version": "1.1"
+}

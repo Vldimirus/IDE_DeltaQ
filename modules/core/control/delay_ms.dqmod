@@ -1,0 +1,27 @@
+{
+    "category": "control",
+    "dependencies": [
+    ],
+    "description": "Задержка в миллисекундах",
+    "header": "",
+    "id": "core.control.delay_ms",
+    "includes": [
+        "time.h"
+    ],
+    "language": "c",
+    "name": "delay_ms",
+    "origin": "core",
+    "ports": {
+        "input": [
+            {
+                "name": "ms",
+                "type": "int"
+            }
+        ],
+        "output": [
+        ]
+    },
+    "source": "",
+    "source_code": "void dq_delay_ms(int ms) {\n    struct timespec ts;\n    ts.tv_sec = ms / 1000;\n    ts.tv_nsec = (ms % 1000) * 1000000L;\n    nanosleep(&ts, NULL);\n}",
+    "version": "1.1"
+}

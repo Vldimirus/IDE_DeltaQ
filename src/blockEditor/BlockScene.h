@@ -5,6 +5,7 @@
 #include <QMap>
 #include <QList>
 #include <QString>
+#include <QStringList>
 
 namespace DeltaQ {
 
@@ -16,6 +17,7 @@ class PortItem;
 class ConnectionItem;
 class ModuleRegistry;
 class CommandBus;
+class GraphStore;
 
 class BlockScene : public QGraphicsScene {
     Q_OBJECT
@@ -49,6 +51,12 @@ public:
     void setCurrentGraphId(const QString &id) { m_currentGraphId = id; }
     QString currentGraphId() const { return m_currentGraphId; }
 
+    // GraphStore для проверки циклов
+    void setGraphStore(GraphStore *store) { m_graphStore = store; }
+
+    // Получить ID выделенных узлов
+    QStringList selectedNodeIds() const;
+
 signals:
     // Сигналы для создания команд (из подэтапа 3.3)
     void nodeMovedByUser(const QString &nodeId, const QPointF &oldPos, const QPointF &newPos);
@@ -56,7 +64,14 @@ signals:
                              const QString &toNodeId, const QString &toPort);
     void nodeDropped(const QString &moduleId, const QPointF &scenePos);
 
+    // Сигнал создания подмодуля
+    void subModuleRequested(const QStringList &selectedNodeIds);
+
+    // Сигнал двойного клика по узлу
+    void nodeDoubleClicked(const QString &nodeId);
+
 protected:
+    void contextMenuEvent(QGraphicsSceneContextMenuEvent *event) override;
     void dragEnterEvent(QGraphicsSceneDragDropEvent *event) override;
     void dragMoveEvent(QGraphicsSceneDragDropEvent *event) override;
     void dropEvent(QGraphicsSceneDragDropEvent *event) override;
@@ -69,6 +84,7 @@ private:
 
     ModuleRegistry *m_registry;
     CommandBus *m_commandBus;
+    GraphStore *m_graphStore = nullptr;
 
     QMap<QString, NodeItem *> m_nodes;
     QList<ConnectionItem *> m_connections;

@@ -148,10 +148,87 @@ bool ModuleRegistry::saveModuleFile(const Module &module, const QString &dqmodPa
     return true;
 }
 
+void ModuleRegistry::loadGlobalModules(const QString &globalModulesDir)
+{
+    QDir rootDir(globalModulesDir);
+    if (!rootDir.exists()) return;
+
+    m_packs.clear();
+
+    // Сканируем подпапки первого уровня (core/, my_utils/, sensors_pack/, ...)
+    QStringList packDirs = rootDir.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
+    for (const auto &packName : packDirs) {
+        QString packPath = globalModulesDir + "/" + packName;
+        bool isCore = (packName == "core");
+
+        // Читаем pack.json
+        ModulePack pack;
+        pack.path = packPath;
+        pack.isCore = isCore;
+        pack.name = packName;
+
+        QFile packFile(packPath + "/pack.json");
+        if (packFile.open(QIODevice::ReadOnly)) {
+            QJsonParseError err;
+            auto doc = QJsonDocument::fromJson(packFile.readAll(), &err);
+            if (err.error == QJsonParseError::NoError) {
+                auto obj = doc.object();
+                pack.name = obj["name"].toString(packName);
+                pack.version = obj["version"].toString();
+                pack.author = obj["author"].toString();
+                pack.description = obj["description"].toString();
+            }
+        }
+
+        m_packs.append(pack);
+
+        // Загружаем все .dqmod рекурсивно из папки пакета
+        QDirIterator it(packPath, {"*.dqmod"}, QDir::Files, QDirIterator::Subdirectories);
+        while (it.hasNext()) {
+            QString filePath = it.next();
+            QFile file(filePath);
+            if (!file.open(QIODevice::ReadOnly)) continue;
+
+            QJsonParseError error;
+            auto doc = QJsonDocument::fromJson(file.readAll(), &error);
+            if (error.error != QJsonParseError::NoError) continue;
+
+            Module mod = Module::fromJson(doc.object());
+            // Устанавливаем origin в зависимости от типа пакета
+            if (isCore)
+                mod.origin = "core";
+            else
+                mod.origin = "extension";
+
+            if (!mod.id.isEmpty())
+                registerModule(mod);
+        }
+    }
+}
+
+QVector<ModulePack> ModuleRegistry::installedPacks() const
+{
+    return m_packs;
+}
+
+bool ModuleRegistry::isCoreModule(const QString &id) const
+{
+    auto it = m_modules.find(id);
+    if (it == m_modules.end()) return false;
+    return it->origin == "core";
+}
+
+bool ModuleRegistry::isExtensionModule(const QString &id) const
+{
+    auto it = m_modules.find(id);
+    if (it == m_modules.end()) return false;
+    return it->origin == "extension";
+}
+
 bool ModuleRegistry::loadRegistry(const QString &projectDir)
 {
-    // Load all .dqmod files from the project
-    QDirIterator it(projectDir, {"*.dqmod"}, QDir::Files, QDirIterator::Subdirectories);
+    // Загружаем .dqmod из проекта (пользовательские модули из аннотаций)
+    QDirIterator it(projectDir + "/src", {"*.dqmod"}, QDir::Files, QDirIterator::Subdirectories);
     bool anyLoaded = false;
     while (it.hasNext()) {
         if (loadModuleFile(it.next()))
@@ -203,6 +280,41 @@ bool ModuleRegistry::loadFromFile(const QString &path)
 bool ModuleRegistry::saveToFile(const QString &path) const
 {
     return saveRegistry(QFileInfo(path).absolutePath());
+}
+
+void ModuleRegistry::loadLocalModules(const QString &dqmodsDir)
+{
+    QDir dir(dqmodsDir);
+    if (!dir.exists()) return;
+
+    QDirIterator it(dqmodsDir, {"*.dqmod"}, QDir::Files);
+    while (it.hasNext()) {
+        QString filePath = it.next();
+        QFile file(filePath);
+        if (!file.open(QIODevice::ReadOnly)) continue;
+
+        QJsonParseError error;
+        auto doc = QJsonDocument::fromJson(file.readAll(), &error);
+        if (error.error != QJsonParseError::NoError) continue;
+
+        Module mod = Module::fromJson(doc.object());
+        mod.origin = "local";
+        if (!mod.id.isEmpty())
+            registerModule(mod);
+    }
+}
+
+void ModuleRegistry::clearLocalModules()
+{
+    QStringList toRemove;
+    for (auto it = m_modules.begin(); it != m_modules.end(); ++it) {
+        if (it->origin == "local")
+            toRemove.append(it.key());
+    }
+    for (const auto &id : toRemove) {
+        m_modules.remove(id);
+        emit moduleUnregistered(id);
+    }
 }
 
 void ModuleRegistry::clear()

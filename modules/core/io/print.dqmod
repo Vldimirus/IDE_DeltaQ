@@ -1,0 +1,27 @@
+{
+    "category": "io",
+    "dependencies": [
+    ],
+    "description": "Вывод текста",
+    "header": "",
+    "id": "core.io.print",
+    "includes": [
+        "stdio.h"
+    ],
+    "language": "c",
+    "name": "print",
+    "origin": "core",
+    "ports": {
+        "input": [
+            {
+                "name": "text",
+                "type": "string"
+            }
+        ],
+        "output": [
+        ]
+    },
+    "source": "",
+    "source_code": "void dq_print(const char *text) {\n    printf(\"%s\", text);\n}",
+    "version": "1.1"
+}

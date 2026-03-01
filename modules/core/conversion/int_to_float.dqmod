@@ -1,0 +1,28 @@
+{
+    "category": "conversion",
+    "dependencies": [
+    ],
+    "description": "Преобразование int в float",
+    "header": "",
+    "id": "core.conversion.int_to_float",
+    "language": "c",
+    "name": "int_to_float",
+    "origin": "core",
+    "ports": {
+        "input": [
+            {
+                "name": "value",
+                "type": "int"
+            }
+        ],
+        "output": [
+            {
+                "name": "result",
+                "type": "float"
+            }
+        ]
+    },
+    "source": "",
+    "source_code": "float dq_int_to_float(int value) {\n    return (float)value;\n}",
+    "version": "1.1"
+}

@@ -1,0 +1,35 @@
+{
+    "category": "string",
+    "dependencies": [
+    ],
+    "description": "Сравнение строк",
+    "header": "",
+    "id": "core.string.str_compare",
+    "includes": [
+        "string.h"
+    ],
+    "language": "c",
+    "name": "str_compare",
+    "origin": "core",
+    "ports": {
+        "input": [
+            {
+                "name": "a",
+                "type": "string"
+            },
+            {
+                "name": "b",
+                "type": "string"
+            }
+        ],
+        "output": [
+            {
+                "name": "equal",
+                "type": "bool"
+            }
+        ]
+    },
+    "source": "",
+    "source_code": "int dq_str_compare(const char *a, const char *b) {\n    return strcmp(a, b) == 0;\n}",
+    "version": "1.1"
+}

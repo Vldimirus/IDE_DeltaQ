@@ -1,0 +1,36 @@
+{
+    "category": "control",
+    "dependencies": [
+    ],
+    "description": "Условный выбор",
+    "header": "",
+    "id": "core.control.if_then",
+    "language": "c",
+    "name": "if_then",
+    "origin": "core",
+    "ports": {
+        "input": [
+            {
+                "name": "cond",
+                "type": "bool"
+            },
+            {
+                "name": "then_val",
+                "type": "int"
+            },
+            {
+                "name": "else_val",
+                "type": "int"
+            }
+        ],
+        "output": [
+            {
+                "name": "result",
+                "type": "int"
+            }
+        ]
+    },
+    "source": "",
+    "source_code": "int dq_if_then(int cond, int then_val, int else_val) {\n    return cond ? then_val : else_val;\n}",
+    "version": "1.1"
+}

@@ -1,0 +1,31 @@
+{
+    "category": "conversion",
+    "dependencies": [
+    ],
+    "description": "Преобразование string в int",
+    "header": "",
+    "id": "core.conversion.string_to_int",
+    "includes": [
+        "stdlib.h"
+    ],
+    "language": "c",
+    "name": "string_to_int",
+    "origin": "core",
+    "ports": {
+        "input": [
+            {
+                "name": "text",
+                "type": "string"
+            }
+        ],
+        "output": [
+            {
+                "name": "result",
+                "type": "int"
+            }
+        ]
+    },
+    "source": "",
+    "source_code": "int dq_string_to_int(const char *text) {\n    return atoi(text);\n}",
+    "version": "1.1"
+}

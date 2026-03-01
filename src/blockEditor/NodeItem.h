@@ -50,11 +50,13 @@ public:
 
 signals:
     void positionChanged(const QString &nodeId, const QPointF &newPos);
+    void doubleClicked(const QString &nodeId);
 
 protected:
     QVariant itemChange(GraphicsItemChange change, const QVariant &value) override;
     void mouseReleaseEvent(QGraphicsSceneMouseEvent *event) override;
     void mousePressEvent(QGraphicsSceneMouseEvent *event) override;
+    void mouseDoubleClickEvent(QGraphicsSceneMouseEvent *event) override;
 
 private:
     void updatePortPositions();

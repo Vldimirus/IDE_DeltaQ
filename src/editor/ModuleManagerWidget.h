@@ -37,6 +37,9 @@ public:
     // Установить путь проекта (для сохранения .dqmod файлов)
     void setProjectDir(const QString &dir);
 
+    // Установить глобальную папку модулей
+    void setGlobalModulesDir(const QString &dir);
+
     // Фильтрация по языку
     void setLanguageFilter(const QString &lang);
 
@@ -46,6 +49,7 @@ signals:
 private slots:
     void onModuleSelected(QTreeWidgetItem *current, QTreeWidgetItem *previous);
     void onNewModule();
+    void onNewPack();
     void onDeleteModule();
     void onSaveModule();
     void onCompileModule();
@@ -73,6 +77,7 @@ private:
     QLineEdit *m_searchEdit = nullptr;
     QComboBox *m_langFilter = nullptr;
     QPushButton *m_newBtn = nullptr;
+    QPushButton *m_newPackBtn = nullptr;
     QPushButton *m_deleteBtn = nullptr;
 
     // Правая панель — редактор модуля
@@ -115,6 +120,7 @@ private:
     // Текущий модуль
     QString m_currentModuleId;
     QString m_projectDir;
+    QString m_globalModulesDir;
     bool m_modified = false;
 };
 

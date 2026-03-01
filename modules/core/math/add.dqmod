@@ -1,0 +1,32 @@
+{
+    "category": "math",
+    "dependencies": [
+    ],
+    "description": "Сложение",
+    "header": "",
+    "id": "core.math.add",
+    "language": "c",
+    "name": "add",
+    "origin": "core",
+    "ports": {
+        "input": [
+            {
+                "name": "a",
+                "type": "int"
+            },
+            {
+                "name": "b",
+                "type": "int"
+            }
+        ],
+        "output": [
+            {
+                "name": "result",
+                "type": "int"
+            }
+        ]
+    },
+    "source": "",
+    "source_code": "int dq_add(int a, int b) {\n    return a + b;\n}",
+    "version": "1.1"
+}

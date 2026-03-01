@@ -59,7 +59,8 @@ struct Module {
     QString sourcePath;   // relative to project
     QString headerPath;   // relative to project
     QStringList dependencies;
-    QString origin;       // "user", "library", "graph", "ui"
+    QString origin;       // "user", "library", "graph", "ui", "local"
+    QString graphId;      // ID внутреннего графа (пусто для атомарных модулей, заполнено для композитных)
 
     // Расширенные поля модульной системы
     QStringList includes;            // Зависимости (#include), хранятся отдельно от кода
@@ -94,6 +95,10 @@ struct Module {
         for (const auto &d : dependencies)
             deps.append(d);
         obj["dependencies"] = deps;
+
+        // Композитный модуль
+        if (!graphId.isEmpty())
+            obj["graph_id"] = graphId;
 
         // Расширенные поля
         if (!includes.isEmpty()) {
@@ -133,6 +138,9 @@ struct Module {
 
         for (const auto &v : obj["dependencies"].toArray())
             m.dependencies.append(v.toString());
+
+        // Композитный модуль
+        m.graphId = obj["graph_id"].toString();
 
         // Расширенные поля
         for (const auto &v : obj["includes"].toArray())

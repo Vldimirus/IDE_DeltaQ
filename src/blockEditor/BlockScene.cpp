@@ -3,15 +3,20 @@
 #include "NodeItem.h"
 #include "PortItem.h"
 #include "ConnectionItem.h"
+#include "CycleDetector.h"
 
 #include "../core/ModuleRegistry.h"
 #include "../core/CommandBus.h"
+#include "../core/GraphStore.h"
 #include <deltaq/Graph.h>
 #include <deltaq/Module.h>
 
 #include <QGraphicsSceneDragDropEvent>
 #include <QGraphicsSceneMouseEvent>
+#include <QGraphicsSceneContextMenuEvent>
 #include <QMimeData>
+#include <QMenu>
+#include <QMessageBox>
 
 namespace DeltaQ {
 
@@ -55,6 +60,9 @@ NodeItem *BlockScene::addNodeItem(const GraphNode &node)
         if (ni)
             emit nodeMovedByUser(nodeId, startPos, newPos);
     });
+
+    // Пробрасываем двойной клик для навигации в подмодули
+    connect(item, &NodeItem::doubleClicked, this, &BlockScene::nodeDoubleClicked);
 
     return item;
 }
@@ -228,6 +236,36 @@ void BlockScene::clearScene()
     clear(); // QGraphicsScene::clear()
 }
 
+// --- Выделенные узлы ---
+
+QStringList BlockScene::selectedNodeIds() const
+{
+    QStringList ids;
+    for (auto *item : selectedItems()) {
+        auto *node = dynamic_cast<NodeItem *>(item);
+        if (node)
+            ids.append(node->nodeId());
+    }
+    return ids;
+}
+
+// --- Контекстное меню ---
+
+void BlockScene::contextMenuEvent(QGraphicsSceneContextMenuEvent *event)
+{
+    QStringList selected = selectedNodeIds();
+    if (selected.size() >= 2) {
+        QMenu menu;
+        auto *createSubModule = menu.addAction(
+            QObject::tr("Создать подмодуль (%1 узлов)").arg(selected.size()));
+        auto *action = menu.exec(event->screenPos());
+        if (action == createSubModule)
+            emit subModuleRequested(selected);
+        return;
+    }
+    QGraphicsScene::contextMenuEvent(event);
+}
+
 // --- Drag & Drop из палитры ---
 
 void BlockScene::dragEnterEvent(QGraphicsSceneDragDropEvent *event)
@@ -250,6 +288,22 @@ void BlockScene::dropEvent(QGraphicsSceneDragDropEvent *event)
 {
     if (event->mimeData()->hasFormat("application/x-dqmodule")) {
         QString moduleId = QString::fromUtf8(event->mimeData()->data("application/x-dqmodule"));
+
+        // Проверка циклов для композитных модулей
+        if (m_graphStore && !m_currentGraphId.isEmpty()) {
+            if (CycleDetector::wouldCreateCycle(m_currentGraphId, moduleId,
+                                                *m_registry, *m_graphStore)) {
+                QMessageBox::warning(nullptr,
+                    QObject::tr("Циклическая зависимость"),
+                    QObject::tr("Невозможно добавить модуль '%1' — "
+                                "это создаст циклическую зависимость.\n\n"
+                                "Подмодуль не может содержать сам себя "
+                                "(прямо или косвенно).").arg(moduleId));
+                event->ignore();
+                return;
+            }
+        }
+
         emit nodeDropped(moduleId, event->scenePos());
         event->acceptProposedAction();
     } else {

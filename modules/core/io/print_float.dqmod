@@ -1,0 +1,27 @@
+{
+    "category": "io",
+    "dependencies": [
+    ],
+    "description": "Вывод дробного числа",
+    "header": "",
+    "id": "core.io.print_float",
+    "includes": [
+        "stdio.h"
+    ],
+    "language": "c",
+    "name": "print_float",
+    "origin": "core",
+    "ports": {
+        "input": [
+            {
+                "name": "value",
+                "type": "float"
+            }
+        ],
+        "output": [
+        ]
+    },
+    "source": "",
+    "source_code": "void dq_print_float(float value) {\n    printf(\"%f\", value);\n}",
+    "version": "1.1"
+}

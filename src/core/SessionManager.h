@@ -41,6 +41,11 @@ public:
     QString defaultProjectDir() const;
     void setDefaultProjectDir(const QString &path);
 
+    // Папка модулей (рядом с исполняемым файлом)
+    QString globalModulesDir() const;   // <app_dir>/modules/
+    QString coreModulesDir() const;     // <app_dir>/modules/core/
+    void ensureGlobalDirs() const;
+
     // Editor settings
     int tabWidth() const;
     void setTabWidth(int width);

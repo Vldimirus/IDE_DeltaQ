@@ -1,0 +1,27 @@
+{
+    "category": "io",
+    "dependencies": [
+    ],
+    "description": "Вывод текста с переводом строки",
+    "header": "",
+    "id": "core.io.println",
+    "includes": [
+        "stdio.h"
+    ],
+    "language": "c",
+    "name": "println",
+    "origin": "core",
+    "ports": {
+        "input": [
+            {
+                "name": "text",
+                "type": "string"
+            }
+        ],
+        "output": [
+        ]
+    },
+    "source": "",
+    "source_code": "void dq_println(const char *text) {\n    printf(\"%s\\n\", text);\n}",
+    "version": "1.1"
+}

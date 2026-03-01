@@ -7,10 +7,12 @@ class QLineEdit;
 class QSpinBox;
 class QComboBox;
 class QFontComboBox;
+class QListWidget;
 
 namespace DeltaQ {
 
 class SessionManager;
+class ModuleRegistry;
 
 class SettingsDialog : public QDialog {
     Q_OBJECT
@@ -18,10 +20,15 @@ class SettingsDialog : public QDialog {
 public:
     explicit SettingsDialog(SessionManager *session, QWidget *parent = nullptr);
 
+    // Установить реестр модулей для вкладки «Модули»
+    void setModuleRegistry(ModuleRegistry *registry);
+
 private:
     void apply();
+    void buildModulesTab();
 
     SessionManager *m_session;
+    ModuleRegistry *m_registry = nullptr;
 
     // Общие
     QLineEdit *m_defaultDirEdit = nullptr;
@@ -33,6 +40,9 @@ private:
 
     // Язык
     QComboBox *m_langCombo = nullptr;
+
+    // Модули
+    QListWidget *m_packList = nullptr;
 };
 
 } // namespace DeltaQ

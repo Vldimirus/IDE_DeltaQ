@@ -37,6 +37,14 @@ target_link_libraries(deltaq PRIVATE
     Qt6::Widgets
 )
 
+# Копирование библиотеки модулей рядом с исполняемым файлом
+add_custom_command(TARGET deltaq POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+        ${CMAKE_SOURCE_DIR}/modules
+        $<TARGET_FILE_DIR:deltaq>/modules
+    COMMENT "Copying modules library to build output..."
+)
+
 # Цели для генерации переводов
 set(TS_FILE "${CMAKE_SOURCE_DIR}/resources/translations/deltaq_ru.ts")
 set(QM_OUTPUT_DIR "${CMAKE_CURRENT_BINARY_DIR}/translations")

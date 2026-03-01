@@ -1,6 +1,6 @@
 # DeltaQ IDE — Прогресс разработки
 
-> Последнее обновление: 2026-03-01 (Фаза 8.1 — Редизайн ModuleManagerWidget: код-центричный UI)
+> Последнее обновление: 2026-03-01 (Фаза 8.3 — Локальные модули и подмодули)
 
 ---
 
@@ -17,7 +17,7 @@
 Общий прогресс проекта:                                ~95%
 ```
 
-**Текущая фаза:** Стабилизация и документация
+**Текущая фаза:** Фаза 8.3 завершена — Стабилизация и документация
 
 ---
 
@@ -99,9 +99,17 @@
 - [x] Фаза 5.7: Сохранение, координаты, события, генерация UI Designer
 - [x] Фаза 6: Модульная система — полная доработка (соединения, панорамирование, порты, Module struct, GraphCompiler, ModuleManager, мультиязычность, UI-модули)
 - [x] Фаза 7: Конфиг, создание файлов, группировка виджетов, авто-компоновка (настройки IDE, NewFileDialog, контейнерная группировка, anchor-привязки)
+- [x] Фаза 8.1: Редизайн ModuleManagerWidget — код-центричный UI с превью блока
+- [x] Фаза 8.2: Глобальная библиотека модулей (~/.deltaq/modules/, StandardLibrary, 3-секционная палитра, расширения)
+- [x] Фаза 8.3: Локальные модули и подмодули — матрёшка (dqmods/, SubModuleFactory, BreadcrumbBar, CycleDetector, рекурсивная компиляция)
 
 | 33 | Фаза 6.1: Интеграция модульной системы | **setProjectDir:** ModuleManagerWidget получает путь проекта при открытии/закрытии (projectOpened/projectClosed → setProjectDir). **Синхронизация дерева:** moduleRegistered/Updated/Unregistered → rebuildTree и в палитре, и в менеджере модулей. **UI-модули — только просмотр:** loadModuleToEditor() блокирует все поля редактирования (имя, описание, категория, язык, includes, код, кнопки Save/Compile/Test/Delete) для модулей с origin=="ui". **Персистентность:** onNewModule, onSaveModule, onDeleteModule записывают/удаляют .dqmod файлы в {projectDir}/modules/. 2 файла изменены, все 32 теста проходят. |
 | 34 | Фаза 8.1: Редизайн ModuleManagerWidget — код-центричный UI | **Новая раскладка:** код — основная область (~70% высоты) с подсветкой синтаксиса (SyntaxHighlighter на QPlainTextEdit, Monospace 11pt), метаданные компактно в горизонтальной полосе сверху (QGridLayout 2×4: Свойства + Зависимости + Порты + Превью блока). **Превью блока:** QGraphicsScene + QGraphicsView (фон #1e1e1e, без скроллбаров), NodeItem из blockEditor с портами модуля, fitInView, обновляется при загрузке/сохранении модуля. **Табы внизу:** QTabWidget (Журнал + Тестирование), collapsible через QSplitter. **CMakeLists.txt:** dq_editor линкуется с dq_block_editor для NodeItem/PortItem. 3 файла изменены, все 32 теста проходят. |
+| 35 | Фаза 8.2: Глобальная библиотека модулей | **Глобальное хранилище:** SessionManager — globalModulesDir()/coreModulesDir()/ensureGlobalDirs() (~/.deltaq/modules/). **StandardLibrary:** новый класс с ~26 core-модулями (io: print/println/read_line/print_int/print_float, math: add/subtract/multiply/divide/mod/abs/add_float/multiply_float/sqrt/pow, string: str_length/str_concat/str_compare, logic: and/or/not, conversion: int_to_string/string_to_int/float_to_int/int_to_float, control: if_then/delay_ms), install() с версионированием через pack.json, рабочий C-код для каждого модуля. **ModuleRegistry:** loadGlobalModules() сканирует ~/**/.deltaq/modules/ рекурсивно (pack.json для метаданных), ModulePack struct, installedPacks(), isCoreModule()/isExtensionModule(). loadRegistry() теперь загружает только из src/ проекта. **Убраны проектные модули:** ensureDirectories без modules/, шаблоны Console/Desktop используют core-модули (println из стандартной библиотеки). **Палитра (3 секции):** «Стандартная библиотека» (core по подкатегориям io/math/string/logic/conversion/control), «UI-виджеты» (фиксированные UI-модули), «Расширения» (extension и пользовательские). **ModuleManagerWidget:** 3-секционное дерево, core и UI — только просмотр, кнопка «Пакет» для создания расширений (pack.json), глобальная папка для сохранения. **SettingsDialog:** вкладка «Modules» (список пакетов, кнопки «Открыть папку модулей» и «Обновить»). **Инициализация:** ensureGlobalDirs → StandardLibrary::install → UIModuleFactory → loadGlobalModules, при закрытии проекта перезагрузка глобальных модулей. 2 новых файла (StandardLibrary.h/.cpp), 11 изменённых, все 32 теста проходят. |
+
+| 36 | Фаза 8.3: Локальные модули и подмодули (матрёшка) | **Этап 1 — Структуры данных:** Module.h +graphId (ID внутреннего графа для композитных модулей), Graph.h +parentModuleId (обратная ссылка на модуль-владелец), новые origin-значения "local" и "graph", обновлены toJson/fromJson. **Этап 2 — Локальные модули проекта:** ProjectManager — ensureDirectories() создаёт dqmods/. ModuleRegistry — loadLocalModules(dqmodsDir) сканирует *.dqmod с origin="local", clearLocalModules() очищает при закрытии проекта. MainWindow — вызов loadLocalModules при projectOpened. ModulePalette — 4-я секция «Проектные модули» (local + graph). ModuleManagerWidget — 4-я секция в дереве, кнопка «Новый» создаёт local-модуль при открытом проекте, moduleFilePath() сохраняет в dqmods/. Тест — QVERIFY(projDir.exists("dqmods")). **Этап 3 — Подмодули (SubModuleFactory):** SubModuleFactory — создание композитного модуля из выделенных узлов (анализ внешних связей → входы/выходы подмодуля, копирование узлов и внутренних связей). BlockScene — contextMenuEvent (≥2 узлов → «Создать подмодуль»), сигналы subModuleRequested и nodeDoubleClicked. BlockEditorWidget — onSubModuleRequested (QInputDialog имя → SubModuleFactory → registerModule + registerGraph + замена узлов). **Этап 4 — Навигация (хлебные крошки):** BreadcrumbBar — QWidget с кнопкой «←» и кликабельными элементами пути, стили тёмной темы. NodeItem — mouseDoubleClickEvent + сигнал doubleClicked, проброс через BlockScene. BlockEditorWidget — навигационный стек NavLevel (graphId + label), navigateInto/navigateBack/navigateTo, обновление BreadcrumbBar. **Этап 5 — Защита от циклов:** CycleDetector — DFS по цепочке graphId → узлы внутреннего графа → их graphId → ... BlockScene::dropEvent — проверка wouldCreateCycle перед добавлением, QMessageBox при обнаружении цикла. **Этап 6 — Компиляция подмодулей:** GraphCompiler — setGraphStore(), compileSubModule() рекурсивно компилирует внутренние графы, m_compiledSubModules для дедупликации, генерация вызова dq_sub_{name}(). CMakeLists.txt — +SubModuleFactory, +BreadcrumbBar, +CycleDetector. 6 новых файлов (SubModuleFactory.h/.cpp, BreadcrumbBar.h/.cpp, CycleDetector.h/.cpp), 16 изменённых, все 32 теста проходят. |
+
+| 37 | Фаза 8.3.1: Исправления после тестирования | **Кириллические имена файлов:** именование графов-обработчиков событий изменено с `tr("Клик %1")` на `eventName + "_" + widgetName` (латиница). **Рабочий Desktop шаблон:** main граф содержит `core.io.println` ("Application started"), onClick-обработчик `onClick_btnClickMe` содержит `core.io.string_constant("Hello World!!!")` → `core.io.println` с соединением. **Стандартная библиотека v1.1:** добавлены модули `string_constant` и `int_constant` (категория io). **Палитра для вкладочных редакторов:** при открытии .dqgraph через дерево проекта и через UI Designer создаётся собственный ModulePalette для каждого BlockEditorWidget. Также устанавливаются setGraphStore() и connectBlockEditorSignals(). 4 файла изменены, все 32 теста проходят. |
 
 ### Известные проблемы (Фаза 6)
 
@@ -140,6 +148,14 @@
 - NewFileDialog: создание файлов внутри проекта (.dqui, .dqgraph, .dqmod, .c, .h)
 - Группировка виджетов: drag в контейнер (Panel/GroupBox), ReparentWidgetCommand, подсветка при drag
 - Anchor-привязки: UIAnchors, LayoutEngine::applyAnchors, визуальные индикаторы, автоприменение при ресайзе
+
+- StandardLibrary: ~26 core-модулей с рабочим C-кодом (io, math, string, logic, conversion, control)
+- Глобальное хранилище модулей: ~/.deltaq/modules/ (core + расширения пользователя)
+- 3-секционная палитра и менеджер модулей (Стандартная библиотека / UI / Расширения)
+- SettingsDialog: вкладка «Modules» с управлением пакетами
+- Локальные модули проекта: dqmods/ в корне проекта, 4-я секция «Проектные модули» в палитре и менеджере
+- Подмодули (матрёшка): SubModuleFactory (создание из выделения), BreadcrumbBar (навигация), CycleDetector (защита от циклов)
+- Рекурсивная компиляция подмодулей: GraphCompiler с вложенными графами
 
 **Следующие шаги:** Тестирование, стабилизация, документация пользователя.
 

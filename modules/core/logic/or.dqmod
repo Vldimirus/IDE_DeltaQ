@@ -1,0 +1,32 @@
+{
+    "category": "logic",
+    "dependencies": [
+    ],
+    "description": "Логическое ИЛИ",
+    "header": "",
+    "id": "core.logic.or",
+    "language": "c",
+    "name": "or",
+    "origin": "core",
+    "ports": {
+        "input": [
+            {
+                "name": "a",
+                "type": "bool"
+            },
+            {
+                "name": "b",
+                "type": "bool"
+            }
+        ],
+        "output": [
+            {
+                "name": "result",
+                "type": "bool"
+            }
+        ]
+    },
+    "source": "",
+    "source_code": "int dq_or(int a, int b) {\n    return a || b;\n}",
+    "version": "1.1"
+}

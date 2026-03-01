@@ -29,6 +29,7 @@
 #include "../codegen/GraphCompiler.h"
 #include "../uiDesigner/UIDesignerWidget.h"
 #include "../uiDesigner/UIModuleFactory.h"
+// StandardLibrary модули загружаются из <app_dir>/modules/ (копируются CMake при сборке)
 #include "../uiDesigner/DesignScene.h"
 #include "../uiDesigner/WidgetItem.h"
 #include "../uiDesigner/UICommands.h"
@@ -102,8 +103,14 @@ void MainWindow::setupCoreServices()
     // GraphDebugger создаётся после setupUI, инициализируем nullptr
     m_graphDebugger = nullptr;
 
-    // Регистрация UI-модулей (фиксированные виджеты)
+    // 1. Убедиться, что директория модулей существует
+    m_sessionManager->ensureGlobalDirs();
+
+    // 2. Регистрация UI-модулей (фиксированные виджеты)
     UIModuleFactory::registerAll(m_moduleRegistry);
+
+    // 3. Загрузка модулей из <app_dir>/modules/ (core + расширения)
+    m_moduleRegistry->loadGlobalModules(m_sessionManager->globalModulesDir());
 }
 
 void MainWindow::setupUI()
@@ -118,6 +125,8 @@ void MainWindow::setupUI()
 
     // Module 2: Block Editor
     m_blockEditor = new BlockEditorWidget(m_moduleRegistry, m_commandBus, this);
+    m_blockEditor->setGraphStore(m_graphStore);
+    m_blockEditor->scene()->setGraphStore(m_graphStore);
     m_modulePalette = new ModulePalette(m_moduleRegistry, this);
     m_blockEditor->setPalette(m_modulePalette);
     m_centralStack->addWidget(m_blockEditor);
@@ -133,6 +142,7 @@ void MainWindow::setupUI()
 
     // Module 5: Module Manager
     m_moduleManager = new ModuleManagerWidget(m_moduleRegistry, this);
+    m_moduleManager->setGlobalModulesDir(m_sessionManager->globalModulesDir());
     m_centralStack->addWidget(m_moduleManager);
 
     m_centralStack->setCurrentIndex(0); // Start with code editor
@@ -545,13 +555,18 @@ void MainWindow::setupConnections()
     // Загрузка реестра модулей при открытии проекта
     connect(m_projectManager, &ProjectManager::projectOpened, this, [this]() {
         m_moduleRegistry->loadRegistry(m_projectManager->projectDir());
+        // Загрузка локальных модулей проекта из dqmods/
+        m_moduleRegistry->loadLocalModules(m_projectManager->projectDir() + "/dqmods");
         m_moduleManager->setProjectDir(m_projectManager->projectDir());
         int count = m_moduleRegistry->count();
         if (count > 0)
             statusBar()->showMessage(tr("Loaded %1 module(s)").arg(count), 3000);
     });
     connect(m_projectManager, &ProjectManager::projectClosed, this, [this]() {
+        // Очищаем реестр и перезагружаем глобальные модули
         m_moduleRegistry->clear();
+        UIModuleFactory::registerAll(m_moduleRegistry);
+        m_moduleRegistry->loadGlobalModules(m_sessionManager->globalModulesDir());
         m_moduleManager->setProjectDir(QString());
     });
 
@@ -763,6 +778,7 @@ void MainWindow::onBuild()
         }
 
         GraphCompiler compiler(m_moduleRegistry);
+        compiler.setGraphStore(m_graphStore);
         CompilationResult result = compiler.compile(*graph);
 
         if (!result.success) {
@@ -950,6 +966,10 @@ void MainWindow::onFileActivated(const QString &path)
             QString id = QJsonDocument::fromJson(f.readAll()).object()["id"].toString();
             if (!id.isEmpty()) {
                 auto *editor = new BlockEditorWidget(m_moduleRegistry, m_commandBus);
+                editor->setGraphStore(m_graphStore);
+                editor->scene()->setGraphStore(m_graphStore);
+                auto *palette = new ModulePalette(m_moduleRegistry, editor);
+                editor->setPalette(palette);
                 editor->loadGraph(id, m_graphStore);
                 connectBlockEditorSignals(editor);
                 m_codeEditor->openCustomTab(editor, name, path);
@@ -1126,20 +1146,8 @@ void MainWindow::connectUIDesignerSignals(UIDesignerWidget *designer)
     connect(designer, &UIDesignerWidget::openEventHandler, this,
         [this, designer](const QString &widgetId, const QString &widgetName, const QString &eventName) {
 
-        // Формируем человекочитаемое имя графа
-        QString graphName;
-        if (eventName == "onClick")
-            graphName = tr("Клик %1").arg(widgetName);
-        else if (eventName == "onTextChanged")
-            graphName = tr("Текст изменён %1").arg(widgetName);
-        else if (eventName == "onValueChanged")
-            graphName = tr("Значение изменено %1").arg(widgetName);
-        else if (eventName == "onToggled")
-            graphName = tr("Переключение %1").arg(widgetName);
-        else if (eventName == "onSelectionChanged")
-            graphName = tr("Выбор изменён %1").arg(widgetName);
-        else
-            graphName = eventName + "_" + widgetName;
+        // Формируем имя графа (латиницей для совместимости файловых систем)
+        QString graphName = eventName + "_" + widgetName;
 
         // Ищем существующий граф с таким именем
         Graph *existing = m_graphStore->findGraphByName(graphName);
@@ -1172,7 +1180,12 @@ void MainWindow::connectUIDesignerSignals(UIDesignerWidget *designer)
             m_codeEditor->openCustomTab(nullptr, {}, graphPath);
         } else {
             auto *editor = new BlockEditorWidget(m_moduleRegistry, m_commandBus);
+            editor->setGraphStore(m_graphStore);
+            editor->scene()->setGraphStore(m_graphStore);
+            auto *palette = new ModulePalette(m_moduleRegistry, editor);
+            editor->setPalette(palette);
             editor->loadGraph(existing->id, m_graphStore);
+            connectBlockEditorSignals(editor);
             m_codeEditor->openCustomTab(editor, graphName + ".dqgraph", graphPath);
         }
 
@@ -1259,6 +1272,7 @@ void MainWindow::onCloseProject()
 void MainWindow::onSettings()
 {
     SettingsDialog dlg(m_sessionManager, this);
+    dlg.setModuleRegistry(m_moduleRegistry);
     dlg.exec();
 }
 

@@ -144,11 +144,11 @@ bool ProjectManager::closeProject()
 bool ProjectManager::ensureDirectories(const QString &dir)
 {
     QDir d(dir);
-    return d.mkpath("modules") &&
-           d.mkpath("graphs") &&
+    return d.mkpath("graphs") &&
            d.mkpath("ui") &&
            d.mkpath("src") &&
-           d.mkpath("build");
+           d.mkpath("build") &&
+           d.mkpath("dqmods");
 }
 
 } // namespace DeltaQ

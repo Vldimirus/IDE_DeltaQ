@@ -2,6 +2,7 @@
 #include "GraphCompiler.h"
 #include "IR.h"
 #include "../core/ModuleRegistry.h"
+#include "../core/GraphStore.h"
 #include "../uiDesigner/UIModuleFactory.h"
 #include <deltaq/Graph.h>
 #include <deltaq/Module.h>
@@ -315,6 +316,17 @@ IR GraphCompiler::generateIR(const Graph &graph, const QStringList &sortedNodes,
                     mod->name.toLower().replace("ui_", ""));
                 ir.addInstruction(IRInstruction::makeCall({}, funcName, callArgs, nodeId));
             }
+        } else if (mod->origin == "graph" && !mod->graphId.isEmpty() && m_graphStore) {
+            // Композитный подмодуль — рекурсивная компиляция
+            QString subFuncName = compileSubModule(*mod, result);
+            if (!subFuncName.isEmpty()) {
+                if (mod->outputs.isEmpty()) {
+                    ir.addInstruction(IRInstruction::makeCall({}, subFuncName, callArgs, nodeId));
+                } else {
+                    QString targetVar = portVarMap.value(nodeId + ":" + mod->outputs.first().name);
+                    ir.addInstruction(IRInstruction::makeCall(targetVar, subFuncName, callArgs, nodeId));
+                }
+            }
         } else {
             // Обычный модуль
             QString funcName = QString("dq_%1").arg(mod->name.toLower().replace(' ', '_'));
@@ -333,6 +345,36 @@ IR GraphCompiler::generateIR(const Graph &graph, const QStringList &sortedNodes,
     ir.addInstruction(IRInstruction::makeReturn("0"));
 
     return ir;
+}
+
+QString GraphCompiler::compileSubModule(const Module &mod, CompilationResult &result)
+{
+    // Имя функции для подмодуля
+    QString funcName = QString("dq_sub_%1").arg(mod.name.toLower().replace(' ', '_'));
+
+    // Проверяем, не был ли он уже скомпилирован
+    if (m_compiledSubModules.contains(mod.id))
+        return funcName;
+    m_compiledSubModules.insert(mod.id);
+
+    // Находим внутренний граф
+    const Graph *innerGraph = m_graphStore->findGraph(mod.graphId);
+    if (!innerGraph) {
+        result.errors.append(
+            QObject::tr("Подмодуль '%1': внутренний граф '%2' не найден")
+            .arg(mod.name, mod.graphId));
+        return {};
+    }
+
+    // Рекурсивно компилируем внутренний граф
+    CompilationResult subResult = compile(*innerGraph);
+    if (!subResult.success) {
+        for (const auto &err : subResult.errors)
+            result.errors.append(QObject::tr("В подмодуле '%1': %2").arg(mod.name, err));
+        return {};
+    }
+
+    return funcName;
 }
 
 bool GraphCompiler::areTypesCompatible(const QString &from, const QString &to) const

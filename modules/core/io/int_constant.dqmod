@@ -1,0 +1,29 @@
+{
+    "category": "io",
+    "dependencies": [
+    ],
+    "description": "Целочисленная константа",
+    "header": "",
+    "id": "core.io.int_constant",
+    "language": "c",
+    "name": "int_constant",
+    "origin": "core",
+    "ports": {
+        "input": [
+            {
+                "default": "0",
+                "name": "value",
+                "type": "int"
+            }
+        ],
+        "output": [
+            {
+                "name": "out",
+                "type": "int"
+            }
+        ]
+    },
+    "source": "",
+    "source_code": "int dq_int_constant(int value) {\n    return value;\n}",
+    "version": "1.1"
+}

@@ -1,0 +1,36 @@
+{
+    "category": "string",
+    "dependencies": [
+    ],
+    "description": "Конкатенация строк",
+    "header": "",
+    "id": "core.string.str_concat",
+    "includes": [
+        "stdio.h",
+        "string.h"
+    ],
+    "language": "c",
+    "name": "str_concat",
+    "origin": "core",
+    "ports": {
+        "input": [
+            {
+                "name": "a",
+                "type": "string"
+            },
+            {
+                "name": "b",
+                "type": "string"
+            }
+        ],
+        "output": [
+            {
+                "name": "result",
+                "type": "string"
+            }
+        ]
+    },
+    "source": "",
+    "source_code": "const char *dq_str_concat(const char *a, const char *b) {\n    static char buf[2048];\n    snprintf(buf, sizeof(buf), \"%s%s\", a, b);\n    return buf;\n}",
+    "version": "1.1"
+}

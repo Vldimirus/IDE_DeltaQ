@@ -1,6 +1,7 @@
 // Диалог настроек IDE — реализация
 #include "SettingsDialog.h"
 #include "SessionManager.h"
+#include "ModuleRegistry.h"
 
 #include <QTabWidget>
 #include <QVBoxLayout>
@@ -15,7 +16,10 @@
 #include <QDialogButtonBox>
 #include <QLabel>
 #include <QCheckBox>
+#include <QListWidget>
 #include <QMessageBox>
+#include <QDesktopServices>
+#include <QUrl>
 
 namespace DeltaQ {
 
@@ -89,6 +93,37 @@ SettingsDialog::SettingsDialog(SessionManager *session, QWidget *parent)
 
     tabs->addTab(langPage, tr("Language"));
 
+    // === Вкладка «Модули» ===
+    auto *modulesPage = new QWidget;
+    auto *modulesLayout = new QVBoxLayout(modulesPage);
+
+    auto *modulesLabel = new QLabel(tr("Установленные пакеты модулей:"), modulesPage);
+    modulesLayout->addWidget(modulesLabel);
+
+    m_packList = new QListWidget(modulesPage);
+    m_packList->setAlternatingRowColors(true);
+    modulesLayout->addWidget(m_packList);
+
+    auto *moduleBtnLayout = new QHBoxLayout;
+
+    auto *openDirBtn = new QPushButton(tr("Открыть папку модулей"), modulesPage);
+    connect(openDirBtn, &QPushButton::clicked, this, [this]() {
+        QString dir = m_session->globalModulesDir();
+        QDesktopServices::openUrl(QUrl::fromLocalFile(dir));
+    });
+    moduleBtnLayout->addWidget(openDirBtn);
+
+    auto *refreshBtn = new QPushButton(tr("Обновить"), modulesPage);
+    connect(refreshBtn, &QPushButton::clicked, this, [this]() {
+        buildModulesTab();
+    });
+    moduleBtnLayout->addWidget(refreshBtn);
+
+    moduleBtnLayout->addStretch();
+    modulesLayout->addLayout(moduleBtnLayout);
+
+    tabs->addTab(modulesPage, tr("Modules"));
+
     mainLayout->addWidget(tabs);
 
     // Кнопки OK / Cancel
@@ -99,6 +134,42 @@ SettingsDialog::SettingsDialog(SessionManager *session, QWidget *parent)
     });
     connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);
     mainLayout->addWidget(buttons);
+}
+
+void SettingsDialog::setModuleRegistry(ModuleRegistry *registry)
+{
+    m_registry = registry;
+    buildModulesTab();
+}
+
+void SettingsDialog::buildModulesTab()
+{
+    if (!m_packList) return;
+    m_packList->clear();
+
+    if (!m_registry) {
+        m_packList->addItem(tr("Реестр модулей не доступен"));
+        return;
+    }
+
+    auto packs = m_registry->installedPacks();
+    if (packs.isEmpty()) {
+        m_packList->addItem(tr("Нет установленных пакетов"));
+        return;
+    }
+
+    for (const auto &pack : packs) {
+        QString label = pack.name;
+        if (!pack.version.isEmpty())
+            label += QString("  v%1").arg(pack.version);
+        if (!pack.author.isEmpty())
+            label += QString("  [%1]").arg(pack.author);
+        if (pack.isCore)
+            label += "  (core)";
+        label += QString("\n  %1").arg(pack.path);
+
+        m_packList->addItem(label);
+    }
 }
 
 void SettingsDialog::apply()

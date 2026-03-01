@@ -1,0 +1,29 @@
+{
+    "category": "io",
+    "dependencies": [
+    ],
+    "description": "Строковая константа",
+    "header": "",
+    "id": "core.io.string_constant",
+    "language": "c",
+    "name": "string_constant",
+    "origin": "core",
+    "ports": {
+        "input": [
+            {
+                "default": "\"Hello\"",
+                "name": "value",
+                "type": "string"
+            }
+        ],
+        "output": [
+            {
+                "name": "out",
+                "type": "string"
+            }
+        ]
+    },
+    "source": "",
+    "source_code": "const char *dq_string_constant(const char *value) {\n    return value;\n}",
+    "version": "1.1"
+}

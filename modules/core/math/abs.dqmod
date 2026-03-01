@@ -1,0 +1,28 @@
+{
+    "category": "math",
+    "dependencies": [
+    ],
+    "description": "Модуль числа",
+    "header": "",
+    "id": "core.math.abs",
+    "language": "c",
+    "name": "abs",
+    "origin": "core",
+    "ports": {
+        "input": [
+            {
+                "name": "value",
+                "type": "int"
+            }
+        ],
+        "output": [
+            {
+                "name": "result",
+                "type": "int"
+            }
+        ]
+    },
+    "source": "",
+    "source_code": "int dq_abs(int value) {\n    return value < 0 ? -value : value;\n}",
+    "version": "1.1"
+}

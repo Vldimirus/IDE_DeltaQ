@@ -7,6 +7,16 @@
 
 namespace DeltaQ {
 
+// Метаданные пакета модулей
+struct ModulePack {
+    QString name;
+    QString version;
+    QString author;
+    QString description;
+    QString path;       // путь к папке пакета
+    bool isCore = false;
+};
+
 class ModuleRegistry : public QObject {
     Q_OBJECT
 
@@ -31,9 +41,25 @@ public:
     bool loadModuleFile(const QString &dqmodPath);
     bool saveModuleFile(const Module &module, const QString &dqmodPath) const;
 
-    // Registry file (.dqreg)
+    // Загрузка глобальных модулей (core + расширения)
+    void loadGlobalModules(const QString &globalModulesDir);
+
+    // Загрузка локальных модулей проекта (из dqmods/)
+    void loadLocalModules(const QString &dqmodsDir);
+
+    // Очистка локальных модулей (при закрытии проекта)
+    void clearLocalModules();
+
+    // Registry file (.dqreg) — проектные данные (аннотации)
     bool loadRegistry(const QString &projectDir);
     bool saveRegistry(const QString &projectDir) const;
+
+    // Список установленных пакетов
+    QVector<ModulePack> installedPacks() const;
+
+    // Проверка типа модуля
+    bool isCoreModule(const QString &id) const;
+    bool isExtensionModule(const QString &id) const;
 
     // Валидация
     bool validateModule(const Module &module) const;
@@ -49,7 +75,8 @@ signals:
     void registryCleared();
 
 private:
-    QMap<QString, Module> m_modules; // id -> Module
+    QMap<QString, Module> m_modules;        // id -> Module
+    QVector<ModulePack> m_packs;            // установленные пакеты
 };
 
 } // namespace DeltaQ
