@@ -47,6 +47,7 @@ WidgetItem *DesignScene::addWidgetItem(const UIWidget &widget)
     // Подключаем сигналы
     connect(item, &WidgetItem::positionChanged, this, &DesignScene::widgetMoved);
     connect(item, &WidgetItem::sizeChanged, this, &DesignScene::widgetResized);
+    connect(item, &WidgetItem::widgetDoubleClicked, this, &DesignScene::widgetDoubleClicked);
 
     return item;
 }
@@ -348,6 +349,7 @@ WidgetItem *DesignScene::createWidgetItems(const UIWidget &widget, WidgetItem *p
     // Подключаем сигналы
     connect(item, &WidgetItem::positionChanged, this, &DesignScene::widgetMoved);
     connect(item, &WidgetItem::sizeChanged, this, &DesignScene::widgetResized);
+    connect(item, &WidgetItem::widgetDoubleClicked, this, &DesignScene::widgetDoubleClicked);
 
     // Рекурсивно дочерние
     for (const auto &child : widget.children) {

@@ -47,6 +47,7 @@ signals:
     void widgetDropped(const QString &widgetType, const QPointF &scenePos);
     void widgetMoved(const QString &widgetId, const QPointF &oldPos, const QPointF &newPos);
     void widgetResized(const QString &widgetId, const QRectF &oldRect, const QRectF &newRect);
+    void widgetDoubleClicked(const QString &widgetId);
 
 protected:
     void drawBackground(QPainter *painter, const QRectF &rect) override;

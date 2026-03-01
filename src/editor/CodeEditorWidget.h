@@ -62,6 +62,7 @@ public:
     // Произвольные виджеты как вкладки (графы, UI-макеты)
     void openCustomTab(QWidget *widget, const QString &title, const QString &path);
     QWidget *findCustomTabWidget(const QString &path) const;
+    QWidget *currentCustomTabWidget() const;
 
 signals:
     void fileSaved(const QString &path);

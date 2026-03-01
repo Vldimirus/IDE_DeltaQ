@@ -62,12 +62,14 @@ signals:
     void positionChanged(const QString &id, const QPointF &oldPos, const QPointF &newPos);
     void sizeChanged(const QString &id, const QRectF &oldRect, const QRectF &newRect);
     void propertyChanged(const QString &id, const QString &key, const QVariant &value);
+    void widgetDoubleClicked(const QString &widgetId);
 
 protected:
     QVariant itemChange(GraphicsItemChange change, const QVariant &value) override;
     void mousePressEvent(QGraphicsSceneMouseEvent *event) override;
     void mouseMoveEvent(QGraphicsSceneMouseEvent *event) override;
     void mouseReleaseEvent(QGraphicsSceneMouseEvent *event) override;
+    void mouseDoubleClickEvent(QGraphicsSceneMouseEvent *event) override;
 
 private:
     // Рисование по типу

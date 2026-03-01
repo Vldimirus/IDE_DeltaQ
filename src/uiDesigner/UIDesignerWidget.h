@@ -50,6 +50,7 @@ public:
 signals:
     void generateCodeRequested();
     void previewRequested();
+    void openEventHandler(const QString &widgetId, const QString &widgetName, const QString &eventName);
 
 protected:
     void wheelEvent(QWheelEvent *event) override;

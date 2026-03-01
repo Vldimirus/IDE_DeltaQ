@@ -119,6 +119,26 @@ UIDesignerWidget::UIDesignerWidget(ModuleRegistry *registry, CommandBus *bus,
         m_objectTree->rebuild(m_scene);
     });
 
+    // Двойной клик по виджету → открытие обработчика события
+    connect(m_scene, &DesignScene::widgetDoubleClicked, this, [this](const QString &widgetId) {
+        auto *item = m_scene->widgetItem(widgetId);
+        if (!item) return;
+
+        // Определяем имя события по типу виджета
+        QString eventName = "onClick";  // по умолчанию
+        if (item->widgetType() == "TextField" || item->widgetType() == "TextArea")
+            eventName = "onTextChanged";
+        else if (item->widgetType() == "Slider")
+            eventName = "onValueChanged";
+        else if (item->widgetType() == "ComboBox")
+            eventName = "onSelectionChanged";
+        else if (item->widgetType() == "Checkbox" || item->widgetType() == "RadioButton")
+            eventName = "onToggled";
+
+        // Эмитим сигнал — MainWindow обработает создание/открытие графа
+        emit openEventHandler(widgetId, item->widgetName(), eventName);
+    });
+
     // Дерево объектов: клик по элементу → выделение на сцене
     connect(m_objectTree, &ObjectTreeWidget::widgetSelected, this, [this](const QString &widgetId) {
         if (widgetId.isEmpty()) {
@@ -262,6 +282,12 @@ void UIDesignerWidget::handleWidgetMoved(const QString &widgetId,
 
     m_commandBus->execute(std::make_unique<MoveWidgetCommand>(
         m_scene, layout, widgetId, oldPos, newPos));
+
+    // Обновить PropertyEditor если перемещённый виджет сейчас выделен
+    auto *item = m_scene->widgetItem(widgetId);
+    if (item && m_propertyEditor->currentWidget() == item) {
+        m_propertyEditor->setWidget(item);
+    }
 }
 
 void UIDesignerWidget::handleWidgetResized(const QString &widgetId,
@@ -272,6 +298,12 @@ void UIDesignerWidget::handleWidgetResized(const QString &widgetId,
 
     m_commandBus->execute(std::make_unique<ResizeWidgetCommand>(
         m_scene, layout, widgetId, oldRect, newRect));
+
+    // Обновить PropertyEditor если изменённый виджет сейчас выделен
+    auto *item = m_scene->widgetItem(widgetId);
+    if (item && m_propertyEditor->currentWidget() == item) {
+        m_propertyEditor->setWidget(item);
+    }
 }
 
 void UIDesignerWidget::handleDeleteSelected()

@@ -546,4 +546,13 @@ QWidget *CodeEditorWidget::findCustomTabWidget(const QString &path) const
     return nullptr;
 }
 
+QWidget *CodeEditorWidget::currentCustomTabWidget() const
+{
+    QWidget *w = m_tabWidget->currentWidget();
+    // Если это не CodeEditorTab, значит это кастомная вкладка
+    if (w && !qobject_cast<CodeEditorTab *>(w))
+        return w;
+    return nullptr;
+}
+
 } // namespace DeltaQ

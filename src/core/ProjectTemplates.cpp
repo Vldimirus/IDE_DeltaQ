@@ -76,25 +76,25 @@ bool ProjectTemplates::generateDesktopTemplate(const QString &projectDir,
     Q_UNUSED(name)
 
     // 1. Создаём UILayout программно
-    UILayout layout = UILayout::create("main");
+    UILayout layout = UILayout::create("window1");
 
-    // Кнопка "Click Me"
+    // Кнопка "Click Me" (y=40 — ниже title bar высотой 30px)
     UIWidget button = UIWidget::create("Button", "btnClickMe");
-    button.geometry = QRectF(10, 10, 120, 40);
+    button.geometry = QRectF(20, 50, 120, 40);
     button.properties["text"] = "Click Me";
     button.events["onClick"] = "on_btnClickMe_click";
     layout.window.children.append(button);
 
     // Метка "Hello DeltaQ"
     UIWidget label = UIWidget::create("Label", "lblHello");
-    label.geometry = QRectF(10, 60, 200, 30);
+    label.geometry = QRectF(20, 100, 200, 30);
     label.properties["text"] = "Hello DeltaQ";
     layout.window.children.append(label);
 
-    // 2. Сохраняем layout в ui/main.dqui
+    // 2. Сохраняем layout в ui/window1.dqui
     QDir().mkpath(projectDir + "/ui");
     {
-        QFile f(projectDir + "/ui/main.dqui");
+        QFile f(projectDir + "/ui/window1.dqui");
         if (!f.open(QIODevice::WriteOnly))
             return false;
         QJsonDocument doc(layout.toJson());
@@ -102,20 +102,20 @@ bool ProjectTemplates::generateDesktopTemplate(const QString &projectDir,
     }
 
     // 3. Генерируем SDL2 C-код
-    GeneratedCode code = SDL2CodeGenerator::generate(layout);
+    GeneratedCode code = SDL2CodeGenerator::generate(layout, "window1");
 
-    // 4. Записываем 5 файлов в src/
+    // 4. Записываем UI-файлы в ui/, main.c в src/
     QDir().mkpath(projectDir + "/src");
 
     if (!writeTextFile(projectDir + "/src/main.c", code.mainFile))
         return false;
-    if (!writeTextFile(projectDir + "/src/ui.h", code.uiHeader))
+    if (!writeTextFile(projectDir + "/ui/window1.h", code.uiHeader))
         return false;
-    if (!writeTextFile(projectDir + "/src/ui.c", code.uiSource))
+    if (!writeTextFile(projectDir + "/ui/window1.c", code.uiSource))
         return false;
-    if (!writeTextFile(projectDir + "/src/events.h", code.eventsHeader))
+    if (!writeTextFile(projectDir + "/ui/window1_events.h", code.eventsHeader))
         return false;
-    if (!writeTextFile(projectDir + "/src/events.c", code.eventsSource))
+    if (!writeTextFile(projectDir + "/ui/window1_events.c", code.eventsSource))
         return false;
 
     return generateDesktopModulesAndGraphs(projectDir);

@@ -20,8 +20,8 @@ WidgetItem::WidgetItem(const UIWidget &widget, QGraphicsItem *parent)
 UIWidget WidgetItem::toUIWidget() const
 {
     UIWidget w = m_widget;
-    w.geometry.setX(pos().x());
-    w.geometry.setY(pos().y());
+    // moveTopLeft сохраняет ширину/высоту (setX/setY ломают — они двигают край, меняя размер!)
+    w.geometry.moveTopLeft(pos());
 
     // Рекурсивно дочерние
     w.children.clear();
@@ -515,6 +515,12 @@ void WidgetItem::mouseReleaseEvent(QGraphicsSceneMouseEvent *event)
         }
     }
     QGraphicsObject::mouseReleaseEvent(event);
+}
+
+void WidgetItem::mouseDoubleClickEvent(QGraphicsSceneMouseEvent *event)
+{
+    emit widgetDoubleClicked(m_widget.id);
+    event->accept();
 }
 
 } // namespace DeltaQ

@@ -713,6 +713,26 @@ void MainWindow::onOpenProject()
 
 void MainWindow::onSaveFile()
 {
+    // Проверяем, является ли текущая вкладка кастомной (UIDesigner или BlockEditor)
+    QWidget *currentWidget = m_codeEditor->currentCustomTabWidget();
+    if (auto *uiDesigner = qobject_cast<UIDesignerWidget *>(currentWidget)) {
+        uiDesigner->saveLayout(m_uiLayoutStore);
+        // Записать .dqui файл на диск
+        if (m_uiLayoutStore && m_projectManager->isProjectOpen()) {
+            m_uiLayoutStore->saveAll(m_projectManager->projectDir());
+        }
+        statusBar()->showMessage(tr("UI layout saved"), 3000);
+        return;
+    }
+    if (auto *blockEditor = qobject_cast<BlockEditorWidget *>(currentWidget)) {
+        blockEditor->saveGraph(m_graphStore);
+        if (m_graphStore && m_projectManager->isProjectOpen()) {
+            m_graphStore->saveAll(m_projectManager->projectDir());
+        }
+        statusBar()->showMessage(tr("Graph saved"), 3000);
+        return;
+    }
+    // Обычный текстовый файл
     m_codeEditor->saveCurrentFile();
 }
 
@@ -1033,30 +1053,113 @@ void MainWindow::connectUIDesignerSignals(UIDesignerWidget *designer)
         UILayout layout = designer->scene()->toLayout(baseName);
         GeneratedCode code = SDL2CodeGenerator::generate(layout, baseName);
 
-        QString srcDir = m_projectManager->projectDir() + "/src";
-        QDir().mkpath(srcDir);
+        // Генерируем UI-файлы в папку ui/ (не в src/)
+        QString uiDir = m_projectManager->projectDir() + "/ui";
+        QDir().mkpath(uiDir);
 
-        auto writeFile = [&](const QString &name, const QString &content) {
-            QFile f(srcDir + "/" + name);
+        auto writeFile = [&](const QString &dir, const QString &name, const QString &content) {
+            QFile f(dir + "/" + name);
             if (f.open(QIODevice::WriteOnly | QIODevice::Text)) {
                 f.write(content.toUtf8());
                 f.close();
             }
         };
 
-        writeFile("main.c", code.mainFile);
-        writeFile(baseName + ".h", code.uiHeader);
-        writeFile(baseName + ".c", code.uiSource);
-        writeFile(baseName + "_events.h", code.eventsHeader);
-        writeFile(baseName + "_events.c", code.eventsSource);
+        writeFile(uiDir, baseName + ".h", code.uiHeader);
+        writeFile(uiDir, baseName + ".c", code.uiSource);
+        writeFile(uiDir, baseName + "_events.h", code.eventsHeader);
+        writeFile(uiDir, baseName + "_events.c", code.eventsSource);
+
+        // main.c генерируем в src/ только если его нет
+        QString srcDir = m_projectManager->projectDir() + "/src";
+        QString mainPath = srcDir + "/main.c";
+        if (!QFile::exists(mainPath)) {
+            QDir().mkpath(srcDir);
+            writeFile(srcDir, "main.c", code.mainFile);
+        }
+
+        // Добавляем #include в main.c если ещё нет
+        QFile mainFile(mainPath);
+        if (mainFile.open(QIODevice::ReadWrite | QIODevice::Text)) {
+            QString content = QString::fromUtf8(mainFile.readAll());
+            QString includeStr = QString("#include \"../ui/%1.h\"").arg(baseName);
+            if (!content.contains(includeStr)) {
+                int lastInclude = content.lastIndexOf("#include");
+                int insertPos = lastInclude >= 0 ? content.indexOf('\n', lastInclude) + 1 : 0;
+                content.insert(insertPos, includeStr + "\n");
+                mainFile.seek(0);
+                mainFile.write(content.toUtf8());
+                mainFile.resize(mainFile.pos());
+            }
+            mainFile.close();
+        }
 
         m_buildOutput->clear();
-        m_buildOutput->append(tr("=== SDL2 code generated in %1 ===\n").arg(srcDir));
-        m_buildOutput->append(tr("Files: main.c, %1.h, %1.c, %1_events.h, %1_events.c")
+        m_buildOutput->append(tr("=== SDL2 code generated in %1 ===\n").arg(uiDir));
+        m_buildOutput->append(tr("Files: %1.h, %1.c, %1_events.h, %1_events.c")
                                   .arg(baseName));
         m_outputTabs->setCurrentWidget(m_buildOutput);
         m_outputDock->show();
         statusBar()->showMessage(tr("SDL2 code generated"), 3000);
+    });
+
+    // Двойной клик по виджету → создать/открыть граф-обработчик события
+    connect(designer, &UIDesignerWidget::openEventHandler, this,
+        [this, designer](const QString &widgetId, const QString &widgetName, const QString &eventName) {
+
+        // Формируем человекочитаемое имя графа
+        QString graphName;
+        if (eventName == "onClick")
+            graphName = tr("Клик %1").arg(widgetName);
+        else if (eventName == "onTextChanged")
+            graphName = tr("Текст изменён %1").arg(widgetName);
+        else if (eventName == "onValueChanged")
+            graphName = tr("Значение изменено %1").arg(widgetName);
+        else if (eventName == "onToggled")
+            graphName = tr("Переключение %1").arg(widgetName);
+        else if (eventName == "onSelectionChanged")
+            graphName = tr("Выбор изменён %1").arg(widgetName);
+        else
+            graphName = eventName + "_" + widgetName;
+
+        // Ищем существующий граф с таким именем
+        Graph *existing = m_graphStore->findGraphByName(graphName);
+
+        if (!existing) {
+            // Создаём новый граф
+            Graph newGraph = Graph::create(graphName);
+            m_graphStore->registerGraph(newGraph);
+
+            // Сохраняем .dqgraph файл
+            if (m_projectManager->isProjectOpen()) {
+                m_graphStore->saveAll(m_projectManager->projectDir());
+            }
+
+            existing = m_graphStore->findGraphByName(graphName);
+        }
+
+        if (!existing) return;
+
+        // Привязываем событие к виджету
+        auto *item = designer->scene()->widgetItem(widgetId);
+        if (item) {
+            item->setEvent(eventName, "graph:" + existing->id);
+        }
+
+        // Открываем граф в редакторе
+        QString graphPath = m_projectManager->projectDir() + "/graphs/" + graphName + ".dqgraph";
+
+        if (m_codeEditor->findCustomTabWidget(graphPath)) {
+            m_codeEditor->openCustomTab(nullptr, {}, graphPath);
+        } else {
+            auto *editor = new BlockEditorWidget(m_moduleRegistry, m_commandBus);
+            editor->loadGraph(existing->id, m_graphStore);
+            m_codeEditor->openCustomTab(editor, graphName + ".dqgraph", graphPath);
+        }
+
+        // Обновить дерево проекта
+        if (m_projectTree && m_projectManager->isProjectOpen())
+            m_projectTree->setRootPath(m_projectManager->projectDir());
     });
 
     // Preview
@@ -1123,6 +1226,9 @@ void MainWindow::onCloseProject()
         statusBar()->showMessage(tr("No project open"), 3000);
         return;
     }
+
+    // Сохраняем проект перед закрытием (UILayoutStore, GraphStore → диск)
+    m_projectManager->saveProject();
 
     m_projectManager->closeProject();
     m_codeEditor->closeAllTabs();

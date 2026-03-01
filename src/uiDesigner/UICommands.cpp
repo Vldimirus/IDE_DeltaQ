@@ -102,8 +102,8 @@ void MoveWidgetCommand::execute()
 
     auto *w = findWidgetInTree(m_layout->window, m_widgetId);
     if (w) {
-        w->geometry.setX(m_newPos.x());
-        w->geometry.setY(m_newPos.y());
+        // moveTopLeft сохраняет ширину/высоту (setX/setY ломают размер!)
+        w->geometry.moveTopLeft(m_newPos);
     }
 }
 
@@ -115,8 +115,7 @@ void MoveWidgetCommand::undo()
 
     auto *w = findWidgetInTree(m_layout->window, m_widgetId);
     if (w) {
-        w->geometry.setX(m_oldPos.x());
-        w->geometry.setY(m_oldPos.y());
+        w->geometry.moveTopLeft(m_oldPos);
     }
 }
 
