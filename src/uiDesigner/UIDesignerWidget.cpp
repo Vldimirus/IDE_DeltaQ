@@ -318,9 +318,11 @@ void UIDesignerWidget::handleWidgetMoved(const QString &widgetId,
     QString newParentId = newContainer ? newContainer->widgetId() : QString();
 
     if (oldParentId != newParentId) {
-        // Reparenting
+        // Reparenting — передаём сценические координаты для корректного пересчёта
+        QPointF oldScenePos = currentParent ? currentParent->mapToScene(oldPos) : oldPos;
+        QPointF newScenePos = currentParent ? currentParent->mapToScene(newPos) : newPos;
         m_commandBus->execute(std::make_unique<ReparentWidgetCommand>(
-            m_scene, layout, widgetId, oldParentId, newParentId, oldPos, newPos));
+            m_scene, layout, widgetId, oldParentId, newParentId, oldScenePos, newScenePos));
         m_objectTree->rebuild(m_scene);
     } else {
         // Обычное перемещение

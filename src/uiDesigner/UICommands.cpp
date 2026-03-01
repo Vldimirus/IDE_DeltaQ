@@ -360,7 +360,7 @@ ReparentWidgetCommand::ReparentWidgetCommand(DesignScene *scene, UILayout *layou
 
 static void reparentOnScene(DesignScene *scene, const QString &widgetId,
                              const QString &fromParentId, const QString &toParentId,
-                             const QPointF &newPos)
+                             const QPointF &newScenePos)
 {
     auto *item = scene->widgetItem(widgetId);
     if (!item) return;
@@ -372,14 +372,19 @@ static void reparentOnScene(DesignScene *scene, const QString &widgetId,
             oldParent->removeChildWidget(item);
     }
 
-    // Добавить к новому родителю
+    // Добавить к новому родителю и пересчитать позицию из сценических координат
     if (!toParentId.isEmpty()) {
         auto *newParent = scene->widgetItem(toParentId);
-        if (newParent)
+        if (newParent) {
             newParent->addChildWidget(item);
+            item->setPos(newParent->mapFromScene(newScenePos));
+        } else {
+            item->setPos(newScenePos);
+        }
+    } else {
+        // Переносим на корневой уровень — позиция = сценические координаты
+        item->setPos(newScenePos);
     }
-
-    item->setPos(newPos);
 }
 
 static void reparentInLayout(UILayout *layout, const QString &widgetId,
