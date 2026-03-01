@@ -22,7 +22,7 @@ ModulePalette::ModulePalette(ModuleRegistry *registry, QWidget *parent)
     m_searchEdit->setPlaceholderText(tr("Search modules..."));
     layout->addWidget(m_searchEdit);
 
-    m_tree = new QTreeWidget(this);
+    m_tree = new ModuleTreeWidget(this);
     m_tree->setHeaderHidden(true);
     m_tree->setDragEnabled(true);
     m_tree->setSelectionMode(QAbstractItemView::SingleSelection);
