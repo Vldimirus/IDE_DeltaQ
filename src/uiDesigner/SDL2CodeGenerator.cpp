@@ -116,7 +116,8 @@ QString SDL2CodeGenerator::generateMainFile(const UILayout &layout, const QStrin
     out << "    ui_init(&ui);\n\n";
 
     out << "    bool running = true;\n";
-    out << "    SDL_Event event;\n\n";
+    out << "    SDL_Event event;\n";
+    out << "    Uint32 last_tick = SDL_GetTicks();\n\n";
 
     out << "    while (running) {\n";
     out << "        while (SDL_PollEvent(&event)) {\n";
@@ -126,12 +127,16 @@ QString SDL2CodeGenerator::generateMainFile(const UILayout &layout, const QStrin
     out << "            }\n";
     out << "            ui_handle_event(&ui, &event);\n";
     out << "        }\n\n";
+    out << "        Uint32 now = SDL_GetTicks();\n";
+    out << "        ui_update(&ui, now - last_tick);\n";
+    out << "        last_tick = now;\n\n";
     out << "        SDL_SetRenderDrawColor(renderer, 30, 30, 30, 255);\n";
     out << "        SDL_RenderClear(renderer);\n";
     out << "        ui_render(&ui, renderer);\n";
     out << "        SDL_RenderPresent(renderer);\n";
     out << "    }\n\n";
 
+    out << "    if (ui.font) TTF_CloseFont(ui.font);\n";
     out << "    SDL_DestroyRenderer(renderer);\n";
     out << "    SDL_DestroyWindow(window);\n";
     out << "    TTF_Quit();\n";
@@ -176,7 +181,7 @@ QString SDL2CodeGenerator::generateUIHeader(const UILayout &layout, const QStrin
         } else if (w->type == "Label") {
             out << "typedef struct {\n";
             out << "    SDL_Rect rect;\n";
-            out << "    const char *text;\n";
+            out << "    char text[64];\n";
             out << "} " << sn << ";\n\n";
         } else if (w->type == "TextField") {
             out << "typedef struct {\n";
@@ -185,6 +190,12 @@ QString SDL2CodeGenerator::generateUIHeader(const UILayout &layout, const QStrin
             out << "    int cursor_pos;\n";
             out << "    bool focused;\n";
             out << "    const char *placeholder;\n";
+            out << "} " << sn << ";\n\n";
+        } else if (w->type == "TextArea") {
+            out << "typedef struct {\n";
+            out << "    SDL_Rect rect;\n";
+            out << "    char text[4096];\n";
+            out << "    int scroll_y;\n";
             out << "} " << sn << ";\n\n";
         } else if (w->type == "Checkbox") {
             out << "typedef struct {\n";
@@ -219,6 +230,7 @@ QString SDL2CodeGenerator::generateUIHeader(const UILayout &layout, const QStrin
 
     // UIState
     out << "typedef struct {\n";
+    out << "    TTF_Font *font;\n";
     for (const auto *w : widgets) {
         QString sn = widgetStructName(w->type);
         QString varName = sanitizeName(w->name);
@@ -249,6 +261,19 @@ QString SDL2CodeGenerator::generateUISource(const UILayout &layout, const QStrin
     out << "#include \"" << baseName << "_events.h\"\n";
     out << "#include <string.h>\n\n";
 
+    // Вспомогательная функция рендеринга текста через TTF
+    out << "static void render_text(SDL_Renderer *r, TTF_Font *font,\n";
+    out << "                        const char *text, int x, int y, SDL_Color color) {\n";
+    out << "    if (!font || !text || !text[0]) return;\n";
+    out << "    SDL_Surface *surf = TTF_RenderUTF8_Blended(font, text, color);\n";
+    out << "    if (!surf) return;\n";
+    out << "    SDL_Texture *tex = SDL_CreateTextureFromSurface(r, surf);\n";
+    out << "    SDL_Rect dst = {x, y, surf->w, surf->h};\n";
+    out << "    SDL_RenderCopy(r, tex, NULL, &dst);\n";
+    out << "    SDL_DestroyTexture(tex);\n";
+    out << "    SDL_FreeSurface(surf);\n";
+    out << "}\n\n";
+
     // Функции рисования для каждого типа
     QSet<QString> emittedRenders;
     for (const auto *w : widgets) {
@@ -259,32 +284,61 @@ QString SDL2CodeGenerator::generateUISource(const UILayout &layout, const QStrin
         QString fn = widgetRenderFunc(w->type);
 
         if (w->type == "Button") {
-            out << "static void " << fn << "(" << sn << " *btn, SDL_Renderer *r) {\n";
+            out << "static void " << fn << "(" << sn << " *btn, SDL_Renderer *r, TTF_Font *font) {\n";
             out << "    SDL_SetRenderDrawColor(r, btn->pressed ? 80 : (btn->hovered ? 70 : 61),\n";
             out << "                              btn->pressed ? 80 : (btn->hovered ? 70 : 61),\n";
             out << "                              btn->pressed ? 80 : (btn->hovered ? 70 : 61), 255);\n";
             out << "    SDL_RenderFillRect(r, &btn->rect);\n";
             out << "    SDL_SetRenderDrawColor(r, 100, 100, 100, 255);\n";
             out << "    SDL_RenderDrawRect(r, &btn->rect);\n";
-            out << "    /* TODO: render text with TTF */\n";
+            out << "    SDL_Color c = {220, 220, 220, 255};\n";
+            out << "    render_text(r, font, btn->text, btn->rect.x + 8, btn->rect.y + 10, c);\n";
             out << "}\n\n";
         } else if (w->type == "Label") {
-            out << "static void " << fn << "(" << sn << " *lbl, SDL_Renderer *r) {\n";
-            out << "    (void)lbl; (void)r;\n";
-            out << "    /* TODO: render text with TTF */\n";
+            out << "static void " << fn << "(" << sn << " *lbl, SDL_Renderer *r, TTF_Font *font) {\n";
+            out << "    SDL_Color c = {200, 200, 200, 255};\n";
+            out << "    render_text(r, font, lbl->text, lbl->rect.x, lbl->rect.y + 5, c);\n";
             out << "}\n\n";
         } else if (w->type == "TextField") {
-            out << "static void " << fn << "(" << sn << " *tf, SDL_Renderer *r) {\n";
+            out << "static void " << fn << "(" << sn << " *tf, SDL_Renderer *r, TTF_Font *font) {\n";
             out << "    SDL_SetRenderDrawColor(r, 50, 50, 50, 255);\n";
             out << "    SDL_RenderFillRect(r, &tf->rect);\n";
             out << "    SDL_SetRenderDrawColor(r, tf->focused ? 0 : 100,\n";
             out << "                              tf->focused ? 120 : 100,\n";
             out << "                              tf->focused ? 215 : 100, 255);\n";
             out << "    SDL_RenderDrawRect(r, &tf->rect);\n";
-            out << "    /* TODO: render text with TTF */\n";
+            out << "    const char *display = tf->text[0] ? tf->text : tf->placeholder;\n";
+            out << "    SDL_Color c = tf->text[0] ? (SDL_Color){220,220,220,255} : (SDL_Color){120,120,120,255};\n";
+            out << "    render_text(r, font, display, tf->rect.x + 4, tf->rect.y + 6, c);\n";
+            out << "}\n\n";
+        } else if (w->type == "TextArea") {
+            out << "static void " << fn << "(" << sn << " *ta, SDL_Renderer *r, TTF_Font *font) {\n";
+            out << "    SDL_SetRenderDrawColor(r, 40, 40, 40, 255);\n";
+            out << "    SDL_RenderFillRect(r, &ta->rect);\n";
+            out << "    SDL_SetRenderDrawColor(r, 80, 80, 80, 255);\n";
+            out << "    SDL_RenderDrawRect(r, &ta->rect);\n";
+            out << "    if (!font || !ta->text[0]) return;\n";
+            out << "    int line_h = TTF_FontLineSkip(font);\n";
+            out << "    int y = ta->rect.y + 4 - ta->scroll_y;\n";
+            out << "    char *line_start = ta->text;\n";
+            out << "    while (*line_start) {\n";
+            out << "        char *nl = strchr(line_start, '\\n');\n";
+            out << "        int len = nl ? (int)(nl - line_start) : (int)strlen(line_start);\n";
+            out << "        if (len > 0 && y + line_h > ta->rect.y && y < ta->rect.y + ta->rect.h) {\n";
+            out << "            char buf[512];\n";
+            out << "            int copy = len < 511 ? len : 511;\n";
+            out << "            memcpy(buf, line_start, copy);\n";
+            out << "            buf[copy] = '\\0';\n";
+            out << "            SDL_Color c = {200, 200, 200, 255};\n";
+            out << "            render_text(r, font, buf, ta->rect.x + 4, y, c);\n";
+            out << "        }\n";
+            out << "        y += line_h;\n";
+            out << "        line_start += len + (nl ? 1 : 0);\n";
+            out << "        if (!nl) break;\n";
+            out << "    }\n";
             out << "}\n\n";
         } else if (w->type == "Checkbox") {
-            out << "static void " << fn << "(" << sn << " *cb, SDL_Renderer *r) {\n";
+            out << "static void " << fn << "(" << sn << " *cb, SDL_Renderer *r, TTF_Font *font) {\n";
             out << "    SDL_Rect box = {cb->rect.x, cb->rect.y + (cb->rect.h - 16) / 2, 16, 16};\n";
             out << "    SDL_SetRenderDrawColor(r, 50, 50, 50, 255);\n";
             out << "    SDL_RenderFillRect(r, &box);\n";
@@ -295,10 +349,12 @@ QString SDL2CodeGenerator::generateUISource(const UILayout &layout, const QStrin
             out << "        SDL_RenderDrawLine(r, box.x + 3, box.y + 8, box.x + 6, box.y + 12);\n";
             out << "        SDL_RenderDrawLine(r, box.x + 6, box.y + 12, box.x + 12, box.y + 3);\n";
             out << "    }\n";
-            out << "    /* TODO: render text with TTF */\n";
+            out << "    SDL_Color c = {200, 200, 200, 255};\n";
+            out << "    render_text(r, font, cb->text, cb->rect.x + 22, cb->rect.y + 5, c);\n";
             out << "}\n\n";
         } else if (w->type == "Slider") {
-            out << "static void " << fn << "(" << sn << " *sl, SDL_Renderer *r) {\n";
+            out << "static void " << fn << "(" << sn << " *sl, SDL_Renderer *r, TTF_Font *font) {\n";
+            out << "    (void)font;\n";
             out << "    int track_y = sl->rect.y + sl->rect.h / 2;\n";
             out << "    SDL_SetRenderDrawColor(r, 80, 80, 80, 255);\n";
             out << "    SDL_Rect track = {sl->rect.x + 8, track_y - 2, sl->rect.w - 16, 4};\n";
@@ -312,7 +368,8 @@ QString SDL2CodeGenerator::generateUISource(const UILayout &layout, const QStrin
             out << "    SDL_RenderFillRect(r, &knob);\n";
             out << "}\n\n";
         } else if (w->type == "ProgressBar") {
-            out << "static void " << fn << "(" << sn << " *pb, SDL_Renderer *r) {\n";
+            out << "static void " << fn << "(" << sn << " *pb, SDL_Renderer *r, TTF_Font *font) {\n";
+            out << "    (void)font;\n";
             out << "    SDL_SetRenderDrawColor(r, 50, 50, 50, 255);\n";
             out << "    SDL_RenderFillRect(r, &pb->rect);\n";
             out << "    int range = pb->max_val - pb->min_val;\n";
@@ -326,15 +383,16 @@ QString SDL2CodeGenerator::generateUISource(const UILayout &layout, const QStrin
             out << "    SDL_RenderDrawRect(r, &pb->rect);\n";
             out << "}\n\n";
         } else if (w->type == "Panel") {
-            out << "static void " << fn << "(" << sn << " *pnl, SDL_Renderer *r) {\n";
+            out << "static void " << fn << "(" << sn << " *pnl, SDL_Renderer *r, TTF_Font *font) {\n";
+            out << "    (void)font;\n";
             out << "    SDL_SetRenderDrawColor(r, 45, 45, 45, 255);\n";
             out << "    SDL_RenderFillRect(r, &pnl->rect);\n";
             out << "    SDL_SetRenderDrawColor(r, 80, 80, 80, 255);\n";
             out << "    SDL_RenderDrawRect(r, &pnl->rect);\n";
             out << "}\n\n";
         } else {
-            out << "static void " << fn << "(" << sn << " *w, SDL_Renderer *r) {\n";
-            out << "    (void)w; (void)r;\n";
+            out << "static void " << fn << "(" << sn << " *w, SDL_Renderer *r, TTF_Font *font) {\n";
+            out << "    (void)w; (void)r; (void)font;\n";
             out << "    /* TODO: implement " << w->type << " rendering */\n";
             out << "}\n\n";
         }
@@ -342,7 +400,22 @@ QString SDL2CodeGenerator::generateUISource(const UILayout &layout, const QStrin
 
     // ui_init
     out << "void ui_init(UIState *ui) {\n";
-    out << "    memset(ui, 0, sizeof(UIState));\n";
+    out << "    memset(ui, 0, sizeof(UIState));\n\n";
+
+    // Загрузка системного шрифта
+    out << "    // Поиск системного шрифта\n";
+    out << "    const char *font_paths[] = {\n";
+    out << "        \"/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf\",\n";
+    out << "        \"/usr/share/fonts/TTF/DejaVuSans.ttf\",\n";
+    out << "        \"/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf\",\n";
+    out << "        \"C:\\\\Windows\\\\Fonts\\\\arial.ttf\",\n";
+    out << "        NULL\n";
+    out << "    };\n";
+    out << "    for (int i = 0; font_paths[i]; i++) {\n";
+    out << "        ui->font = TTF_OpenFont(font_paths[i], 14);\n";
+    out << "        if (ui->font) break;\n";
+    out << "    }\n\n";
+
     for (const auto *w : widgets) {
         QString varName = sanitizeName(w->name);
         int x = static_cast<int>(w->geometry.x());
@@ -351,13 +424,22 @@ QString SDL2CodeGenerator::generateUISource(const UILayout &layout, const QStrin
         int hh = static_cast<int>(w->geometry.height());
         out << "    ui->" << varName << ".rect = (SDL_Rect){" << x << ", " << y << ", " << ww << ", " << hh << "};\n";
 
-        if (w->type == "Button" || w->type == "Label" || w->type == "Checkbox") {
+        if (w->type == "Button" || w->type == "Checkbox") {
             QString text = w->properties.value("text", w->name).toString();
             out << "    ui->" << varName << ".text = \"" << text << "\";\n";
+        }
+        if (w->type == "Label") {
+            QString text = w->properties.value("text", w->name).toString();
+            out << "    strncpy(ui->" << varName << ".text, \"" << text << "\", 63);\n";
+            out << "    ui->" << varName << ".text[63] = '\\0';\n";
         }
         if (w->type == "TextField") {
             QString placeholder = w->properties.value("placeholder", "").toString();
             out << "    ui->" << varName << ".placeholder = \"" << placeholder << "\";\n";
+        }
+        if (w->type == "TextArea") {
+            out << "    memset(ui->" << varName << ".text, 0, sizeof(ui->" << varName << ".text));\n";
+            out << "    ui->" << varName << ".scroll_y = 0;\n";
         }
         if (w->type == "Slider") {
             int minV = w->properties.value("min", 0).toInt();
@@ -385,7 +467,7 @@ QString SDL2CodeGenerator::generateUISource(const UILayout &layout, const QStrin
     for (const auto *w : widgets) {
         QString varName = sanitizeName(w->name);
         QString fn = widgetRenderFunc(w->type);
-        out << "    " << fn << "(&ui->" << varName << ", renderer);\n";
+        out << "    " << fn << "(&ui->" << varName << ", renderer, ui->font);\n";
     }
     out << "}\n\n";
 
@@ -420,7 +502,7 @@ QString SDL2CodeGenerator::generateUISource(const UILayout &layout, const QStrin
 
             // Обработчик события onClick
             if (w->events.contains("onClick")) {
-                out << "                " << sanitizeName(w->events["onClick"]) << "();\n";
+                out << "                " << sanitizeName(w->events["onClick"]) << "(ui);\n";
             } else {
                 out << "                /* TODO: onClick handler */\n";
             }
@@ -453,6 +535,16 @@ QString SDL2CodeGenerator::generateUISource(const UILayout &layout, const QStrin
             out << "        if (event->key.keysym.sym == SDLK_BACKSPACE) {\n";
             out << "            int len = (int)strlen(ui->" << varName << ".text);\n";
             out << "            if (len > 0) ui->" << varName << ".text[len - 1] = '\\0';\n";
+            out << "        }\n";
+            out << "    }\n\n";
+        }
+        else if (w->type == "TextArea") {
+            out << "    // TextArea: " << w->name << " — прокрутка колесом\n";
+            out << "    if (event->type == SDL_MOUSEWHEEL) {\n";
+            out << "        SDL_Point p; SDL_GetMouseState(&p.x, &p.y);\n";
+            out << "        if (SDL_PointInRect(&p, &ui->" << varName << ".rect)) {\n";
+            out << "            ui->" << varName << ".scroll_y -= event->wheel.y * 20;\n";
+            out << "            if (ui->" << varName << ".scroll_y < 0) ui->" << varName << ".scroll_y = 0;\n";
             out << "        }\n";
             out << "    }\n\n";
         }
@@ -495,13 +587,13 @@ QString SDL2CodeGenerator::generateEventsHeader(const UILayout &layout, const QS
 
     out << "// Автогенерация DeltaQ IDE — " << baseName << "_events.h\n";
     out << "#pragma once\n\n";
+    out << "#include \"" << baseName << ".h\"\n\n";
 
     for (auto it = events.begin(); it != events.end(); ++it) {
-        out << "void " << sanitizeName(it.key()) << "(void);\n";
+        out << "void " << sanitizeName(it.key()) << "(UIState *ui);\n";
     }
 
-    if (events.isEmpty())
-        out << "/* No event handlers defined */\n";
+    out << "void ui_update(UIState *ui, Uint32 delta_ms);\n";
 
     return s;
 }
@@ -517,16 +609,19 @@ QString SDL2CodeGenerator::generateEventsSource(const UILayout &layout, const QS
     QTextStream out(&s);
 
     out << "// Автогенерация DeltaQ IDE — " << baseName << "_events.c\n";
-    out << "#include \"" << baseName << "_events.h\"\n\n";
+    out << "#include \"" << baseName << "_events.h\"\n";
+    out << "#include <stdio.h>\n\n";
 
     for (auto it = events.begin(); it != events.end(); ++it) {
-        out << "void " << sanitizeName(it.key()) << "(void) {\n";
+        out << "void " << sanitizeName(it.key()) << "(UIState *ui) {\n";
+        out << "    (void)ui;\n";
         out << "    /* TODO: implement " << it.key() << " handler for event '" << it.value() << "' */\n";
         out << "}\n\n";
     }
 
-    if (events.isEmpty())
-        out << "/* No event handlers defined */\n";
+    out << "void ui_update(UIState *ui, Uint32 delta_ms) {\n";
+    out << "    (void)ui; (void)delta_ms;\n";
+    out << "}\n";
 
     return s;
 }

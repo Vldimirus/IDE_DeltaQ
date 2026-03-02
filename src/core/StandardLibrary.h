@@ -18,7 +18,7 @@ public:
     // Проверить, установлена ли текущая версия
     static bool isUpToDate(const QString &coreDir);
 
-    static constexpr const char *VERSION = "1.1";
+    static constexpr const char *VERSION = "1.2";
 };
 
 } // namespace DeltaQ

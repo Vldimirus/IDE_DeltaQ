@@ -8,15 +8,20 @@
 
 namespace DeltaQ {
 
+enum class PortDirection { Input, Output };
+enum class PortKind { Data, Execution };
+
 struct Port {
     QString name;
     QString type;
     QString defaultValue;
+    PortKind kind = PortKind::Data;
 
     bool operator==(const Port &other) const {
         return name == other.name
             && type == other.type
-            && defaultValue == other.defaultValue;
+            && defaultValue == other.defaultValue
+            && kind == other.kind;
     }
 
     QJsonObject toJson() const {
@@ -25,20 +30,26 @@ struct Port {
         obj["type"] = type;
         if (!defaultValue.isEmpty())
             obj["default"] = defaultValue;
+        if (kind == PortKind::Execution)
+            obj["kind"] = "execution";
         return obj;
     }
 
     static Port fromJson(const QJsonObject &obj) {
-        return {
-            obj["name"].toString(),
-            obj["type"].toString(),
-            obj["default"].toString()
-        };
+        Port p;
+        p.name = obj["name"].toString();
+        p.type = obj["type"].toString();
+        p.defaultValue = obj["default"].toString();
+        if (obj["kind"].toString() == "execution")
+            p.kind = PortKind::Execution;
+        return p;
+    }
+
+    // Фабричный метод для execution-порта
+    static Port exec(const QString &name) {
+        return {name, "exec", "", PortKind::Execution};
     }
 };
-
-enum class PortDirection { Input, Output };
-enum class PortKind { Data, Execution };
 
 struct PortDefinition {
     QString name;
@@ -172,6 +183,27 @@ struct Module {
 
     bool hasInput(const QString &portName) const { return findInput(portName) != nullptr; }
     bool hasOutput(const QString &portName) const { return findOutput(portName) != nullptr; }
+
+    // Фильтрация портов по kind
+    QVector<Port> dataInputs() const {
+        QVector<Port> result;
+        for (const auto &p : inputs)
+            if (p.kind == PortKind::Data) result.append(p);
+        return result;
+    }
+    QVector<Port> dataOutputs() const {
+        QVector<Port> result;
+        for (const auto &p : outputs)
+            if (p.kind == PortKind::Data) result.append(p);
+        return result;
+    }
+    bool hasExecFlow() const {
+        for (const auto &p : inputs)
+            if (p.kind == PortKind::Execution) return true;
+        for (const auto &p : outputs)
+            if (p.kind == PortKind::Execution) return true;
+        return false;
+    }
 
     // Валидация: id и name не пусты, каждый порт имеет имя и тип
     bool isValid() const {

@@ -37,6 +37,17 @@ private:
     // Топологическая сортировка (возвращает упорядоченные nodeId)
     QStringList topologicalSort(const Graph &graph, QStringList &errors);
 
+    // Топологическая сортировка только по data-связям (алгоритм Кана)
+    QStringList topologicalSortByData(const Graph &graph, QStringList &errors);
+
+    // Сортировка по execution flow с учётом data-зависимостей
+    QStringList topologicalSortByExecution(const Graph &graph, QStringList &errors);
+
+    // Рекурсивная вставка data-зависимостей перед exec-узлом
+    void insertWithDataDeps(const QString &nodeId, const Graph &graph,
+                            QSet<QString> &visited, QStringList &result,
+                            const QMap<QString, QSet<QString>> &dataDeps);
+
     // Генерация IR из отсортированного графа
     IR generateIR(const Graph &graph, const QStringList &sortedNodes, CompilationResult &result);
 

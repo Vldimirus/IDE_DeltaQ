@@ -21,16 +21,18 @@ NodeItem::NodeItem(const QString &nodeId, const QString &moduleName,
     setFlag(ItemSendsGeometryChanges);
 }
 
-void NodeItem::addInputPort(const QString &name, const QString &type)
+void NodeItem::addInputPort(const QString &name, const QString &type,
+                            PortKind kind)
 {
-    auto *port = new PortItem(name, type, PortDirection::Input, this);
+    auto *port = new PortItem(name, type, PortDirection::Input, kind, this);
     m_inputPorts.append(port);
     updatePortPositions();
 }
 
-void NodeItem::addOutputPort(const QString &name, const QString &type)
+void NodeItem::addOutputPort(const QString &name, const QString &type,
+                             PortKind kind)
 {
-    auto *port = new PortItem(name, type, PortDirection::Output, this);
+    auto *port = new PortItem(name, type, PortDirection::Output, kind, this);
     m_outputPorts.append(port);
     updatePortPositions();
 }
@@ -45,8 +47,16 @@ PortItem *NodeItem::findPort(const QString &name, PortDirection dir) const
 
 QRectF NodeItem::boundingRect() const
 {
-    int maxPorts = qMax(m_inputPorts.size(), m_outputPorts.size());
-    qreal h = HeaderHeight + maxPorts * PortSpacing + BottomPadding;
+    // Считаем data-порты отдельно (exec-порты размещаются в заголовке)
+    int maxDataPorts = 0;
+    for (auto *p : m_inputPorts)
+        if (p->portKind() == PortKind::Data) maxDataPorts++;
+    int outDataPorts = 0;
+    for (auto *p : m_outputPorts)
+        if (p->portKind() == PortKind::Data) outDataPorts++;
+    maxDataPorts = qMax(maxDataPorts, outDataPorts);
+
+    qreal h = HeaderHeight + maxDataPorts * PortSpacing + BottomPadding;
     return QRectF(0, 0, Width, h);
 }
 
@@ -179,16 +189,39 @@ void NodeItem::mouseDoubleClickEvent(QGraphicsSceneMouseEvent *event)
 
 void NodeItem::updatePortPositions()
 {
-    // Input-порты слева
-    for (int i = 0; i < m_inputPorts.size(); ++i) {
-        qreal y = HeaderHeight + PortSpacing * 0.5 + i * PortSpacing;
-        m_inputPorts[i]->setPos(0, y);
+    // Exec-порты — в области заголовка (по бокам)
+    // Data-порты — ниже заголовка (как раньше)
+    int execInIdx = 0, execOutIdx = 0;
+    int dataInIdx = 0, dataOutIdx = 0;
+
+    for (auto *port : m_inputPorts) {
+        if (port->portKind() == PortKind::Execution) {
+            // Exec input — слева в области заголовка
+            qreal y = HeaderHeight * 0.5;
+            qreal x = -2.0; // чуть левее края
+            Q_UNUSED(execInIdx)
+            port->setPos(x, y);
+            execInIdx++;
+        } else {
+            qreal y = HeaderHeight + PortSpacing * 0.5 + dataInIdx * PortSpacing;
+            port->setPos(0, y);
+            dataInIdx++;
+        }
     }
 
-    // Output-порты справа
-    for (int i = 0; i < m_outputPorts.size(); ++i) {
-        qreal y = HeaderHeight + PortSpacing * 0.5 + i * PortSpacing;
-        m_outputPorts[i]->setPos(Width, y);
+    for (auto *port : m_outputPorts) {
+        if (port->portKind() == PortKind::Execution) {
+            // Exec output — справа в области заголовка
+            qreal y = HeaderHeight * 0.5;
+            qreal x = Width + 2.0; // чуть правее края
+            Q_UNUSED(execOutIdx)
+            port->setPos(x, y);
+            execOutIdx++;
+        } else {
+            qreal y = HeaderHeight + PortSpacing * 0.5 + dataOutIdx * PortSpacing;
+            port->setPos(Width, y);
+            dataOutIdx++;
+        }
     }
 
     // Обновить геометрию

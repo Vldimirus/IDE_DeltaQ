@@ -27,6 +27,9 @@
 #include "../blockEditor/NodeItem.h"
 #include "../blockEditor/GraphDebugger.h"
 #include "../codegen/GraphCompiler.h"
+#include "../codegen/PreBuildProcessor.h"
+#include "../codegen/BuildPipeline.h"
+#include "../codegen/CompilerDetector.h"
 #include "../uiDesigner/UIDesignerWidget.h"
 #include "../uiDesigner/UIModuleFactory.h"
 // StandardLibrary модули загружаются из <app_dir>/modules/ (копируются CMake при сборке)
@@ -91,6 +94,14 @@ void MainWindow::setupCoreServices()
     m_undoManager = new UndoManager(m_commandBus, this);
 
     m_buildManager = new BuildManager(this);
+
+    // Pre-build процессор и pipeline сборки
+    m_preBuildProcessor = new PreBuildProcessor(m_moduleRegistry, m_graphStore, m_uiLayoutStore, this);
+    m_buildPipeline = new BuildPipeline(m_preBuildProcessor, m_buildManager, this);
+
+    // Автоопределение компилятора
+    m_compilerDetector = new CompilerDetector(this);
+    m_compilerDetector->detect();
 
     // LSP-клиент
     m_lspClient = new LSPClient(this);
@@ -738,90 +749,32 @@ void MainWindow::onBuild()
         return;
     }
 
-    // Если активен UI Designer — генерируем SDL2-код
-    if (m_centralStack->currentWidget() == m_uiDesigner) {
-        UILayout layout = m_uiDesigner->scene()->toLayout("ui_layout");
-        GeneratedCode code = SDL2CodeGenerator::generate(layout);
+    m_buildOutput->clear();
+    m_outputTabs->setCurrentWidget(m_buildOutput);
+    m_outputDock->show();
 
-        QString genDir = m_projectManager->projectDir() + "/generated";
-        QDir().mkpath(genDir);
+    // Подключаем вывод pipeline к buildOutput (однократно через lambda)
+    auto conn = connect(m_buildPipeline, &BuildPipeline::pipelineOutput,
+                        this, [this](const QString &text) {
+        m_buildOutput->append(text);
+    });
 
-        auto writeFile = [&](const QString &name, const QString &content) {
-            QFile f(genDir + "/" + name);
-            if (f.open(QIODevice::WriteOnly | QIODevice::Text)) {
-                f.write(content.toUtf8());
-                f.close();
-            }
-        };
+    // По завершению pipeline отключаем соединение
+    connect(m_buildPipeline, &BuildPipeline::pipelineFinished,
+            this, [this, conn](bool success) {
+        disconnect(conn);
+        if (success)
+            statusBar()->showMessage(tr("Build completed"), 3000);
+        else
+            statusBar()->showMessage(tr("Build failed"), 3000);
+    });
 
-        writeFile("main.c", code.mainFile);
-        writeFile("ui.h", code.uiHeader);
-        writeFile("ui.c", code.uiSource);
-        writeFile("events.h", code.eventsHeader);
-        writeFile("events.c", code.eventsSource);
-
-        m_buildOutput->clear();
-        m_buildOutput->append(tr("=== SDL2 code generated in %1 ===\n").arg(genDir));
-        m_outputTabs->setCurrentWidget(m_buildOutput);
-        m_outputDock->show();
-        statusBar()->showMessage(tr("SDL2 code generated"), 3000);
-    }
-
-    // Если активен блочный редактор — компилируем граф в C-код
-    if (m_centralStack->currentWidget() == m_blockEditor) {
-        auto *scene = m_blockEditor->scene();
-        QString graphId = scene->currentGraphId();
-        Graph *graph = m_graphStore->findGraph(graphId);
-        if (!graph) {
-            statusBar()->showMessage(tr("No graph loaded"), 3000);
-            return;
-        }
-
-        GraphCompiler compiler(m_moduleRegistry);
-        compiler.setGraphStore(m_graphStore);
-        CompilationResult result = compiler.compile(*graph);
-
-        if (!result.success) {
-            m_buildOutput->clear();
-            for (const auto &err : result.errors)
-                m_buildOutput->append("ERROR: " + err);
-            m_outputTabs->setCurrentWidget(m_buildOutput);
-            m_outputDock->show();
-            statusBar()->showMessage(tr("Graph compilation failed"), 3000);
-
-            // Подсветка ошибочных узлов
-            for (auto it = result.sourceMap.begin(); it != result.sourceMap.end(); ++it) {
-                auto *node = scene->nodeItem(it.value());
-                if (node)
-                    node->setError(true, tr("Compilation error"));
-            }
-            return;
-        }
-
-        // Сохраняем сгенерированный код
-        QString genDir = m_projectManager->projectDir() + "/generated";
-        QDir().mkpath(genDir);
-        QString genPath = genDir + "/" + graph->name + ".c";
-        QFile f(genPath);
-        if (f.open(QIODevice::WriteOnly | QIODevice::Text)) {
-            f.write(result.generatedCode.toUtf8());
-            f.close();
-        }
-
-        m_buildOutput->clear();
-        m_buildOutput->append(tr("=== Graph '%1' compiled to %2 ===\n").arg(graph->name, genPath));
-        m_outputTabs->setCurrentWidget(m_buildOutput);
-        m_outputDock->show();
-
-        // Передаём sourceMap для визуальной отладки
-        m_graphDebugger->setSourceMap(result.sourceMap);
-    }
-
-    m_buildManager->build(m_projectManager->projectDir(),
-                          m_projectManager->currentProject().name,
-                          m_projectManager->currentProject().build.standard,
-                          "20",
-                          m_projectManager->currentProject().projectType);
+    // Запускаем двухфазную сборку
+    m_buildPipeline->run(m_projectManager->projectDir(),
+                         m_projectManager->currentProject().name,
+                         m_projectManager->currentProject().build.standard,
+                         "20",
+                         m_projectManager->currentProject().projectType);
 }
 
 void MainWindow::onClean()

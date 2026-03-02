@@ -39,14 +39,14 @@ private slots:
     void buildConfigDefaults()
     {
         BuildConfig bc;
-        QCOMPARE(bc.compiler, "gcc");
+        QCOMPARE(bc.compiler, "auto");
         QCOMPARE(bc.standard, "c17");
         QCOMPARE(bc.outputDir, "build/");
         QVERIFY(bc.flags.isEmpty());
 
         // fromJson с пустым объектом → значения по умолчанию
         auto fromEmpty = BuildConfig::fromJson(QJsonObject{});
-        QCOMPARE(fromEmpty.compiler, "gcc");
+        QCOMPARE(fromEmpty.compiler, "auto");
         QCOMPARE(fromEmpty.standard, "c17");
         QCOMPARE(fromEmpty.outputDir, "build/");
     }

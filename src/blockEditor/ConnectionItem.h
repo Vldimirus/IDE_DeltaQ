@@ -3,6 +3,7 @@
 
 #include <QGraphicsPathItem>
 #include <QString>
+#include <deltaq/Module.h> // PortKind
 
 namespace DeltaQ {
 
@@ -19,6 +20,7 @@ public:
 
     PortItem *sourcePort() const { return m_sourcePort; }
     PortItem *destPort() const { return m_destPort; }
+    PortKind connectionKind() const { return m_kind; }
 
     void setDestPort(PortItem *port);
     void setTempEndPoint(const QPointF &point);
@@ -42,6 +44,7 @@ private:
     QPointF m_tempEndPoint;
     bool m_highlighted = false;
     QString m_dataType;
+    PortKind m_kind = PortKind::Data;
 };
 
 } // namespace DeltaQ

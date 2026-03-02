@@ -141,6 +141,25 @@ CompilationResult GraphCompiler::compile(const Graph &graph)
 
 QStringList GraphCompiler::topologicalSort(const Graph &graph, QStringList &errors)
 {
+    // Проверяем наличие execution-связей
+    bool hasExecConnections = false;
+    for (const auto &conn : graph.connections) {
+        if (conn.kind == PortKind::Execution) {
+            hasExecConnections = true;
+            break;
+        }
+    }
+
+    // Если есть exec-связи — используем exec-aware сортировку
+    if (hasExecConnections)
+        return topologicalSortByExecution(graph, errors);
+
+    // Иначе — обычная data flow сортировка (обратная совместимость)
+    return topologicalSortByData(graph, errors);
+}
+
+QStringList GraphCompiler::topologicalSortByData(const Graph &graph, QStringList &errors)
+{
     // Построение графа зависимостей: для каждого узла — от каких узлов он зависит
     QMap<QString, QSet<QString>> deps;  // nodeId → множество зависимостей
     QMap<QString, QSet<QString>> rdeps; // nodeId → кто от него зависит
@@ -151,6 +170,8 @@ QStringList GraphCompiler::topologicalSort(const Graph &graph, QStringList &erro
     }
 
     for (const auto &conn : graph.connections) {
+        if (conn.kind == PortKind::Execution)
+            continue; // Игнорируем exec-связи для data-сортировки
         deps[conn.to.nodeId].insert(conn.from.nodeId);
         rdeps[conn.from.nodeId].insert(conn.to.nodeId);
     }
@@ -159,7 +180,6 @@ QStringList GraphCompiler::topologicalSort(const Graph &graph, QStringList &erro
     QStringList result;
     QStringList queue;
 
-    // Начинаем с узлов без зависимостей
     for (auto it = deps.begin(); it != deps.end(); ++it) {
         if (it.value().isEmpty())
             queue.append(it.key());
@@ -176,12 +196,105 @@ QStringList GraphCompiler::topologicalSort(const Graph &graph, QStringList &erro
         }
     }
 
-    // Если не все узлы обработаны — есть цикл
     if (result.size() != graph.nodes.size()) {
         errors.append(QObject::tr("Cycle detected in graph — cannot compile"));
     }
 
     return result;
+}
+
+QStringList GraphCompiler::topologicalSortByExecution(const Graph &graph, QStringList &errors)
+{
+    // Строим граф data-зависимостей (без exec-связей)
+    QMap<QString, QSet<QString>> dataDeps;
+    for (const auto &node : graph.nodes)
+        dataDeps[node.id] = {};
+
+    for (const auto &conn : graph.connections) {
+        if (conn.kind != PortKind::Execution)
+            dataDeps[conn.to.nodeId].insert(conn.from.nodeId);
+    }
+
+    // Строим exec-граф: exec-зависимости
+    QMap<QString, QSet<QString>> execDeps;   // nodeId → входящие exec-связи
+    QMap<QString, QStringList> execNext;     // nodeId → исходящие exec-связи (в порядке)
+    for (const auto &node : graph.nodes) {
+        execDeps[node.id] = {};
+    }
+    for (const auto &conn : graph.connections) {
+        if (conn.kind == PortKind::Execution) {
+            execDeps[conn.to.nodeId].insert(conn.from.nodeId);
+            execNext[conn.from.nodeId].append(conn.to.nodeId);
+        }
+    }
+
+    // Находим стартовые exec-узлы (участвуют в exec-связях, но без входящих exec)
+    QStringList execStarts;
+    QSet<QString> execParticipants;
+    for (const auto &conn : graph.connections) {
+        if (conn.kind == PortKind::Execution) {
+            execParticipants.insert(conn.from.nodeId);
+            execParticipants.insert(conn.to.nodeId);
+        }
+    }
+    for (const auto &nodeId : execParticipants) {
+        if (execDeps[nodeId].isEmpty())
+            execStarts.append(nodeId);
+    }
+
+    QStringList result;
+    QSet<QString> visited;
+
+    // Обходим exec-цепочку — перед каждым узлом вставляем его data-зависимости
+    QStringList execQueue = execStarts;
+    QSet<QString> execProcessed;
+
+    while (!execQueue.isEmpty()) {
+        QString nodeId = execQueue.takeFirst();
+        if (execProcessed.contains(nodeId))
+            continue;
+        execProcessed.insert(nodeId);
+
+        // Вставляем data-зависимости рекурсивно
+        insertWithDataDeps(nodeId, graph, visited, result, dataDeps);
+
+        // Следуем по exec-выходам
+        for (const auto &next : execNext[nodeId])
+            execQueue.append(next);
+    }
+
+    // Добавляем оставшиеся data-only узлы (не участвующие в exec-flow)
+    QStringList remainingErrors;
+    QStringList dataOnly = topologicalSortByData(graph, remainingErrors);
+    for (const auto &nodeId : dataOnly) {
+        if (!visited.contains(nodeId)) {
+            visited.insert(nodeId);
+            result.append(nodeId);
+        }
+    }
+
+    if (result.size() != graph.nodes.size()) {
+        errors.append(QObject::tr("Cycle detected in graph — cannot compile"));
+    }
+
+    return result;
+}
+
+void GraphCompiler::insertWithDataDeps(const QString &nodeId, const Graph &graph,
+                                        QSet<QString> &visited, QStringList &result,
+                                        const QMap<QString, QSet<QString>> &dataDeps)
+{
+    if (visited.contains(nodeId))
+        return;
+
+    // Сначала вставляем все data-зависимости
+    for (const auto &dep : dataDeps[nodeId]) {
+        Q_UNUSED(graph)
+        insertWithDataDeps(dep, graph, visited, result, dataDeps);
+    }
+
+    visited.insert(nodeId);
+    result.append(nodeId);
 }
 
 IR GraphCompiler::generateIR(const Graph &graph, const QStringList &sortedNodes,
@@ -227,8 +340,10 @@ IR GraphCompiler::generateIR(const Graph &graph, const QStringList &sortedNodes,
         ir.addInstruction(IRInstruction::makeComment(
             QObject::tr("Node: %1 (%2)").arg(mod->name, nodeId.left(8))));
 
-        // Объявляем переменные для output-портов
+        // Объявляем переменные для output-портов (пропускаем exec-порты)
         for (const auto &outPort : mod->outputs) {
+            if (outPort.kind == PortKind::Execution)
+                continue;
             QString varName = QString("var_%1_%2").arg(
                 nodeId.left(8).replace('-', '_'),
                 outPort.name);
@@ -239,9 +354,11 @@ IR GraphCompiler::generateIR(const Graph &graph, const QStringList &sortedNodes,
             portVarMap[nodeId + ":" + outPort.name] = varName;
         }
 
-        // Подготавливаем аргументы (входные порты)
+        // Подготавливаем аргументы (входные порты, пропускаем exec-порты)
         QStringList callArgs;
         for (const auto &inPort : mod->inputs) {
+            if (inPort.kind == PortKind::Execution)
+                continue;
             QString argValue;
             bool found = false;
 
@@ -380,6 +497,9 @@ QString GraphCompiler::compileSubModule(const Module &mod, CompilationResult &re
 bool GraphCompiler::areTypesCompatible(const QString &from, const QString &to) const
 {
     if (from == to) return true;
+
+    // Exec-тип совместим только с exec
+    if (from == "exec" || to == "exec") return false;
 
     // Неявные преобразования
     if (from == "int" && (to == "float" || to == "double")) return true;

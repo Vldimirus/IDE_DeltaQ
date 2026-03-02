@@ -9,6 +9,7 @@
 #include <QMap>
 #include <QSet>
 #include <algorithm>
+#include <deltaq/Module.h>  // PortKind
 
 namespace DeltaQ {
 
@@ -83,6 +84,7 @@ struct GraphConnection {
 
     Endpoint from;
     Endpoint to;
+    PortKind kind = PortKind::Data;
 
     bool operator==(const GraphConnection &other) const {
         return from == other.from && to == other.to;
@@ -92,14 +94,18 @@ struct GraphConnection {
         QJsonObject obj;
         obj["from"] = from.toJson();
         obj["to"] = to.toJson();
+        if (kind == PortKind::Execution)
+            obj["kind"] = "execution";
         return obj;
     }
 
     static GraphConnection fromJson(const QJsonObject &obj) {
-        return {
-            Endpoint::fromJson(obj["from"].toObject()),
-            Endpoint::fromJson(obj["to"].toObject())
-        };
+        GraphConnection gc;
+        gc.from = Endpoint::fromJson(obj["from"].toObject());
+        gc.to = Endpoint::fromJson(obj["to"].toObject());
+        if (obj["kind"].toString() == "execution")
+            gc.kind = PortKind::Execution;
+        return gc;
     }
 };
 

@@ -45,9 +45,9 @@ NodeItem *BlockScene::addNodeItem(const GraphNode &node)
     // Добавляем порты из определения модуля
     if (mod) {
         for (const auto &p : mod->inputs)
-            item->addInputPort(p.name, p.type);
+            item->addInputPort(p.name, p.type, p.kind);
         for (const auto &p : mod->outputs)
-            item->addOutputPort(p.name, p.type);
+            item->addOutputPort(p.name, p.type, p.kind);
     }
 
     addItem(item);
@@ -155,11 +155,24 @@ bool BlockScene::canConnect(PortItem *source, PortItem *dest) const
     // Нельзя соединять порты одного узла
     if (source->parentNode() == dest->parentNode()) return false;
 
+    // Нельзя соединить exec с data портом
+    if (source->portKind() != dest->portKind()) return false;
+
     // Убедимся, что source — output, dest — input
     PortItem *out = (source->direction() == PortDirection::Output) ? source : dest;
     PortItem *in = (source->direction() == PortDirection::Input) ? source : dest;
 
-    // Проверяем совместимость типов
+    // Exec-порты: тип всегда "exec", совместимы только между собой
+    if (out->portKind() == PortKind::Execution) {
+        // Проверка на дубликат
+        for (auto *conn : m_connections) {
+            if (conn->sourcePort() == out && conn->destPort() == in)
+                return false;
+        }
+        return true;
+    }
+
+    // Проверяем совместимость типов данных
     QString srcType = out->portType();
     QString dstType = in->portType();
     if (srcType != dstType) {
@@ -221,6 +234,7 @@ Graph BlockScene::toGraph(const QString &graphId, const QString &graphName) cons
         gc.from.portName = conn->sourcePort()->portName();
         gc.to.nodeId = conn->destPort()->parentNode()->nodeId();
         gc.to.portName = conn->destPort()->portName();
+        gc.kind = conn->connectionKind();
         g.connections.append(gc);
     }
 

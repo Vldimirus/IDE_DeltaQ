@@ -1,0 +1,79 @@
+{
+    "id": "00000000-0000-0000-0000-000000000010",
+    "name": "window1",
+    "version": "1.0.0",
+    "window": {
+        "id": "00000000-0000-0000-0000-000000000011",
+        "type": "Window",
+        "name": "window1",
+        "x": 0.0,
+        "y": 0.0,
+        "width": 640.0,
+        "height": 480.0,
+        "children": [
+            {
+                "id": "00000000-0000-0000-0000-000000000012",
+                "type": "Label",
+                "name": "lblCounter",
+                "x": 20.0,
+                "y": 20.0,
+                "width": 200.0,
+                "height": 30.0,
+                "properties": {
+                    "text": "0"
+                }
+            },
+            {
+                "id": "00000000-0000-0000-0000-000000000013",
+                "type": "Button",
+                "name": "btnCopyToLog",
+                "x": 20.0,
+                "y": 60.0,
+                "width": 180.0,
+                "height": 36.0,
+                "properties": {
+                    "text": "Copy to Log"
+                },
+                "events": {
+                    "onClick": "on_btnCopyToLog_click"
+                }
+            },
+            {
+                "id": "00000000-0000-0000-0000-000000000014",
+                "type": "Button",
+                "name": "btnInsertText",
+                "x": 220.0,
+                "y": 60.0,
+                "width": 180.0,
+                "height": 36.0,
+                "properties": {
+                    "text": "Text to Log"
+                },
+                "events": {
+                    "onClick": "on_btnInsertText_click"
+                }
+            },
+            {
+                "id": "00000000-0000-0000-0000-000000000015",
+                "type": "TextField",
+                "name": "editInput",
+                "x": 20.0,
+                "y": 110.0,
+                "width": 380.0,
+                "height": 32.0,
+                "properties": {
+                    "placeholder": "Enter text..."
+                }
+            },
+            {
+                "id": "00000000-0000-0000-0000-000000000016",
+                "type": "TextArea",
+                "name": "txtLog",
+                "x": 20.0,
+                "y": 160.0,
+                "width": 600.0,
+                "height": 300.0
+            }
+        ]
+    }
+}

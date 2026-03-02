@@ -18,6 +18,7 @@ ConnectionItem::ConnectionItem(PortItem *sourcePort, PortItem *destPort,
     setZValue(-1); // За узлами
     setFlag(ItemIsSelectable);
     m_dataType = sourcePort ? sourcePort->portType() : QString();
+    m_kind = sourcePort ? sourcePort->portKind() : PortKind::Data;
     updatePath();
 }
 
@@ -28,6 +29,7 @@ ConnectionItem::ConnectionItem(PortItem *sourcePort, QGraphicsItem *parent)
     setZValue(-1);
     setFlag(ItemIsSelectable);
     m_dataType = sourcePort ? sourcePort->portType() : QString();
+    m_kind = sourcePort ? sourcePort->portKind() : PortKind::Data;
 }
 
 void ConnectionItem::setDestPort(PortItem *port)
@@ -67,15 +69,27 @@ void ConnectionItem::paint(QPainter *painter,
     Q_UNUSED(option)
     Q_UNUSED(widget)
 
-    QColor color = PortItem::colorForType(m_dataType);
     bool selected = isSelected();
-    qreal width = (m_highlighted || selected) ? 3.0 : 2.0;
-    if (selected)
-        color = QColor(255, 100, 100); // красный при выделении
 
-    painter->setRenderHint(QPainter::Antialiasing);
-    painter->setPen(QPen(color, width));
-    painter->drawPath(path());
+    if (m_kind == PortKind::Execution) {
+        // Execution-связи: белая линия 2.5px
+        QColor color(220, 220, 220);
+        qreal width = (m_highlighted || selected) ? 3.5 : 2.5;
+        if (selected)
+            color = QColor(255, 100, 100);
+        painter->setRenderHint(QPainter::Antialiasing);
+        painter->setPen(QPen(color, width));
+        painter->drawPath(path());
+    } else {
+        // Data-связи: цвет по типу
+        QColor color = PortItem::colorForType(m_dataType);
+        qreal width = (m_highlighted || selected) ? 3.0 : 2.0;
+        if (selected)
+            color = QColor(255, 100, 100);
+        painter->setRenderHint(QPainter::Antialiasing);
+        painter->setPen(QPen(color, width));
+        painter->drawPath(path());
+    }
 }
 
 void ConnectionItem::computeBezierPath()

@@ -23,8 +23,10 @@ public:
     QString moduleName() const { return m_moduleName; }
 
     // Добавление портов
-    void addInputPort(const QString &name, const QString &type);
-    void addOutputPort(const QString &name, const QString &type);
+    void addInputPort(const QString &name, const QString &type,
+                      PortKind kind = PortKind::Data);
+    void addOutputPort(const QString &name, const QString &type,
+                       PortKind kind = PortKind::Data);
 
     // Поиск порта по имени и направлению
     PortItem *findPort(const QString &name, PortDirection dir) const;

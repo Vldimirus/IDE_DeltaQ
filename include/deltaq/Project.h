@@ -8,10 +8,12 @@
 namespace DeltaQ {
 
 struct BuildConfig {
-    QString compiler = "gcc";
+    QString compiler = "auto";       // "auto" = автоопределение, "gcc", "clang", ...
     QString standard = "c17";
     QString outputDir = "build/";
     QStringList flags;
+    QString buildTool = "cmake";     // "cmake" | "make" | "direct"
+    QString compilerPath;            // Полный путь (заполняется при auto)
 
     QJsonObject toJson() const {
         QJsonObject obj;
@@ -22,16 +24,22 @@ struct BuildConfig {
         for (const auto &fl : flags)
             f.append(fl);
         obj["flags"] = f;
+        if (!buildTool.isEmpty() && buildTool != "cmake")
+            obj["build_tool"] = buildTool;
+        if (!compilerPath.isEmpty())
+            obj["compiler_path"] = compilerPath;
         return obj;
     }
 
     static BuildConfig fromJson(const QJsonObject &obj) {
         BuildConfig bc;
-        bc.compiler = obj["compiler"].toString("gcc");
+        bc.compiler = obj["compiler"].toString("auto");
         bc.standard = obj["standard"].toString("c17");
         bc.outputDir = obj["output"].toString("build/");
         for (const auto &v : obj["flags"].toArray())
             bc.flags.append(v.toString());
+        bc.buildTool = obj["build_tool"].toString("cmake");
+        bc.compilerPath = obj["compiler_path"].toString();
         return bc;
     }
 
@@ -39,7 +47,8 @@ struct BuildConfig {
         return compiler == other.compiler
             && standard == other.standard
             && outputDir == other.outputDir
-            && flags == other.flags;
+            && flags == other.flags
+            && buildTool == other.buildTool;
     }
 };
 

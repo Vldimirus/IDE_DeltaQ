@@ -1,7 +1,10 @@
-# Генератор кода — IR + GraphCompiler
+# Генератор кода — IR + GraphCompiler + Pipeline
 add_library(dq_codegen STATIC
     IR.cpp
     GraphCompiler.cpp
+    PreBuildProcessor.cpp
+    BuildPipeline.cpp
+    CompilerDetector.cpp
 )
 
 target_include_directories(dq_codegen PUBLIC

@@ -147,6 +147,7 @@ bool ProjectManager::ensureDirectories(const QString &dir)
     return d.mkpath("graphs") &&
            d.mkpath("ui") &&
            d.mkpath("src") &&
+           d.mkpath("src/ui") &&
            d.mkpath("build") &&
            d.mkpath("dqmods");
 }

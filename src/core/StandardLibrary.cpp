@@ -318,9 +318,9 @@ QVector<Module> StandardLibrary::createAll()
     ));
 
     modules.append(makeCore("delay_ms", "control",
-        "Задержка в миллисекундах",
-        {{"ms", "int", ""}},
-        {},
+        "Задержка в миллисекундах (execution flow)",
+        {Port::exec("flow_in"), {"ms", "int", ""}},
+        {Port::exec("flow_out")},
         "void dq_delay_ms(int ms) {\n"
         "    struct timespec ts;\n"
         "    ts.tv_sec = ms / 1000;\n"
@@ -328,6 +328,32 @@ QVector<Module> StandardLibrary::createAll()
         "    nanosleep(&ts, NULL);\n"
         "}",
         {"time.h"}
+    ));
+
+    // ===== control: execution flow модули =====
+
+    modules.append(makeCore("if_branch", "control",
+        "Ветвление execution flow по условию",
+        {Port::exec("flow_in"), {"condition", "bool", ""}},
+        {Port::exec("flow_true"), Port::exec("flow_false")},
+        "// if_branch — управление потоком, встроенный модуль\n"
+        "// Генерируется как if/else в коде"
+    ));
+
+    modules.append(makeCore("for_loop", "control",
+        "Цикл с заданным числом итераций",
+        {Port::exec("flow_in"), {"count", "int", ""}},
+        {Port::exec("flow_body"), Port::exec("flow_done"), {"index", "int", ""}},
+        "// for_loop — управление потоком, встроенный модуль\n"
+        "// Генерируется как for-цикл в коде"
+    ));
+
+    modules.append(makeCore("sequence", "control",
+        "Последовательное выполнение (разветвитель exec flow)",
+        {Port::exec("flow_in")},
+        {Port::exec("then_0"), Port::exec("then_1"), Port::exec("then_2")},
+        "// sequence — управление потоком, встроенный модуль\n"
+        "// Генерируется как последовательность вызовов"
     ));
 
     return modules;

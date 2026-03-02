@@ -58,17 +58,7 @@ QStringList CMakeGenerator::collectSources(const QString &projectDir) const
         sources.append(relPath);
     }
 
-    // Добавляем сгенерированные файлы из generated/
-    QDir genDir(projectDir + "/generated");
-    if (genDir.exists()) {
-        QDirIterator genIt(genDir.absolutePath(), filters, QDir::Files);
-        while (genIt.hasNext()) {
-            genIt.next();
-            QString relPath = QDir(projectDir).relativeFilePath(genIt.filePath());
-            if (!sources.contains(relPath))
-                sources.append(relPath);
-        }
-    }
+    // Файлы из src/ уже подхватываются рекурсивным итератором
 
     sources.sort();
     return sources;
@@ -106,6 +96,8 @@ QString CMakeGenerator::generateContent(const QString &projectName,
     cmake += QString("target_include_directories(%1 PRIVATE\n").arg(projectName);
     cmake += "    ${CMAKE_SOURCE_DIR}\n";
     cmake += "    ${CMAKE_SOURCE_DIR}/include\n";
+    cmake += "    ${CMAKE_SOURCE_DIR}/src\n";
+    cmake += "    ${CMAKE_SOURCE_DIR}/src/ui\n";
     cmake += "    ${CMAKE_SOURCE_DIR}/ui\n";
     cmake += ")\n\n";
 

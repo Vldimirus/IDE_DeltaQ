@@ -5,35 +5,102 @@
 
 #include <QGraphicsScene>
 #include <QGraphicsSceneHoverEvent>
+#include <QPainter>
 #include <QPen>
 #include <QFont>
 
 namespace DeltaQ {
 
 PortItem::PortItem(const QString &name, const QString &type,
-                   PortDirection direction, NodeItem *parent)
-    : QGraphicsEllipseItem(parent)
+                   PortDirection direction, PortKind kind, NodeItem *parent)
+    : QGraphicsItem(parent)
     , m_name(name)
     , m_type(type)
     , m_direction(direction)
+    , m_kind(kind)
     , m_parentNode(parent)
 {
     setAcceptHoverEvents(true);
     setToolTip(QString("%1 (%2)").arg(m_name, m_type));
 
-    // Подпись порта
+    // Подпись порта (не показываем для exec-портов, чтобы не загромождать)
     m_label = new QGraphicsTextItem(this);
     m_label->setDefaultTextColor(Qt::white);
     QFont font("Sans", 8);
     m_label->setFont(font);
-    m_label->setPlainText(QString("%1 (%2)").arg(m_name, m_type));
+    if (m_kind == PortKind::Execution)
+        m_label->setPlainText(m_name);
+    else
+        m_label->setPlainText(QString("%1 (%2)").arg(m_name, m_type));
 
     updateAppearance();
 }
 
+QRectF PortItem::boundingRect() const
+{
+    qreal r = m_hovered ? HoverRadius : NormalRadius;
+    return QRectF(-r, -r, r * 2, r * 2);
+}
+
+void PortItem::paint(QPainter *painter, const QStyleOptionGraphicsItem *option,
+                     QWidget *widget)
+{
+    Q_UNUSED(option)
+    Q_UNUSED(widget)
+
+    painter->setRenderHint(QPainter::Antialiasing);
+    qreal r = m_hovered ? HoverRadius : NormalRadius;
+
+    if (m_kind == PortKind::Execution) {
+        // Треугольная форма для exec-портов
+        QColor color(220, 220, 220); // белый
+        painter->setBrush(color);
+        painter->setPen(QPen(color.darker(130), 1));
+
+        QPolygonF triangle;
+        if (m_direction == PortDirection::Output) {
+            // Треугольник вправо ▶
+            triangle << QPointF(-r, -r)
+                     << QPointF(r, 0)
+                     << QPointF(-r, r);
+        } else {
+            // Треугольник влево ◀
+            triangle << QPointF(r, -r)
+                     << QPointF(-r, 0)
+                     << QPointF(r, r);
+        }
+        painter->drawPolygon(triangle);
+    } else {
+        // Круглая форма для data-портов
+        QColor color = colorForType(m_type);
+        painter->setBrush(color);
+        painter->setPen(QPen(color.darker(130), 1));
+        painter->drawEllipse(QRectF(-r, -r, r * 2, r * 2));
+    }
+}
+
+QPainterPath PortItem::shape() const
+{
+    QPainterPath path;
+    qreal r = m_hovered ? HoverRadius : NormalRadius;
+    if (m_kind == PortKind::Execution) {
+        QPolygonF triangle;
+        if (m_direction == PortDirection::Output) {
+            triangle << QPointF(-r, -r) << QPointF(r, 0) << QPointF(-r, r);
+        } else {
+            triangle << QPointF(r, -r) << QPointF(-r, 0) << QPointF(r, r);
+        }
+        path.addPolygon(triangle);
+        path.closeSubpath();
+    } else {
+        path.addEllipse(QRectF(-r, -r, r * 2, r * 2));
+    }
+    return path;
+}
+
 QPointF PortItem::centerInScene() const
 {
-    return mapToScene(rect().center());
+    return mapToScene(QPointF(0, 0));
 }
 
 QColor PortItem::colorForType(const QString &type)
@@ -43,6 +110,7 @@ QColor PortItem::colorForType(const QString &type)
     if (type == "double") return QColor(100, 220, 100); // зелёный
     if (type == "bool")   return QColor(255, 180, 80);  // оранжевый
     if (type == "string") return QColor(180, 120, 255); // фиолетовый
+    if (type == "exec")   return QColor(220, 220, 220); // белый
     return QColor(180, 180, 180); // серый по умолчанию
 }
 
@@ -60,25 +128,24 @@ void PortItem::removeConnection(ConnectionItem *conn)
 void PortItem::hoverEnterEvent(QGraphicsSceneHoverEvent *event)
 {
     Q_UNUSED(event)
-    qreal r = HoverRadius;
-    setRect(-r, -r, r * 2, r * 2);
+    m_hovered = true;
+    prepareGeometryChange();
+    updateAppearance();
     update();
 }
 
 void PortItem::hoverLeaveEvent(QGraphicsSceneHoverEvent *event)
 {
     Q_UNUSED(event)
+    m_hovered = false;
+    prepareGeometryChange();
     updateAppearance();
+    update();
 }
 
 void PortItem::updateAppearance()
 {
-    qreal r = NormalRadius;
-    setRect(-r, -r, r * 2, r * 2);
-
-    QColor color = colorForType(m_type);
-    setBrush(color);
-    setPen(QPen(color.darker(130), 1));
+    qreal r = m_hovered ? HoverRadius : NormalRadius;
 
     // Позиция подписи: input — справа, output — слева
     if (m_label) {

@@ -32,6 +32,9 @@ class BuildManager;
 class LSPClient;
 class DebugManager;
 class GraphDebugger;
+class PreBuildProcessor;
+class BuildPipeline;
+class CompilerDetector;
 
 class MainWindow : public QMainWindow {
     Q_OBJECT
@@ -98,6 +101,9 @@ private:
     LSPClient *m_lspClient = nullptr;
     DebugManager *m_debugManager = nullptr;
     GraphDebugger *m_graphDebugger = nullptr;
+    PreBuildProcessor *m_preBuildProcessor = nullptr;
+    BuildPipeline *m_buildPipeline = nullptr;
+    CompilerDetector *m_compilerDetector = nullptr;
 
     // UI
     QStackedWidget *m_centralStack = nullptr;
