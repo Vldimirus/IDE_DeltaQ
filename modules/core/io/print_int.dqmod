@@ -1,8 +1,7 @@
 {
     "category": "io",
-    "dependencies": [
-    ],
-    "description": "Вывод числа",
+    "dependencies": [],
+    "description": "Вывод целого числа",
     "header": "",
     "id": "core.io.print_int",
     "includes": [
@@ -33,5 +32,9 @@
     },
     "source": "",
     "source_code": "void dq_print_int(int value) {\n    printf(\"%d\", value);\n}",
-    "version": "1.2"
+    "version": "1.2",
+    "metadata": {
+        "deltaq.doc.when_to_use": "Когда нужен быстрый вывод int без отдельной связки int_to_string + print/println.",
+        "deltaq.doc.limitations": "Использует фиксированный формат %d; для более явного графа лучше применять conversion + text output."
+    }
 }

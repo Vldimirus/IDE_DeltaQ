@@ -22,6 +22,16 @@ struct CompilationResult {
     QMap<int, QString> sourceMap;  // строка кода → nodeId (для отладки)
 };
 
+struct SubmoduleUnitResult {
+    bool success = false;
+    QString functionName;
+    QString fileBaseName;
+    QString headerCode;
+    QString sourceCode;
+    QStringList errors;
+    QStringList warnings;
+};
+
 class GraphStore;
 
 class GraphCompiler {
@@ -33,6 +43,9 @@ public:
 
     // Компиляция графа в C-код
     CompilationResult compile(const Graph &graph);
+
+    // Генерация отдельной единицы компиляции для составного модуля.
+    SubmoduleUnitResult compileSubmoduleUnit(const Module &module);
 
 private:
     // Топологическая сортировка (возвращает упорядоченные nodeId)
@@ -50,7 +63,9 @@ private:
                             const QMap<QString, QSet<QString>> &dataDeps);
 
     // Генерация IR из отсортированного графа
-    IR generateIR(const Graph &graph, const QStringList &sortedNodes, CompilationResult &result);
+    IR generateIR(const Graph &graph, const QStringList &sortedNodes, CompilationResult &result,
+                  QMap<QString, QString> *portVarMap = nullptr,
+                  const QMap<QString, QString> &inputOverrides = {});
 
     // Специальные inline-модули desktop-runtime
     bool isInlineDesktopModule(const QString &moduleId) const;
@@ -58,9 +73,15 @@ private:
                                    const QStringList &callArgs,
                                    const QMap<QString, QString> &portVarMap,
                                    IR &ir, CompilationResult &result);
+    QString inlineDesktopBackendContextName() const;
+    void ensureInlineDesktopBackendContext(IR &ir, const QString &nodeId);
 
     // Рекурсивная компиляция подмодуля
     QString compileSubModule(const Module &mod, CompilationResult &result);
+
+    QString submoduleFunctionName(const Module &mod) const;
+    QString submoduleFileBaseName(const Module &mod) const;
+    QString submoduleResultTypeName(const Module &mod) const;
 
     // Проверка совместимости типов
     bool areTypesCompatible(const QString &from, const QString &to) const;
@@ -72,6 +93,7 @@ private:
     ModuleRegistry *m_registry;
     GraphStore *m_graphStore = nullptr;
     QSet<QString> m_compiledSubModules; // Отслеживание уже скомпилированных подмодулей
+    bool m_inlineDesktopBackendDeclared = false; // Backend context для inline desktop runtime
 };
 
 } // namespace DeltaQ

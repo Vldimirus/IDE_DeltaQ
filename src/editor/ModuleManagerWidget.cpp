@@ -2,6 +2,7 @@
 #include "ModuleManagerWidget.h"
 #include "ModuleTestRunner.h"
 #include "../core/ModuleRegistry.h"
+#include "../core/StandardLibrary.h"
 #include <deltaq/Module.h>
 
 #include "SyntaxHighlighter.h"
@@ -29,6 +30,222 @@
 
 namespace DeltaQ {
 
+namespace {
+
+struct ModuleStateSummary {
+    QString badgeText;
+    QString badgeStyle;
+    QString detailText;
+    QString iconStatus;
+};
+
+// Человекочитаемое название роли imported-модуля внутри v1 curation flow.
+QString importedCurationRoleTitle(const Module &module)
+{
+    const QString role = module.importedCurationRole();
+    if (role == "curated_entry")
+        return QObject::tr("curated");
+    if (role == "adapter")
+        return QObject::tr("adapter");
+    if (role == "hidden")
+        return QObject::tr("hidden");
+    return QObject::tr("raw");
+}
+
+// Возвращает видимый label модуля с учётом display name и curation-role imported pack-а.
+QString moduleDisplayLabel(const Module &module, bool forPalette)
+{
+    QString label = module.name;
+
+    if (module.isUIContractModule()) {
+        // UI contract хранит человекочитаемое имя отдельно от внутреннего module.name.
+        label = module.metadataString("deltaq.ui.display_name", module.name);
+        const QString contractType = module.uiWidgetType();
+        if (!contractType.isEmpty())
+            label += QString(" [%1]").arg(contractType);
+    } else if (module.isImportedPackModule()) {
+        label = module.importedDisplayName();
+        const QString role = module.importedCurationRole();
+        if (role == "raw_wrapper")
+            label += QObject::tr(" [raw]");
+        else if (role == "adapter")
+            label += QObject::tr(" [adapter]");
+        else if (!forPalette && role == "hidden")
+            label += QObject::tr(" [hidden]");
+    } else if (module.origin == "core" || module.id.startsWith("core.")) {
+        // В менеджере модулей legacy core-модули тоже помечаются явно,
+        // иначе audit standard library не читается пользователю.
+        const StandardLibraryCurationInfo curation = StandardLibrary::curationForModule(module);
+        if (curation.tier == "legacy")
+            label += QObject::tr(" [legacy]");
+    }
+
+    return label;
+}
+
+// Преобразует статус compile check в понятный русскоязычный текст для UI.
+QString moduleCompileStatusText(const QString &status)
+{
+    if (status == "passed")
+        return QObject::tr("пройдена");
+    if (status == "failed")
+        return QObject::tr("ошибка");
+    if (status == "modified")
+        return QObject::tr("изменён после компиляции");
+    return QObject::tr("не запускалась");
+}
+
+// Преобразует статус test check в понятный русскоязычный текст для UI.
+QString moduleTestStatusText(const QString &status)
+{
+    if (status == "passed")
+        return QObject::tr("пройден");
+    if (status == "failed")
+        return QObject::tr("не пройден");
+    if (status == "modified")
+        return QObject::tr("изменён после проверки");
+    return QObject::tr("не запускался");
+}
+
+// Добавляет к tooltip/панели единый documentation block: summary, use-case и ограничения.
+void appendDocumentationTooltip(QString &tooltip, const Module &module)
+{
+    if (!module.hasDocumentationDetails())
+        return;
+
+    const QString summary = module.documentationSummary();
+    const QString whenToUse = module.documentationWhenToUse();
+    const QString limitations = module.documentationLimitations();
+
+    if (!summary.isEmpty())
+        tooltip += QObject::tr("\nНазначение: %1").arg(summary);
+    if (!whenToUse.isEmpty())
+        tooltip += QObject::tr("\nКогда использовать: %1").arg(whenToUse);
+    if (!limitations.isEmpty())
+        tooltip += QObject::tr("\nОграничения: %1").arg(limitations);
+}
+
+// Собирает сводку о готовности модуля: валидность, реализация, compile/test и режим редактирования.
+ModuleStateSummary buildModuleStateSummary(const ModuleRegistry *registry, const Module &module)
+{
+    const bool isReadOnly = (module.origin == "ui" || module.origin == "core");
+    const bool contractValid = registry ? registry->validateModule(module) : module.isValid();
+    const bool hasImplementation = registry
+        ? registry->moduleHasImplementation(module)
+        : (!module.sourceCode.trimmed().isEmpty()
+           || !module.graphId.trimmed().isEmpty()
+           || !module.sourcePath.trimmed().isEmpty());
+    QString admissionReason;
+    const bool admitted = registry
+        ? registry->isModuleAdmittedForComposition(module, &admissionReason)
+        : (contractValid && hasImplementation);
+    const QString moduleKind = module.isComposite()
+        ? QObject::tr("составной")
+        : QObject::tr("атомарный");
+    const QString implementationText = module.isComposite()
+        ? (hasImplementation ? QObject::tr("внутренний граф") : QObject::tr("отсутствует"))
+        : (hasImplementation ? QObject::tr("есть") : QObject::tr("отсутствует"));
+    const QString admissionText = admitted ? QObject::tr("есть") : QObject::tr("нет");
+
+    ModuleStateSummary summary;
+    if (!contractValid || !hasImplementation || (module.isComposite() && !admitted)) {
+        summary.badgeText = QObject::tr("Неготов");
+        summary.iconStatus = "failed";
+        summary.badgeStyle =
+            "QLabel { background:#5a1f1f; color:#ffd9d9; border-radius:10px; "
+            "padding:3px 10px; font-weight:bold; }";
+    } else if (isReadOnly) {
+        summary.badgeText = QObject::tr("Библиотечный");
+        summary.iconStatus = "passed";
+        summary.badgeStyle =
+            "QLabel { background:#1f3f5a; color:#d9efff; border-radius:10px; "
+            "padding:3px 10px; font-weight:bold; }";
+    } else if (module.isComposite()) {
+        summary.badgeText = QObject::tr("Составной");
+        summary.iconStatus = "passed";
+        summary.badgeStyle =
+            "QLabel { background:#1f3f5a; color:#d9efff; border-radius:10px; "
+            "padding:3px 10px; font-weight:bold; }";
+    } else if (module.compileStatus == "failed") {
+        summary.badgeText = QObject::tr("Ошибка компиляции");
+        summary.iconStatus = "failed";
+        summary.badgeStyle =
+            "QLabel { background:#5a1f1f; color:#ffd9d9; border-radius:10px; "
+            "padding:3px 10px; font-weight:bold; }";
+    } else if (module.testStatus == "failed") {
+        summary.badgeText = QObject::tr("Ошибка проверки");
+        summary.iconStatus = "failed";
+        summary.badgeStyle =
+            "QLabel { background:#5a1f1f; color:#ffd9d9; border-radius:10px; "
+            "padding:3px 10px; font-weight:bold; }";
+    } else if (module.compileStatus == "passed" && module.testStatus == "passed") {
+        summary.badgeText = QObject::tr("Проверен");
+        summary.iconStatus = "passed";
+        summary.badgeStyle =
+            "QLabel { background:#214a2f; color:#d9ffe3; border-radius:10px; "
+            "padding:3px 10px; font-weight:bold; }";
+    } else if (module.compileStatus == "modified" || module.testStatus == "modified") {
+        summary.badgeText = QObject::tr("Изменён");
+        summary.iconStatus = "modified";
+        summary.badgeStyle =
+            "QLabel { background:#5d3d11; color:#ffe7c2; border-radius:10px; "
+            "padding:3px 10px; font-weight:bold; }";
+    } else if (module.compileStatus != "passed") {
+        summary.badgeText = QObject::tr("Требует компиляции");
+        summary.iconStatus = "untested";
+        summary.badgeStyle =
+            "QLabel { background:#5d3d11; color:#ffe7c2; border-radius:10px; "
+            "padding:3px 10px; font-weight:bold; }";
+    } else {
+        summary.badgeText = QObject::tr("Требует проверки");
+        summary.iconStatus = "untested";
+        summary.badgeStyle =
+            "QLabel { background:#5d3d11; color:#ffe7c2; border-radius:10px; "
+            "padding:3px 10px; font-weight:bold; }";
+    }
+
+    if (module.isComposite()) {
+        summary.detailText = QObject::tr(
+            "Тип: %1 | Контракт: %2 | Реализация: %3 | Допуск: %4 | Режим: %5")
+            .arg(moduleKind)
+            .arg(contractValid ? QObject::tr("корректен") : QObject::tr("ошибка"))
+            .arg(implementationText)
+            .arg(admissionText)
+            .arg(isReadOnly ? QObject::tr("только чтение") : QObject::tr("редактируемый"));
+    } else if (isReadOnly) {
+        summary.detailText = QObject::tr(
+            "Тип: %1 | Контракт: %2 | Реализация: %3 | Допуск: %4 | Режим: %5")
+            .arg(moduleKind)
+            .arg(contractValid ? QObject::tr("корректен") : QObject::tr("ошибка"))
+            .arg(implementationText)
+            .arg(admissionText)
+            .arg(QObject::tr("только чтение"));
+    } else {
+        summary.detailText = QObject::tr(
+            "Тип: %1 | Контракт: %2 | Реализация: %3 | Компиляция: %4 | Тест: %5 | Допуск: %6 | Режим: %7")
+            .arg(moduleKind)
+            .arg(contractValid ? QObject::tr("корректен") : QObject::tr("ошибка"))
+            .arg(implementationText)
+            .arg(moduleCompileStatusText(module.compileStatus))
+            .arg(moduleTestStatusText(module.testStatus))
+            .arg(admissionText)
+            .arg(isReadOnly ? QObject::tr("только чтение") : QObject::tr("редактируемый"));
+    }
+
+    if (module.isImportedPackModule()) {
+        summary.detailText += QObject::tr(" | Pack: %1 | Роль: %2 | Символ: %3")
+            .arg(module.importedPackName(),
+                 importedCurationRoleTitle(module),
+                 module.importedOriginalSymbol());
+    }
+
+    if (!admitted && !admissionReason.isEmpty())
+        summary.detailText += QObject::tr(" | Причина: %1").arg(admissionReason);
+    return summary;
+}
+
+} // namespace
+
 ModuleManagerWidget::ModuleManagerWidget(ModuleRegistry *registry, QWidget *parent)
     : QWidget(parent)
     , m_registry(registry)
@@ -43,26 +260,52 @@ ModuleManagerWidget::ModuleManagerWidget(ModuleRegistry *registry, QWidget *pare
         m_logView->append(success ? tr("Компиляция успешна") : tr("Ошибка компиляции"));
         if (!output.isEmpty())
             m_logView->append(output);
+
+        if (!m_currentModuleId.isEmpty()) {
+            Module *mod = m_registry->findModule(m_currentModuleId);
+            if (mod) {
+                mod->compileStatus = success ? "passed" : "failed";
+                if (success && mod->testStatus == "failed")
+                    mod->testStatus = "modified";
+                updateVerificationPanel(*mod);
+                updateModuleStateSummary(*mod);
+                updateModuleTreeItemState(m_tree->currentItem(), *mod);
+            }
+        }
     });
 
     connect(m_testRunner, &ModuleTestRunner::testFinished, this,
             [this](const TestResult &result) {
+        if (!m_currentModuleId.isEmpty()) {
+            Module *mod = m_registry->findModule(m_currentModuleId);
+            if (mod) {
+                if (result.compiled)
+                    mod->compileStatus = "passed";
+
+                if (!result.compiled) {
+                    m_logView->append(tr("Тест не выполнен: compile check не пройден"));
+                } else if (result.passed) {
+                    mod->testStatus = "passed";
+                } else if (result.ran) {
+                    mod->testStatus = "failed";
+                }
+
+                updateVerificationPanel(*mod);
+                updateModuleTreeItemState(m_tree->currentItem(), *mod);
+                updateModuleStateSummary(*mod);
+            }
+        }
+
         if (result.passed) {
             m_logView->append(tr("Тест пройден"));
             m_testOutputLabel->setText(tr("Результат: PASSED"));
             m_testOutputLabel->setStyleSheet("color: #4CAF50; font-weight: bold;");
-
-            // Обновляем статус модуля
-            if (!m_currentModuleId.isEmpty()) {
-                Module *mod = m_registry->findModule(m_currentModuleId);
-                if (mod) {
-                    mod->testStatus = "passed";
-                    updateStatusIcon(m_tree->currentItem(), "passed");
-                }
-            }
         } else {
             m_logView->append(tr("Тест не пройден"));
-            m_testOutputLabel->setText(tr("Результат: FAILED"));
+            if (result.compiled && result.ran)
+                m_testOutputLabel->setText(tr("Результат: FAILED"));
+            else
+                m_testOutputLabel->setText(tr("Результат: НЕ ВЫПОЛНЕН"));
             m_testOutputLabel->setStyleSheet("color: #F44336; font-weight: bold;");
         }
 
@@ -75,6 +318,12 @@ ModuleManagerWidget::ModuleManagerWidget(ModuleRegistry *registry, QWidget *pare
             m_logView->append(result.runOutput);
         for (const auto &err : result.errors)
             m_logView->append(tr("Ошибка: ") + err);
+
+        if (!m_currentModuleId.isEmpty()) {
+            const Module *mod = m_registry->findModule(m_currentModuleId);
+            if (mod)
+                updateVerificationPanel(*mod);
+        }
     });
 }
 
@@ -158,7 +407,36 @@ void ModuleManagerWidget::setupUI()
 
     metaBar->addWidget(propsGroup, 2);
 
-    // 2. Зависимости (#include)
+    // 2. Imported pack curation (минимальный v1 flow для raw/curated/adapter/hidden).
+    auto *importGroup = new QGroupBox(tr("Import/Curation"), this);
+    auto *importLayout = new QGridLayout(importGroup);
+    importLayout->setContentsMargins(4, 4, 4, 4);
+    importLayout->setSpacing(2);
+
+    m_importDisplayNameEdit = new QLineEdit(this);
+    m_importDisplayNameEdit->setObjectName("importDisplayNameEdit");
+    m_importDisplayNameEdit->setPlaceholderText(tr("Display name"));
+    importLayout->addWidget(new QLabel(tr("Label:"), this), 0, 0);
+    importLayout->addWidget(m_importDisplayNameEdit, 0, 1);
+
+    m_importRoleCombo = new QComboBox(this);
+    m_importRoleCombo->setObjectName("importRoleCombo");
+    m_importRoleCombo->addItem(tr("Raw wrapper"), "raw_wrapper");
+    m_importRoleCombo->addItem(tr("Curated entry"), "curated_entry");
+    m_importRoleCombo->addItem(tr("Adapter"), "adapter");
+    m_importRoleCombo->addItem(tr("Hidden"), "hidden");
+    importLayout->addWidget(new QLabel(tr("Role:"), this), 1, 0);
+    importLayout->addWidget(m_importRoleCombo, 1, 1);
+
+    m_importSourceLabel = new QLabel(tr("Не imported module"), this);
+    m_importSourceLabel->setObjectName("importSourceLabel");
+    m_importSourceLabel->setWordWrap(true);
+    m_importSourceLabel->setStyleSheet("QLabel { color:#bdbdbd; }");
+    importLayout->addWidget(m_importSourceLabel, 2, 0, 1, 2);
+
+    metaBar->addWidget(importGroup, 1);
+
+    // 3. Зависимости (#include)
     auto *includesGroup = new QGroupBox(tr("Зависимости"), this);
     auto *includesLayout = new QVBoxLayout(includesGroup);
     includesLayout->setContentsMargins(4, 4, 4, 4);
@@ -169,7 +447,7 @@ void ModuleManagerWidget::setupUI()
     includesLayout->addWidget(m_includesEdit);
     metaBar->addWidget(includesGroup, 1);
 
-    // 3. Порты (компактная таблица)
+    // 4. Порты (компактная таблица)
     auto *portGroup = new QGroupBox(tr("Порты"), this);
     auto *portLayout = new QVBoxLayout(portGroup);
     portLayout->setContentsMargins(4, 4, 4, 4);
@@ -185,7 +463,7 @@ void ModuleManagerWidget::setupUI()
     portLayout->addWidget(m_portTable);
     metaBar->addWidget(portGroup, 1);
 
-    // 4. Превью блока на графе
+    // 5. Превью блока на графе
     auto *previewFrame = new QFrame(this);
     previewFrame->setFixedWidth(200);
     previewFrame->setFrameShape(QFrame::StyledPanel);
@@ -206,6 +484,51 @@ void ModuleManagerWidget::setupUI()
 
     rightLayout->addLayout(metaBar);
 
+    // Явная сводка состояния модуля: годность, тестовый статус и режим редактирования.
+    auto *stateBar = new QHBoxLayout;
+    stateBar->setSpacing(8);
+
+    m_moduleStateBadge = new QLabel(tr("Модуль не выбран"), this);
+    m_moduleStateBadge->setObjectName("moduleStateBadge");
+    m_moduleStateBadge->setStyleSheet(
+        "QLabel { background:#4a4a4a; color:#f0f0f0; border-radius:10px; "
+        "padding:3px 10px; font-weight:bold; }");
+    stateBar->addWidget(m_moduleStateBadge, 0, Qt::AlignLeft);
+
+    m_moduleStateDetails = new QLabel(tr("Выберите модуль, чтобы увидеть его состояние."), this);
+    m_moduleStateDetails->setObjectName("moduleStateDetails");
+    m_moduleStateDetails->setWordWrap(true);
+    m_moduleStateDetails->setStyleSheet("QLabel { color:#bdbdbd; }");
+    stateBar->addWidget(m_moduleStateDetails, 1);
+
+    rightLayout->addLayout(stateBar);
+
+    // Явный documentation block делает модуль читаемым без открытия исходного кода.
+    auto *docGroup = new QGroupBox(tr("Документация"), this);
+    auto *docLayout = new QGridLayout(docGroup);
+    docLayout->setContentsMargins(4, 4, 4, 4);
+    docLayout->setSpacing(4);
+
+    auto *docHint = new QLabel(tr("Назначение задаётся через поле 'Опис'."), this);
+    docHint->setStyleSheet("QLabel { color:#9e9e9e; }");
+    docLayout->addWidget(docHint, 0, 0, 1, 2);
+
+    m_docWhenToUseEdit = new QTextEdit(this);
+    m_docWhenToUseEdit->setObjectName("moduleDocWhenToUseEdit");
+    m_docWhenToUseEdit->setMaximumHeight(58);
+    m_docWhenToUseEdit->setPlaceholderText(tr("Когда использовать этот модуль"));
+    docLayout->addWidget(new QLabel(tr("Когда использовать:"), this), 1, 0);
+    docLayout->addWidget(m_docWhenToUseEdit, 1, 1);
+
+    m_docLimitationsEdit = new QTextEdit(this);
+    m_docLimitationsEdit->setObjectName("moduleDocLimitationsEdit");
+    m_docLimitationsEdit->setMaximumHeight(58);
+    m_docLimitationsEdit->setPlaceholderText(tr("Ограничения и caveats"));
+    docLayout->addWidget(new QLabel(tr("Ограничения:"), this), 2, 0);
+    docLayout->addWidget(m_docLimitationsEdit, 2, 1);
+
+    rightLayout->addWidget(docGroup);
+
     // --- Центральный вертикальный сплиттер: код + табы внизу ---
     auto *centerSplitter = new QSplitter(Qt::Vertical, this);
 
@@ -216,6 +539,7 @@ void ModuleManagerWidget::setupUI()
     codeLayout->setSpacing(4);
 
     m_codeEdit = new QPlainTextEdit(this);
+    m_codeEdit->setObjectName("moduleCodeEditor");
     m_codeEdit->setFont(QFont("Monospace", 11));
     m_codeEdit->setPlaceholderText(
         tr("int dq_example(int a, int b) {\n    return a + b;\n}"));
@@ -291,6 +615,21 @@ void ModuleManagerWidget::setupUI()
     connect(m_compileBtn, &QPushButton::clicked, this, &ModuleManagerWidget::onCompileModule);
     connect(m_testBtn, &QPushButton::clicked, this, &ModuleManagerWidget::onTestModule);
     connect(m_codeEdit, &QPlainTextEdit::textChanged, this, &ModuleManagerWidget::onCodeChanged);
+    connect(m_nameEdit, &QLineEdit::textChanged, this, &ModuleManagerWidget::onCodeChanged);
+    connect(m_descEdit, &QLineEdit::textChanged, this, &ModuleManagerWidget::onCodeChanged);
+    connect(m_includesEdit, &QTextEdit::textChanged, this, &ModuleManagerWidget::onCodeChanged);
+    connect(m_docWhenToUseEdit, &QTextEdit::textChanged, this, &ModuleManagerWidget::onCodeChanged);
+    connect(m_docLimitationsEdit, &QTextEdit::textChanged, this, &ModuleManagerWidget::onCodeChanged);
+    connect(m_importDisplayNameEdit, &QLineEdit::textChanged, this, &ModuleManagerWidget::onCodeChanged);
+    connect(m_importRoleCombo, &QComboBox::currentTextChanged, this, [this](const QString &) {
+        onCodeChanged();
+    });
+    connect(m_categoryCombo, &QComboBox::currentTextChanged, this, [this](const QString &) {
+        onCodeChanged();
+    });
+    connect(m_langCombo, &QComboBox::currentTextChanged, this, [this](const QString &) {
+        onCodeChanged();
+    });
 
     connect(m_searchEdit, &QLineEdit::textChanged, this, [this](const QString &text) {
         // Рекурсивная фильтрация 3-уровневого дерева
@@ -371,8 +710,9 @@ void ModuleManagerWidget::buildTree()
             coreByCategory[mod->category].append(mod);
     }
 
-    QStringList coreCats = coreByCategory.keys();
-    coreCats.sort();
+    // Категории standard library показываем в product-defined v1 порядке,
+    // а не просто по алфавиту, чтобы библиотека читалась как система.
+    const QStringList coreCats = StandardLibrary::orderCategoriesForDisplay(coreByCategory.keys());
     bool coreHasChildren = false;
 
     for (const auto &cat : coreCats) {
@@ -381,16 +721,18 @@ void ModuleManagerWidget::buildTree()
         catItem->setIcon(0, QIcon(px));
 
         bool catHasChildren = false;
-        for (const auto *mod : coreByCategory[cat]) {
+        const QVector<const Module *> orderedModules =
+            StandardLibrary::orderModulesForDisplay(coreByCategory[cat]);
+        for (const auto *mod : orderedModules) {
             if (!langFilter.isEmpty()) {
                 bool compat = (mod->language == langFilter) ||
                     (langFilter == "c" && mod->language == "cpp") ||
                     (langFilter == "cpp" && mod->language == "c");
                 if (!compat) continue;
             }
-            auto *item = new QTreeWidgetItem(catItem, {mod->name});
+            auto *item = new QTreeWidgetItem(catItem, {moduleDisplayLabel(*mod, false)});
             item->setData(0, Qt::UserRole, mod->id);
-            updateStatusIcon(item, mod->testStatus);
+            updateModuleTreeItemState(item, *mod);
             catHasChildren = true;
         }
         catItem->setHidden(!catHasChildren);
@@ -410,9 +752,14 @@ void ModuleManagerWidget::buildTree()
     bool uiHasChildren = false;
     for (const auto *mod : allModules) {
         if (mod->origin == "ui") {
-            auto *item = new QTreeWidgetItem(uiRoot, {mod->name});
+            QString label = mod->metadataString("deltaq.ui.display_name", mod->name);
+            const QString contractType = mod->metadataString("deltaq.ui.widget_type");
+            if (!contractType.isEmpty())
+                label += QString(" [%1]").arg(contractType);
+            auto *item = new QTreeWidgetItem(uiRoot, {label});
             item->setData(0, Qt::UserRole, mod->id);
-            updateStatusIcon(item, mod->testStatus);
+            updateModuleTreeItemState(item, *mod);
+            item->setToolTip(0, mod->description);
             uiHasChildren = true;
         }
     }
@@ -454,9 +801,9 @@ void ModuleManagerWidget::buildTree()
                     (langFilter == "cpp" && mod->language == "c");
                 if (!compat) continue;
             }
-            auto *item = new QTreeWidgetItem(catItem, {mod->name});
+            auto *item = new QTreeWidgetItem(catItem, {moduleDisplayLabel(*mod, false)});
             item->setData(0, Qt::UserRole, mod->id);
-            updateStatusIcon(item, mod->testStatus);
+            updateModuleTreeItemState(item, *mod);
             catHasChildren = true;
         }
         catItem->setHidden(!catHasChildren);
@@ -482,9 +829,9 @@ void ModuleManagerWidget::buildTree()
                     (langFilter == "cpp" && mod->language == "c");
                 if (!compat && !mod->language.isEmpty()) continue;
             }
-            auto *item = new QTreeWidgetItem(localRoot, {mod->name});
+            auto *item = new QTreeWidgetItem(localRoot, {moduleDisplayLabel(*mod, false)});
             item->setData(0, Qt::UserRole, mod->id);
-            updateStatusIcon(item, mod->testStatus);
+            updateModuleTreeItemState(item, *mod);
             localHasChildren = true;
         }
     }
@@ -550,8 +897,15 @@ bool ModuleManagerWidget::openModule(const QString &moduleId)
 
 QString ModuleManagerWidget::moduleFilePath(const QString &moduleId) const
 {
-    // Проверяем, является ли модуль локальным (проектным)
     const Module *mod = m_registry->findModule(moduleId);
+    if (!mod)
+        return {};
+
+    // Для уже загруженных imported/local модулей сначала сохраняем ровно туда, откуда они были открыты.
+    if (!mod->storagePath.isEmpty())
+        return mod->storagePath;
+
+    // Проверяем, является ли модуль локальным (проектным)
     if (mod && (mod->origin == "local" || mod->origin == "graph")) {
         if (!m_projectDir.isEmpty())
             return m_projectDir + "/dqmods/" + moduleId + ".dqmod";
@@ -612,6 +966,7 @@ void ModuleManagerWidget::loadModuleToEditor(const Module &module)
 {
     m_currentModuleId = module.id;
     m_modified = false;
+    m_loadingModule = true;
 
     // Core и UI модули — только для просмотра, local и graph — полностью редактируемые
     bool isReadOnly = (module.origin == "ui" || module.origin == "core");
@@ -627,6 +982,22 @@ void ModuleManagerWidget::loadModuleToEditor(const Module &module)
     // Язык
     int langIdx = m_langCombo->findText(module.language);
     if (langIdx >= 0) m_langCombo->setCurrentIndex(langIdx);
+
+    const bool isImported = module.isImportedPackModule();
+    m_importDisplayNameEdit->setText(isImported ? module.importedDisplayName() : QString());
+    const QString role = isImported ? module.importedCurationRole() : QString("raw_wrapper");
+    int roleIdx = m_importRoleCombo->findData(role);
+    if (roleIdx < 0)
+        roleIdx = 0;
+    m_importRoleCombo->setCurrentIndex(roleIdx);
+    m_importDisplayNameEdit->setEnabled(isImported && !isReadOnly);
+    m_importRoleCombo->setEnabled(isImported && !isReadOnly);
+    m_importSourceLabel->setText(isImported
+        ? tr("Pack: %1\nSymbol: %2")
+              .arg(module.importedPackName(), module.importedOriginalSymbol())
+        : tr("Не imported module"));
+    m_docWhenToUseEdit->setPlainText(module.documentationWhenToUse());
+    m_docLimitationsEdit->setPlainText(module.documentationLimitations());
 
     // Includes
     m_includesEdit->setText(module.includes.join("\n"));
@@ -647,21 +1018,17 @@ void ModuleManagerWidget::loadModuleToEditor(const Module &module)
         m_testInputs->setItem(i, 1, new QTableWidgetItem(module.inputs[i].defaultValue));
     }
 
-    m_testOutputLabel->setText(tr("Статус: %1").arg(module.testStatus));
-    if (module.testStatus == "passed")
-        m_testOutputLabel->setStyleSheet("color: #4CAF50;");
-    else if (module.testStatus == "failed")
-        m_testOutputLabel->setStyleSheet("color: #F44336;");
-    else if (module.testStatus == "modified")
-        m_testOutputLabel->setStyleSheet("color: #FF9800;");
-    else
-        m_testOutputLabel->setStyleSheet("color: #9E9E9E;");
+    updateVerificationPanel(module);
 
     // Core и UI модули: только просмотр, блокируем редактирование
     m_nameEdit->setReadOnly(isReadOnly);
     m_descEdit->setReadOnly(isReadOnly);
     m_categoryCombo->setEnabled(!isReadOnly);
     m_langCombo->setEnabled(!isReadOnly);
+    m_importDisplayNameEdit->setEnabled(isImported && !isReadOnly);
+    m_importRoleCombo->setEnabled(isImported && !isReadOnly);
+    m_docWhenToUseEdit->setReadOnly(isReadOnly);
+    m_docLimitationsEdit->setReadOnly(isReadOnly);
     m_includesEdit->setReadOnly(isReadOnly);
     m_codeEdit->setReadOnly(isReadOnly);
     m_saveBtn->setEnabled(!isReadOnly);
@@ -674,27 +1041,46 @@ void ModuleManagerWidget::loadModuleToEditor(const Module &module)
     } else if (module.origin == "core") {
         m_logView->append(tr("Стандартный модуль '%1' — только для просмотра").arg(module.name));
     }
+
+    updateModuleStateSummary(module);
+    m_loadingModule = false;
 }
 
 void ModuleManagerWidget::clearEditor()
 {
     m_currentModuleId.clear();
     m_modified = false;
+    m_loadingModule = true;
     m_nameEdit->clear();
     m_descEdit->clear();
     m_categoryCombo->setCurrentIndex(0);
     m_langCombo->setCurrentIndex(0);
+    m_importDisplayNameEdit->clear();
+    m_importRoleCombo->setCurrentIndex(0);
+    m_importDisplayNameEdit->setEnabled(false);
+    m_importRoleCombo->setEnabled(false);
+    m_importSourceLabel->setText(tr("Не imported module"));
+    m_docWhenToUseEdit->clear();
+    m_docLimitationsEdit->clear();
+    m_docWhenToUseEdit->setReadOnly(false);
+    m_docLimitationsEdit->setReadOnly(false);
     m_includesEdit->clear();
     m_codeEdit->clear();
     m_portTable->setRowCount(0);
     m_testInputs->setRowCount(0);
-    m_testOutputLabel->setText(tr("Результат: —"));
+    m_testOutputLabel->setText(tr("Компиляция: — | Тест: —"));
     m_testOutputLabel->setStyleSheet("");
     m_logView->clear();
     m_previewScene->clear();
     m_saveBtn->setEnabled(false);
     m_compileBtn->setEnabled(false);
     m_testBtn->setEnabled(false);
+    m_moduleStateBadge->setText(tr("Модуль не выбран"));
+    m_moduleStateBadge->setStyleSheet(
+        "QLabel { background:#4a4a4a; color:#f0f0f0; border-radius:10px; "
+        "padding:3px 10px; font-weight:bold; }");
+    m_moduleStateDetails->setText(tr("Выберите модуль, чтобы увидеть его состояние."));
+    m_loadingModule = false;
 }
 
 void ModuleManagerWidget::updatePreview(const Module &module)
@@ -745,6 +1131,7 @@ void ModuleManagerWidget::onNewModule()
     mod.description = tr("Новый модуль");
     // Если проект открыт — создаём локальный модуль, иначе — расширение
     mod.origin = m_projectDir.isEmpty() ? "extension" : "local";
+    mod.compileStatus = "unknown";
     mod.testStatus = "untested";
     mod.sourceCode = QString("int dq_new_module(int a) {\n    return a;\n}");
 
@@ -852,6 +1239,23 @@ void ModuleManagerWidget::onSaveModule()
     mod->category = m_categoryCombo->currentText().trimmed();
     mod->language = m_langCombo->currentText();
 
+    if (mod->isImportedPackModule()) {
+        const QString displayName = m_importDisplayNameEdit->text().trimmed();
+        mod->metadata["deltaq.import.display_name"] = displayName.isEmpty() ? mod->name : displayName;
+        mod->metadata["deltaq.import.curation_role"] = m_importRoleCombo->currentData().toString();
+    }
+
+    const QString whenToUse = m_docWhenToUseEdit->toPlainText().trimmed();
+    const QString limitations = m_docLimitationsEdit->toPlainText().trimmed();
+    if (!whenToUse.isEmpty())
+        mod->metadata["deltaq.doc.when_to_use"] = whenToUse;
+    else
+        mod->metadata.remove("deltaq.doc.when_to_use");
+    if (!limitations.isEmpty())
+        mod->metadata["deltaq.doc.limitations"] = limitations;
+    else
+        mod->metadata.remove("deltaq.doc.limitations");
+
     // Includes
     mod->includes.clear();
     for (const auto &line : m_includesEdit->toPlainText().split('\n')) {
@@ -877,6 +1281,7 @@ void ModuleManagerWidget::onSaveModule()
 
     // Сохраняем на диск (.dqmod)
     if (saveToDisk(*mod)) {
+        mod->storagePath = moduleFilePath(mod->id);
         m_logView->append(tr("Модуль '%1' сохранён на диск").arg(mod->name));
     } else if (!m_projectDir.isEmpty()) {
         m_logView->append(tr("Ошибка записи .dqmod файла"));
@@ -885,6 +1290,8 @@ void ModuleManagerWidget::onSaveModule()
     }
 
     m_modified = false;
+    updateModuleStateSummary(*mod);
+    updateModuleTreeItemState(m_tree->currentItem(), *mod);
 
     emit moduleChanged(m_currentModuleId);
     buildTree();
@@ -934,22 +1341,20 @@ void ModuleManagerWidget::onTestModule()
 
 void ModuleManagerWidget::onCodeChanged()
 {
-    if (m_currentModuleId.isEmpty()) return;
+    if (m_currentModuleId.isEmpty() || m_loadingModule) return;
+
+    Module *mod = m_registry->findModule(m_currentModuleId);
+    if (!mod)
+        return;
 
     if (!m_modified) {
         m_modified = true;
-        // Предупреждение: статус сбросится
-        Module *mod = m_registry->findModule(m_currentModuleId);
-        if (mod && mod->testStatus == "passed") {
-            mod->testStatus = "modified";
-            m_testOutputLabel->setText(tr("Статус: modified"));
-            m_testOutputLabel->setStyleSheet("color: #FF9800;");
-
-            auto *item = m_tree->currentItem();
-            if (item && item->parent())
-                updateStatusIcon(item, "modified");
-        }
+        invalidateVerificationStatus(*mod);
     }
+
+    updateVerificationPanel(*mod);
+    updateModuleStateSummary(*mod);
+    updateModuleTreeItemState(m_tree->currentItem(), *mod);
 }
 
 void ModuleManagerWidget::parseSignature(const QString &code)
@@ -1013,6 +1418,51 @@ void ModuleManagerWidget::parseSignature(const QString &code)
     updatePortTable(*mod);
 }
 
+void ModuleManagerWidget::updateVerificationPanel(const Module &module)
+{
+    if (!m_testOutputLabel)
+        return;
+
+    // Панель тестирования показывает оба независимых этапа проверки атомарного модуля.
+    if (module.origin == "core" || module.origin == "ui") {
+        m_testOutputLabel->setText(tr("Проверка: встроенный библиотечный модуль"));
+        m_testOutputLabel->setStyleSheet("color: #90CAF9;");
+        return;
+    }
+
+    if (module.isComposite()) {
+        m_testOutputLabel->setText(tr("Компиляция: через граф | Тест: через композицию"));
+        m_testOutputLabel->setStyleSheet("color: #90CAF9;");
+        return;
+    }
+
+    const QString text = tr("Компиляция: %1 | Тест: %2")
+        .arg(moduleCompileStatusText(module.compileStatus))
+        .arg(moduleTestStatusText(module.testStatus));
+    m_testOutputLabel->setText(text);
+
+    if (module.compileStatus == "failed" || module.testStatus == "failed")
+        m_testOutputLabel->setStyleSheet("color: #F44336;");
+    else if (module.compileStatus == "passed" && module.testStatus == "passed")
+        m_testOutputLabel->setStyleSheet("color: #4CAF50;");
+    else if (module.compileStatus == "modified" || module.testStatus == "modified")
+        m_testOutputLabel->setStyleSheet("color: #FF9800;");
+    else
+        m_testOutputLabel->setStyleSheet("color: #9E9E9E;");
+}
+
+void ModuleManagerWidget::invalidateVerificationStatus(Module &module)
+{
+    // Любая правка контракта/кода/зависимостей делает compile/test результаты устаревшими.
+    if (module.isComposite())
+        return;
+
+    if (module.compileStatus == "passed" || module.compileStatus == "failed")
+        module.compileStatus = "modified";
+    if (module.testStatus == "passed" || module.testStatus == "failed")
+        module.testStatus = "modified";
+}
+
 void ModuleManagerWidget::updateStatusIcon(QTreeWidgetItem *item, const QString &status)
 {
     if (!item) return;
@@ -1028,6 +1478,50 @@ void ModuleManagerWidget::updateStatusIcon(QTreeWidgetItem *item, const QString 
         px.fill(QColor(158, 158, 158));     // серый (untested)
 
     item->setIcon(0, QIcon(px));
+}
+
+void ModuleManagerWidget::updateModuleStateSummary(const Module &module)
+{
+    if (!m_moduleStateBadge || !m_moduleStateDetails)
+        return;
+
+    // Синхронизирует явную панель состояния с фактической моделью модуля.
+    const ModuleStateSummary summary = buildModuleStateSummary(m_registry, module);
+    m_moduleStateBadge->setText(summary.badgeText);
+    m_moduleStateBadge->setStyleSheet(summary.badgeStyle);
+    m_moduleStateDetails->setText(summary.detailText);
+}
+
+void ModuleManagerWidget::updateModuleTreeItemState(QTreeWidgetItem *item, const Module &module)
+{
+    if (!item)
+        return;
+
+    // Дерево показывает компактную иконку, а tooltip раскрывает причину текущего состояния.
+    const ModuleStateSummary summary = buildModuleStateSummary(m_registry, module);
+    updateStatusIcon(item, summary.iconStatus);
+    item->setText(0, moduleDisplayLabel(module, false));
+    QString tooltip = summary.badgeText + "\n" + summary.detailText;
+
+    if (module.origin == "core" || module.id.startsWith("core.")) {
+        const StandardLibraryCurationInfo curation = StandardLibrary::curationForModule(module);
+        if (curation.isKnown()) {
+            tooltip += QObject::tr("\nРоль библиотеки: %1").arg(curation.title);
+            if (!curation.guidance.isEmpty())
+                tooltip += QObject::tr("\nПодсказка: %1").arg(curation.guidance);
+            if (!curation.replacementHint.isEmpty())
+                tooltip += QObject::tr("\nАльтернатива: %1").arg(curation.replacementHint);
+        }
+    }
+
+    if (module.isImportedPackModule()) {
+        tooltip += QObject::tr("\nDisplay: %1").arg(module.importedDisplayName());
+        tooltip += QObject::tr("\nРоль import/curation: %1").arg(importedCurationRoleTitle(module));
+    }
+
+    appendDocumentationTooltip(tooltip, module);
+
+    item->setToolTip(0, tooltip);
 }
 
 } // namespace DeltaQ

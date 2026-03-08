@@ -1,7 +1,6 @@
 {
     "category": "io",
-    "dependencies": [
-    ],
+    "dependencies": [],
     "description": "Вывод текста с переводом строки",
     "header": "",
     "id": "core.io.println",
@@ -33,5 +32,9 @@
     },
     "source": "",
     "source_code": "void dq_println(const char *text) {\n    printf(\"%s\\n\", text);\n}",
-    "version": "1.2"
+    "version": "1.2",
+    "metadata": {
+        "deltaq.doc.when_to_use": "Когда нужно завершить вывод строки переводом строки в console-сценарии.",
+        "deltaq.doc.limitations": "Пишет только в stdout; если нужен вывод без новой строки, используйте print."
+    }
 }

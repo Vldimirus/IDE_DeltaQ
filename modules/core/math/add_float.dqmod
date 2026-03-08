@@ -1,7 +1,6 @@
 {
     "category": "math",
-    "dependencies": [
-    ],
+    "dependencies": [],
     "description": "Сложение (float)",
     "header": "",
     "id": "core.math.add_float",
@@ -28,5 +27,9 @@
     },
     "source": "",
     "source_code": "float dq_add_float(float a, float b) {\n    return a + b;\n}",
-    "version": "1.1"
+    "version": "1.1",
+    "metadata": {
+        "deltaq.doc.when_to_use": "Когда нужно сложение двух float-значений без перехода в int.",
+        "deltaq.doc.limitations": "Работает только с float; для int используйте add."
+    }
 }

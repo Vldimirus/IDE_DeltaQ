@@ -138,6 +138,92 @@ private slots:
         QVERIFY(m.findOutput("x") == nullptr);
     }
 
+    void compositeBoundaryRoundtrip()
+    {
+        Module m = Module::create("Composite");
+        m.origin = "graph";
+        m.inputs = {Port::exec("flow_in"), {"value", "int", "0"}};
+        m.outputs = {Port::exec("flow_out"), {"result", "int", ""}};
+        m.graphId = "inner-graph-1";
+        m.generatedFileBaseName = "submodule_01";
+        m.boundaryInputs = {
+            {"flow_in", "node_step", "flow_in", PortKind::Execution},
+            {"value", "node_step", "value", PortKind::Data}
+        };
+        m.boundaryOutputs = {
+            {"flow_out", "node_step", "flow_out", PortKind::Execution},
+            {"result", "node_step", "result", PortKind::Data}
+        };
+
+        auto restored = Module::fromJson(m.toJson());
+        QCOMPARE(restored.graphId, QString("inner-graph-1"));
+        QCOMPARE(restored.generatedFileBaseName, QString("submodule_01"));
+        QCOMPARE(restored.boundaryInputs, m.boundaryInputs);
+        QCOMPARE(restored.boundaryOutputs, m.boundaryOutputs);
+
+        const auto *flowIn = restored.findBoundaryInput("flow_in");
+        const auto *result = restored.findBoundaryOutput("result");
+        QVERIFY(flowIn != nullptr);
+        QVERIFY(result != nullptr);
+        QCOMPARE(flowIn->internalNodeId, QString("node_step"));
+        QCOMPARE(result->internalPortName, QString("result"));
+    }
+
+    void verificationRoundtrip()
+    {
+        Module m = Module::create("Verified");
+        m.compileStatus = "passed";
+        m.testStatus = "modified";
+
+        auto restored = Module::fromJson(m.toJson());
+        QCOMPARE(restored.compileStatus, QString("passed"));
+        QCOMPARE(restored.testStatus, QString("modified"));
+    }
+
+    void metadataRoundtrip()
+    {
+        Module m = Module::create("UiContract");
+        m.metadata["deltaq.kind"] = "ui_contract";
+        m.metadata["deltaq.ui.widget_type"] = "button";
+
+        const Module restored = Module::fromJson(m.toJson());
+        QCOMPARE(restored.metadataString("deltaq.kind"), QString("ui_contract"));
+        QCOMPARE(restored.uiWidgetType(), QString("button"));
+        QVERIFY(restored.isUIContractModule());
+    }
+
+    void legacyTestingStatusPromotesCompileStatus()
+    {
+        QJsonObject json;
+        json["id"] = "legacy-module";
+        json["name"] = "Legacy";
+        json["language"] = "c";
+        json["origin"] = "local";
+
+        QJsonObject ports;
+        ports["input"] = QJsonArray{};
+        ports["output"] = QJsonArray{};
+        json["ports"] = ports;
+
+        QJsonObject testing;
+        testing["status"] = "passed";
+        json["testing"] = testing;
+
+        const Module restored = Module::fromJson(json);
+        QCOMPARE(restored.testStatus, QString("passed"));
+        QCOMPARE(restored.compileStatus, QString("passed"));
+    }
+
+    void isCompositeDependsOnGraphId()
+    {
+        Module atomic = Module::create("Atomic");
+        QVERIFY(!atomic.isComposite());
+
+        Module composite = Module::create("Composite");
+        composite.graphId = "inner-graph";
+        QVERIFY(composite.isComposite());
+    }
+
     void moduleHasPort()
     {
         auto m = Module::create("Test");

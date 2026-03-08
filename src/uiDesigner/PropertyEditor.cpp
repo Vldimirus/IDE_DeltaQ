@@ -4,6 +4,7 @@
 #include "DesignScene.h"
 
 #include <deltaq/UILayout.h>
+#include <deltaq/UIContract.h>
 
 #include <QLineEdit>
 #include <QSpinBox>
@@ -15,8 +16,76 @@
 #include <QLabel>
 #include <QVBoxLayout>
 #include <QFrame>
+#include <QMetaType>
 
 namespace DeltaQ {
+
+namespace {
+
+// Возвращает человекочитаемую подпись свойства UI-контракта.
+QString propertyLabelForContract(const QString &name)
+{
+    if (name == "text")
+        return QObject::tr("Text");
+    if (name == "placeholder")
+        return QObject::tr("Placeholder");
+    if (name == "max_length")
+        return QObject::tr("Max Length");
+    if (name == "read_only")
+        return QObject::tr("Read Only");
+    if (name == "password")
+        return QObject::tr("Password");
+    if (name == "checked")
+        return QObject::tr("Checked");
+    if (name == "selected")
+        return QObject::tr("Selected");
+    if (name == "items")
+        return QObject::tr("Items");
+    if (name == "min")
+        return QObject::tr("Min");
+    if (name == "max")
+        return QObject::tr("Max");
+    if (name == "value")
+        return QObject::tr("Value");
+    if (name == "step")
+        return QObject::tr("Step");
+    if (name == "show_text")
+        return QObject::tr("Show Text");
+    if (name == "alignment")
+        return QObject::tr("Alignment");
+    if (name == "word_wrap")
+        return QObject::tr("Word Wrap");
+    if (name == "path")
+        return QObject::tr("Path");
+    return name;
+}
+
+// Возвращает тип редактора по свойству контракта.
+QString propertyEditorTypeForContract(const QString &name, const QVariant &value)
+{
+    if (name == "alignment")
+        return "alignment";
+    if (value.metaType().id() == QMetaType::Bool)
+        return "bool";
+    if (value.canConvert<int>() && value.metaType().id() != QMetaType::QString)
+        return "int";
+    if (value.canConvert<double>() && value.metaType().id() != QMetaType::QString)
+        return "double";
+    return "string";
+}
+
+// Собирает effective value для contract-свойства: текущее значение либо catalog default.
+QVariant effectiveContractPropertyValue(WidgetItem *widget, const UIContractPropertySpec &property)
+{
+    const QVariant currentValue = widget->property(property.name);
+    if (currentValue.isValid())
+        return currentValue;
+    if (property.useWidgetNameAsDefault)
+        return widget->widgetName();
+    return property.defaultValue;
+}
+
+} // namespace
 
 PropertyEditor::PropertyEditor(QWidget *parent)
     : QWidget(parent)
@@ -70,6 +139,7 @@ void PropertyEditor::buildWindowPropertyList()
 
     addSectionHeader(tr("Window"));
     addProperty(tr("Type"), "type", "Window", "readonly");
+    addProperty(tr("Contract"), "contract", "window", "readonly");
 
     // Заголовок окна
     auto *titleEdit = new QLineEdit(m_windowScene->windowTitle(), m_contentWidget);
@@ -119,9 +189,14 @@ void PropertyEditor::buildPropertyList()
     m_updating = true;
 
     // Общие свойства
+    const QString contractType = m_currentWidget->widgetContractType();
+    const QString displayType = m_currentWidget->widgetDisplayType();
+
     addSectionHeader(tr("General"));
     addProperty(tr("Name"), "name", m_currentWidget->widgetName(), "readonly");
-    addProperty(tr("Type"), "type", m_currentWidget->widgetType(), "readonly");
+    addProperty(tr("Type"), "type", displayType, "readonly");
+    if (!contractType.isEmpty())
+        addProperty(tr("Contract"), "contract", contractType, "readonly");
     addProperty("X", "x", m_currentWidget->pos().x(), "double");
     addProperty("Y", "y", m_currentWidget->pos().y(), "double");
     addProperty(tr("Width"), "width", m_currentWidget->widgetWidth(), "double");
@@ -136,90 +211,19 @@ void PropertyEditor::buildPropertyList()
                 m_currentWidget->property("enabled").isValid() ?
                 m_currentWidget->property("enabled") : true, "bool");
 
-    // Типоспецифичные свойства
-    QString type = m_currentWidget->widgetType();
-
-    if (type == "Button") {
-        addSectionHeader(tr("Button"));
-        addProperty(tr("Text"), "text",
-                    m_currentWidget->property("text").isValid() ?
-                    m_currentWidget->property("text") : m_currentWidget->widgetName());
-    }
-    else if (type == "Label") {
-        addSectionHeader(tr("Label"));
-        addProperty(tr("Text"), "text",
-                    m_currentWidget->property("text").isValid() ?
-                    m_currentWidget->property("text") : m_currentWidget->widgetName());
-        addProperty(tr("Alignment"), "alignment",
-                    m_currentWidget->property("alignment").isValid() ?
-                    m_currentWidget->property("alignment") : "left", "alignment");
-        addProperty(tr("Word Wrap"), "word_wrap",
-                    m_currentWidget->property("word_wrap").isValid() ?
-                    m_currentWidget->property("word_wrap") : false, "bool");
-    }
-    else if (type == "TextField" || type == "TextArea") {
-        addSectionHeader(tr("Text Field"));
-        addProperty(tr("Text"), "text",
-                    m_currentWidget->property("text").isValid() ?
-                    m_currentWidget->property("text") : "");
-        addProperty(tr("Placeholder"), "placeholder",
-                    m_currentWidget->property("placeholder").isValid() ?
-                    m_currentWidget->property("placeholder") : "");
-        addProperty(tr("Max Length"), "max_length",
-                    m_currentWidget->property("max_length").isValid() ?
-                    m_currentWidget->property("max_length") : 0, "int");
-        addProperty(tr("Read Only"), "read_only",
-                    m_currentWidget->property("read_only").isValid() ?
-                    m_currentWidget->property("read_only") : false, "bool");
-        addProperty(tr("Password"), "password",
-                    m_currentWidget->property("password").isValid() ?
-                    m_currentWidget->property("password") : false, "bool");
-    }
-    else if (type == "Checkbox" || type == "RadioButton") {
-        addSectionHeader(type == "Checkbox" ? tr("Checkbox") : tr("Radio Button"));
-        addProperty(tr("Text"), "text",
-                    m_currentWidget->property("text").isValid() ?
-                    m_currentWidget->property("text") : m_currentWidget->widgetName());
-        addProperty(tr("Checked"), type == "Checkbox" ? "checked" : "selected",
-                    m_currentWidget->property(type == "Checkbox" ? "checked" : "selected")
-                    .isValid() ? m_currentWidget->property(
-                    type == "Checkbox" ? "checked" : "selected") : false, "bool");
-    }
-    else if (type == "Slider") {
-        addSectionHeader(tr("Slider"));
-        addProperty(tr("Min"), "min",
-                    m_currentWidget->property("min").isValid() ?
-                    m_currentWidget->property("min") : 0, "int");
-        addProperty(tr("Max"), "max",
-                    m_currentWidget->property("max").isValid() ?
-                    m_currentWidget->property("max") : 100, "int");
-        addProperty(tr("Value"), "value",
-                    m_currentWidget->property("value").isValid() ?
-                    m_currentWidget->property("value") : 50, "int");
-        addProperty(tr("Step"), "step",
-                    m_currentWidget->property("step").isValid() ?
-                    m_currentWidget->property("step") : 1, "int");
-    }
-    else if (type == "ProgressBar") {
-        addSectionHeader(tr("Progress Bar"));
-        addProperty(tr("Min"), "min",
-                    m_currentWidget->property("min").isValid() ?
-                    m_currentWidget->property("min") : 0, "int");
-        addProperty(tr("Max"), "max",
-                    m_currentWidget->property("max").isValid() ?
-                    m_currentWidget->property("max") : 100, "int");
-        addProperty(tr("Value"), "value",
-                    m_currentWidget->property("value").isValid() ?
-                    m_currentWidget->property("value") : 40, "int");
-        addProperty(tr("Show Text"), "show_text",
-                    m_currentWidget->property("show_text").isValid() ?
-                    m_currentWidget->property("show_text") : true, "bool");
-    }
-    else if (type == "ComboBox") {
-        addSectionHeader(tr("Combo Box"));
-        addProperty(tr("Text"), "text",
-                    m_currentWidget->property("text").isValid() ?
-                    m_currentWidget->property("text") : m_currentWidget->widgetName());
+    // Типоспецифичные свойства теперь берём из единого UI-каталога, чтобы
+    // дизайнер и модульный контракт использовали одинаковый словарь.
+    if (const auto *spec = findUIContractSpecByAny(contractType)) {
+        if (!spec->designerProperties.isEmpty()) {
+            addSectionHeader(displayType);
+            for (const auto &property : spec->designerProperties) {
+                const QVariant effectiveValue = effectiveContractPropertyValue(m_currentWidget, property);
+                addProperty(propertyLabelForContract(property.name),
+                            property.name,
+                            effectiveValue,
+                            propertyEditorTypeForContract(property.name, effectiveValue));
+            }
+        }
     }
 
     // Секция anchor-привязок
@@ -421,7 +425,7 @@ void PropertyEditor::clearLayout()
     if (!m_formLayout) return;
 
     QLayoutItem *child;
-    while ((child = m_formLayout->takeAt(0)) != nullptr) {
+    while (m_formLayout->count() > 0 && (child = m_formLayout->takeAt(0)) != nullptr) {
         if (child->widget())
             child->widget()->deleteLater();
         delete child;

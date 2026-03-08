@@ -1,8 +1,7 @@
 {
     "category": "control",
-    "dependencies": [
-    ],
-    "description": "Условный выбор",
+    "dependencies": [],
+    "description": "Тернарный выбор целочисленного значения",
     "header": "",
     "id": "core.control.if_then",
     "language": "c",
@@ -32,5 +31,9 @@
     },
     "source": "",
     "source_code": "int dq_if_then(int cond, int then_val, int else_val) {\n    return cond ? then_val : else_val;\n}",
-    "version": "1.1"
+    "version": "1.1",
+    "metadata": {
+        "deltaq.doc.when_to_use": "Когда нужен тернарный выбор одного int-значения по булевому условию.",
+        "deltaq.doc.limitations": "Работает только с int-данными и не управляет execution flow."
+    }
 }

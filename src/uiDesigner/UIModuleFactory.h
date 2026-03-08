@@ -2,6 +2,7 @@
 #pragma once
 
 #include <QVector>
+#include <deltaq/UIContract.h>
 #include <deltaq/Module.h>
 
 namespace DeltaQ {
@@ -19,16 +20,11 @@ public:
     // Проверить, является ли модуль UI-модулем
     static bool isUIModule(const QString &moduleId);
     static bool isUIModuleByName(const QString &moduleName);
+    static bool isUIContractModule(const Module &module);
+    static QString widgetType(const Module &module);
 
 private:
-    static Module createButton();
-    static Module createTextField();
-    static Module createLabel();
-    static Module createSlider();
-    static Module createCheckbox();
-    static Module createProgressBar();
-    static Module createImage();
-    static Module createComboBox();
+    static Module createContractModule(const UIContractSpec &spec);
 };
 
 } // namespace DeltaQ

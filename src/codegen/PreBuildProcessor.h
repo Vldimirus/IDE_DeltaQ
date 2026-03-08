@@ -4,16 +4,35 @@
 #include <QObject>
 #include <QString>
 #include <QStringList>
+#include <QVector>
 
 namespace DeltaQ {
 
 class ModuleRegistry;
 class GraphStore;
 class UILayoutStore;
+class GraphCompiler;
+
+enum class PreBuildArtifactKind {
+    GraphSource,
+    SubmoduleHeader,
+    SubmoduleSource,
+    UIHeader,
+    UISource,
+    UIEventsHeader,
+    UIEventsSource
+};
+
+struct PreBuildArtifact {
+    QString path;
+    PreBuildArtifactKind kind = PreBuildArtifactKind::GraphSource;
+    QString sourceName;
+    QString sourceId;
+};
 
 struct PreBuildResult {
     bool success = true;
-    QStringList generatedFiles;
+    QVector<PreBuildArtifact> generatedArtifacts;
     QStringList errors;
 };
 
@@ -29,11 +48,14 @@ public:
 
 signals:
     void progressMessage(const QString &text);
-    void fileGenerated(const QString &path);
+    void fileGenerated(const PreBuildArtifact &artifact);
 
 private:
     // Генерация C-кода из всех графов
     void processGraphs(const QString &projectDir, PreBuildResult &result);
+
+    // Генерация отдельных compilation units для составных модулей
+    void processSubmodules(const QString &projectDir, PreBuildResult &result, GraphCompiler &compiler);
 
     // Генерация SDL2-кода из всех UI-макетов
     void processUILayouts(const QString &projectDir, PreBuildResult &result);
@@ -44,3 +66,5 @@ private:
 };
 
 } // namespace DeltaQ
+
+Q_DECLARE_METATYPE(DeltaQ::PreBuildArtifact)

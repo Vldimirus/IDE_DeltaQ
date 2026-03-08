@@ -1,0 +1,43 @@
+{
+    "category": "control",
+    "dependencies": [],
+    "description": "Последовательное выполнение (разветвитель exec flow)",
+    "header": "",
+    "id": "core.control.sequence",
+    "language": "c",
+    "name": "sequence",
+    "origin": "core",
+    "ports": {
+        "input": [
+            {
+                "kind": "execution",
+                "name": "flow_in",
+                "type": "exec"
+            }
+        ],
+        "output": [
+            {
+                "kind": "execution",
+                "name": "then_0",
+                "type": "exec"
+            },
+            {
+                "kind": "execution",
+                "name": "then_1",
+                "type": "exec"
+            },
+            {
+                "kind": "execution",
+                "name": "then_2",
+                "type": "exec"
+            }
+        ]
+    },
+    "source": "",
+    "source_code": "// sequence - управление потоком, встроенный модуль\n// Генерируется как последовательность вызовов",
+    "version": "1.3",
+    "metadata": {
+        "deltaq.doc.when_to_use": "Когда нужно разветвить один exec-вход на несколько последовательных шагов.",
+        "deltaq.doc.limitations": "Имеет фиксированные выходы then_0/then_1/then_2 и не масштабируется автоматически."
+    }
+}

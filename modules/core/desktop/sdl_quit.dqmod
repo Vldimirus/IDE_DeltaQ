@@ -8,6 +8,14 @@
         "SDL2/SDL.h"
     ],
     "language": "c",
+    "metadata": {
+        "deltaq.kind": "ui_backend_runtime",
+        "deltaq.ui.backend": "sdl2",
+        "deltaq.ui.backend_role": "lifecycle_shutdown",
+        "deltaq.ui.layer": "backend",
+        "deltaq.doc.when_to_use": "Когда полностью завершается SDL2 desktop runtime.",
+        "deltaq.doc.limitations": "Это последний lifecycle-шаг SDL2 backend; после него SDL ресурсы недействительны."
+    },
     "name": "sdl_quit",
     "origin": "core",
     "ports": {

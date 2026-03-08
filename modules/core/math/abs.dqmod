@@ -1,7 +1,6 @@
 {
     "category": "math",
-    "dependencies": [
-    ],
+    "dependencies": [],
     "description": "Модуль числа",
     "header": "",
     "id": "core.math.abs",
@@ -24,5 +23,9 @@
     },
     "source": "",
     "source_code": "int dq_abs(int value) {\n    return value < 0 ? -value : value;\n}",
-    "version": "1.1"
+    "version": "1.1",
+    "metadata": {
+        "deltaq.doc.when_to_use": "Когда нужен модуль целого числа перед сравнением, индексацией или расчётом.",
+        "deltaq.doc.limitations": "Работает только с int; для float нужен отдельный модуль или внешний pack."
+    }
 }

@@ -8,6 +8,14 @@
         "SDL2/SDL.h"
     ],
     "language": "c",
+    "metadata": {
+        "deltaq.kind": "ui_backend_runtime",
+        "deltaq.ui.backend": "sdl2",
+        "deltaq.ui.backend_role": "window_destroy",
+        "deltaq.ui.layer": "backend",
+        "deltaq.doc.when_to_use": "Когда завершаете desktop-flow и освобождаете SDL окно.",
+        "deltaq.doc.limitations": "Это backend-операция SDL2; окно должно быть больше не нужно к моменту вызова."
+    },
     "name": "destroy_window",
     "origin": "core",
     "ports": {

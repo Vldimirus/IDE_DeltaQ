@@ -10,6 +10,8 @@
 #include <QVariant>
 #include <QtMath>
 
+#include <deltaq/UIContract.h>
+
 namespace DeltaQ {
 
 struct UIAnchors {
@@ -70,6 +72,7 @@ struct UIWidget {
     QString layout;       // "None", "HBox", "VBox", "Grid", "Flow"
     QMap<QString, QVariant> properties;
     QMap<QString, QString> events;   // событие → обработчик
+    QJsonObject metadata;            // backend-независимые contract metadata виджета
     UIAnchors anchors;               // anchor-привязки
     QVector<UIWidget> children;      // вложенные виджеты
 
@@ -81,6 +84,7 @@ struct UIWidget {
             && layout == other.layout
             && properties == other.properties
             && events == other.events
+            && metadata == other.metadata
             && anchors == other.anchors
             && children == other.children;
     }
@@ -110,6 +114,9 @@ struct UIWidget {
                 ev[it.key()] = it.value();
             obj["events"] = ev;
         }
+
+        if (!metadata.isEmpty())
+            obj["metadata"] = metadata;
 
         if (anchors.hasAnchors())
             obj["anchors"] = anchors.toJson();
@@ -145,6 +152,9 @@ struct UIWidget {
         for (auto it = ev.begin(); it != ev.end(); ++it)
             w.events[it.key()] = it.value().toString();
 
+        w.metadata = obj["metadata"].toObject();
+        w.syncContractMetadata();
+
         if (obj.contains("anchors"))
             w.anchors = UIAnchors::fromJson(obj["anchors"].toObject());
 
@@ -155,13 +165,52 @@ struct UIWidget {
         return w;
     }
 
+    // Возвращает канонический contract type, даже если layout был сохранён в legacy-форме.
+    QString contractType() const {
+        const QString explicitType = metadata["deltaq.ui.contract_type"].toString();
+        if (!explicitType.isEmpty())
+            return explicitType;
+        return canonicalUIContractType(type);
+    }
+
+    // Возвращает legacy-тип, который показывается в дизайнере и хранится в поле type.
+    QString legacyWidgetType() const {
+        const QString explicitType = metadata["deltaq.ui.legacy_widget_type"].toString();
+        if (!explicitType.isEmpty())
+            return explicitType;
+        return legacyUIWidgetType(type);
+    }
+
+    // Синхронизирует metadata и field type по единому каталогу UI-контрактов.
+    void syncContractMetadata() {
+        const auto *spec = findUIContractSpecByAny(
+            metadata["deltaq.ui.contract_type"].toString().isEmpty()
+                ? type
+                : metadata["deltaq.ui.contract_type"].toString());
+        if (!spec)
+            spec = findUIContractSpecByAny(type);
+        if (!spec)
+            return;
+
+        type = spec->legacyWidgetType;
+        metadata["deltaq.kind"] = "ui_widget_contract";
+        metadata["deltaq.ui.layer"] = "contract";
+        metadata["deltaq.ui.backend"] = "agnostic";
+        metadata["deltaq.ui.contract_version"] = "1.0";
+        metadata["deltaq.ui.contract_type"] = spec->contractType;
+        metadata["deltaq.ui.legacy_widget_type"] = spec->legacyWidgetType;
+        metadata["deltaq.ui.display_name"] = spec->displayName;
+        metadata["deltaq.ui.palette_category"] = spec->paletteCategory;
+    }
+
     // Создание виджета с id
     static UIWidget create(const QString &type, const QString &name) {
         UIWidget w;
         w.id = QUuid::createUuid().toString(QUuid::WithoutBraces);
-        w.type = type;
+        w.type = legacyUIWidgetType(type);
         w.name = name;
         w.layout = "None";
+        w.syncContractMetadata();
         return w;
     }
 };
@@ -218,6 +267,12 @@ struct UILayout {
         l.version = "1.0.0";
         l.window = UIWidget::create("Window", name);
         l.window.geometry = QRectF(0, 0, 800, 600);
+        // UI layout изначально описывает backend-независимый контракт,
+        // а конкретный renderer/backend определяется уже на этапе codegen/runtime.
+        l.metadata["deltaq.kind"] = "ui_layout_contract";
+        l.metadata["deltaq.ui.contract_version"] = "1.0";
+        l.metadata["deltaq.ui.layer"] = "contract";
+        l.metadata["deltaq.ui.backend"] = "agnostic";
         return l;
     }
 };

@@ -124,6 +124,14 @@ private slots:
         }
         QCOMPARE(scene.widgetItems().size(), 10);
     }
+
+    void testContainerTypeUsesSharedContractVocabulary()
+    {
+        QVERIFY(DesignScene::isContainerType("Panel"));
+        QVERIFY(DesignScene::isContainerType("panel"));
+        QVERIFY(DesignScene::isContainerType("GroupBox"));
+        QVERIFY(!DesignScene::isContainerType("Button"));
+    }
 };
 
 QTEST_MAIN(TestDesignScene)

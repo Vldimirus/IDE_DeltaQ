@@ -4,6 +4,8 @@
 #include <QTabWidget>
 #include <QVBoxLayout>
 #include <QMap>
+#include <QLabel>
+#include <QPushButton>
 
 namespace DeltaQ {
 
@@ -69,6 +71,7 @@ signals:
     void buildRequested(const QString &projectDir);
     void buildOutput(const QString &text);
     void currentTabChanged();
+    void openGeneratedOriginRequested();
     void diagnosticsUpdated(const QString &path, int errors, int warnings);
     void breakpointToggleRequested(const QString &filePath, int line);
 
@@ -79,8 +82,12 @@ public slots:
 private:
     void parseAndSaveModules(const QString &filePath);
     void connectTabSignals(CodeEditorTab *tab);
+    void updateGeneratedOriginBanner();
 
     QTabWidget *m_tabWidget;
+    QWidget *m_generatedBanner = nullptr;
+    QLabel *m_generatedBannerLabel = nullptr;
+    QPushButton *m_generatedBannerButton = nullptr;
     FindReplaceBar *m_findBar;
     CommandBus *m_commandBus;
     ModuleRegistry *m_moduleRegistry;

@@ -1,7 +1,6 @@
 {
     "category": "string",
-    "dependencies": [
-    ],
+    "dependencies": [],
     "description": "Конкатенация строк",
     "header": "",
     "id": "core.string.str_concat",
@@ -32,5 +31,9 @@
     },
     "source": "",
     "source_code": "const char *dq_str_concat(const char *a, const char *b) {\n    static char buf[2048];\n    snprintf(buf, sizeof(buf), \"%s%s\", a, b);\n    return buf;\n}",
-    "version": "1.1"
+    "version": "1.1",
+    "metadata": {
+        "deltaq.doc.when_to_use": "Когда нужно собрать одну строку из двух частей перед выводом или дальнейшей обработкой.",
+        "deltaq.doc.limitations": "Использует внутренний статический буфер и считает строки как обычный C text."
+    }
 }

@@ -122,6 +122,15 @@ void LibProcessorWidget::onModuleSelected()
     details += QString("Origin: %1\n").arg(mod->origin);
     details += QString("Description: %1\n").arg(mod->description);
 
+    const QString importedPack = mod->metadataString("deltaq.import.pack_name");
+    if (!importedPack.isEmpty()) {
+        details += QString("Imported Pack: %1\n").arg(importedPack);
+        details += QString("Original Symbol: %1\n")
+            .arg(mod->metadataString("deltaq.import.original_symbol"));
+        details += QString("Standard: %1\n")
+            .arg(mod->metadataString("deltaq.import.standard"));
+    }
+
     if (!mod->inputs.isEmpty()) {
         details += "\nInputs:\n";
         for (const auto &p : mod->inputs) {
@@ -147,23 +156,33 @@ void LibProcessorWidget::refreshLibraryTree()
 
     m_libraryTree->clear();
 
-    // Группируем по категории
+    // Группируем imported modules по pack-у, чтобы Library Processor показывал уже
+    // не временные контракты, а реальные extension pack-ы.
+    QMap<QString, QTreeWidgetItem *> packItems;
     QMap<QString, QTreeWidgetItem *> categoryItems;
 
     auto modules = m_registry->allModules();
     for (const auto *mod : modules) {
-        // Показываем только библиотечные модули
-        if (mod->origin != "library") continue;
+        const QString importedPack = mod->metadataString("deltaq.import.pack_name");
+        if (mod->origin != "library" && importedPack.isEmpty())
+            continue;
 
-        QString cat = mod->category.isEmpty() ? tr("Uncategorized") : mod->category;
-
-        if (!categoryItems.contains(cat)) {
-            auto *catItem = new QTreeWidgetItem(m_libraryTree, {cat, "", ""});
-            catItem->setFlags(catItem->flags() & ~Qt::ItemIsSelectable);
-            categoryItems[cat] = catItem;
+        const QString packKey = importedPack.isEmpty() ? tr("Transient Imports") : importedPack;
+        if (!packItems.contains(packKey)) {
+            auto *packItem = new QTreeWidgetItem(m_libraryTree, {packKey, "", ""});
+            packItem->setFlags(packItem->flags() & ~Qt::ItemIsSelectable);
+            packItems[packKey] = packItem;
         }
 
-        auto *item = new QTreeWidgetItem(categoryItems[cat], {
+        const QString cat = mod->category.isEmpty() ? tr("Uncategorized") : mod->category;
+        const QString categoryKey = packKey + "::" + cat;
+        if (!categoryItems.contains(categoryKey)) {
+            auto *catItem = new QTreeWidgetItem(packItems[packKey], {cat, "", ""});
+            catItem->setFlags(catItem->flags() & ~Qt::ItemIsSelectable);
+            categoryItems[categoryKey] = catItem;
+        }
+
+        auto *item = new QTreeWidgetItem(categoryItems[categoryKey], {
             mod->name, mod->category, mod->origin
         });
         item->setData(0, Qt::UserRole, mod->id);

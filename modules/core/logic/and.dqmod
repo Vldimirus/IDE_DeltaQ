@@ -1,7 +1,6 @@
 {
     "category": "logic",
-    "dependencies": [
-    ],
+    "dependencies": [],
     "description": "Логическое И",
     "header": "",
     "id": "core.logic.and",
@@ -28,5 +27,9 @@
     },
     "source": "",
     "source_code": "int dq_and(int a, int b) {\n    return a && b;\n}",
-    "version": "1.1"
+    "version": "1.1",
+    "metadata": {
+        "deltaq.doc.when_to_use": "Когда нужно объединить два булевых условия перед ветвлением или фильтрацией.",
+        "deltaq.doc.limitations": "Принимает только bool и не подходит для побитовых операций над числами."
+    }
 }

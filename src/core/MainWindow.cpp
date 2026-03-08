@@ -16,6 +16,7 @@
 #include "../editor/CodeEditorTab.h"
 #include "../editor/ProjectTreeView.h"
 #include "../editor/BuildManager.h"
+#include "../editor/CompilerOutputParser.h"
 #include "../lsp/LSPClient.h"
 #include "../lsp/LSPTypes.h"
 #include "../debug/DebugManager.h"
@@ -59,11 +60,60 @@
 #include <QVBoxLayout>
 #include <QLabel>
 #include <QActionGroup>
+#include <QMouseEvent>
+#include <QTextBlock>
 #include <QTextCursor>
 #include <QTreeWidget>
 #include <QHeaderView>
 
 namespace DeltaQ {
+
+namespace {
+
+enum BuildDiagnosticRole {
+    ResolvedPathRole = Qt::UserRole + 1,
+    OriginPathRole,
+    LineRole,
+    ColumnRole
+};
+
+// Разбирает одну строку build output и возвращает структурированную ошибку компилятора.
+bool parseBuildOutputLine(const QString &lineText, CompilerError *error)
+{
+    CompilerOutputParser parser;
+    const QString trimmedLine = lineText.trimmed();
+    if (!parser.parseLine(trimmedLine) || parser.errors().isEmpty())
+        return false;
+
+    if (error)
+        *error = parser.errors().first();
+    return true;
+}
+
+// Возвращает формат для строк build output, по которым можно перейти к ошибке.
+QTextCharFormat buildOutputFormatForLine(const QString &lineText)
+{
+    QTextCharFormat format;
+    if (!parseBuildOutputLine(lineText, nullptr))
+        return format;
+
+    format.setForeground(QColor(0, 102, 204));
+    format.setUnderlineStyle(QTextCharFormat::SingleUnderline);
+    return format;
+}
+
+// Формирует короткое описание позиции ошибки для списка diagnostics.
+QString buildDiagnosticLocationText(const QString &filePath, int line, int column)
+{
+    QString text = QFileInfo(filePath).fileName();
+    if (line > 0)
+        text += QObject::tr(":%1").arg(line);
+    if (column > 0)
+        text += QObject::tr(":%1").arg(column);
+    return text;
+}
+
+} // namespace
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
@@ -91,6 +141,8 @@ void MainWindow::setupCoreServices()
     m_commandBus = new CommandBus(this);
     m_moduleRegistry = new ModuleRegistry(this);
     m_graphStore = new GraphStore(this);
+    // Реестр модулей должен видеть графы, чтобы корректно оценивать составные модули.
+    m_moduleRegistry->setGraphStore(m_graphStore);
     m_uiLayoutStore = new UILayoutStore(this);
     m_projectManager = new ProjectManager(m_moduleRegistry, m_graphStore, m_uiLayoutStore, this);
     m_sessionManager = new SessionManager(this);
@@ -98,6 +150,8 @@ void MainWindow::setupCoreServices()
     m_undoManager = new UndoManager(m_commandBus, this);
 
     m_buildManager = new BuildManager(this);
+    m_buildManager->setModuleRegistry(m_moduleRegistry);
+    m_buildManager->setGraphStore(m_graphStore);
 
     // Pre-build процессор и pipeline сборки
     m_preBuildProcessor = new PreBuildProcessor(m_moduleRegistry, m_graphStore, m_uiLayoutStore, this);
@@ -196,6 +250,7 @@ void MainWindow::setupMenus()
     editMenu->addAction(m_actionManager->action("edit.goToLine"));
     editMenu->addAction(m_actionManager->action("edit.goToDefinition"));
     editMenu->addAction(m_actionManager->action("edit.findReferences"));
+    editMenu->addAction(m_actionManager->action("edit.openGeneratedOrigin"));
     editMenu->addSeparator();
     editMenu->addAction(m_actionManager->action("edit.rename"));
     editMenu->addAction(m_actionManager->action("edit.format"));
@@ -291,9 +346,27 @@ void MainWindow::setupDocks()
     m_outputTabs = new QTabWidget(this);
 
     m_buildOutput = new QTextEdit(this);
+    m_buildOutput->setObjectName("buildOutputView");
     m_buildOutput->setReadOnly(true);
     m_buildOutput->setFont(QFont("Monospace", 10));
+    m_buildOutput->viewport()->installEventFilter(this);
     m_outputTabs->addTab(m_buildOutput, tr("Build Output"));
+
+    m_buildDiagnostics = new QTreeWidget(this);
+    m_buildDiagnostics->setObjectName("buildDiagnosticsView");
+    m_buildDiagnostics->setRootIsDecorated(false);
+    m_buildDiagnostics->setAlternatingRowColors(true);
+    m_buildDiagnostics->setSelectionBehavior(QAbstractItemView::SelectRows);
+    m_buildDiagnostics->setSelectionMode(QAbstractItemView::SingleSelection);
+    m_buildDiagnostics->setUniformRowHeights(true);
+    m_buildDiagnostics->setColumnCount(4);
+    m_buildDiagnostics->setHeaderLabels({tr("Severity"), tr("Location"), tr("Source"), tr("Message")});
+    m_buildDiagnostics->header()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
+    m_buildDiagnostics->header()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
+    m_buildDiagnostics->header()->setSectionResizeMode(2, QHeaderView::ResizeToContents);
+    m_buildDiagnostics->header()->setSectionResizeMode(3, QHeaderView::Stretch);
+    m_buildDiagnostics->header()->setStretchLastSection(true);
+    m_outputTabs->addTab(m_buildDiagnostics, tr("Build Diagnostics"));
 
     m_appOutput = new QTextEdit(this);
     m_appOutput->setReadOnly(true);
@@ -369,6 +442,10 @@ void MainWindow::setupConnections()
     connect(am->action("edit.goToLine"), &QAction::triggered, m_codeEditor, &CodeEditorWidget::goToLine);
     connect(am->action("edit.goToDefinition"), &QAction::triggered, m_codeEditor, &CodeEditorWidget::goToDefinition);
     connect(am->action("edit.findReferences"), &QAction::triggered, m_codeEditor, &CodeEditorWidget::findReferences);
+    connect(am->action("edit.openGeneratedOrigin"), &QAction::triggered,
+            this, &MainWindow::onOpenGeneratedOrigin);
+    connect(m_codeEditor, &CodeEditorWidget::openGeneratedOriginRequested,
+            this, &MainWindow::onOpenGeneratedOrigin);
     connect(am->action("edit.rename"), &QAction::triggered, m_codeEditor, &CodeEditorWidget::renameSymbol);
     connect(am->action("edit.format"), &QAction::triggered, m_codeEditor, &CodeEditorWidget::formatDocument);
 
@@ -397,15 +474,19 @@ void MainWindow::setupConnections()
 
     // Вывод сборки в Output dock
     connect(m_buildManager, &BuildManager::buildOutput, this, [this](const QString &text) {
-        m_buildOutput->append(text);
-        m_outputTabs->setCurrentWidget(m_buildOutput);
+        appendBuildOutputChunk(text);
         m_outputDock->show();
     });
     connect(m_buildManager, &BuildManager::buildStarted, this, [this]() {
         m_buildOutput->clear();
+        m_buildDiagnostics->clear();
+        m_outputTabs->setCurrentWidget(m_buildOutput);
+        m_outputDock->show();
         m_actionManager->buildAction()->setEnabled(false);
         statusBar()->showMessage(tr("Building..."));
     });
+    connect(m_buildManager, &BuildManager::buildError,
+            this, &MainWindow::addBuildDiagnosticEntry);
     connect(m_buildManager, &BuildManager::buildFinished, this, [this](bool success, int errors, int warnings) {
         m_actionManager->buildAction()->setEnabled(true);
         if (success)
@@ -414,20 +495,8 @@ void MainWindow::setupConnections()
             statusBar()->showMessage(tr("Build failed: %1 error(s), %2 warning(s)")
                 .arg(errors).arg(warnings), 5000);
     });
-
-    // Навигация к ошибке: клик по строке вывода сборки → переход в редактор
-    connect(m_buildManager, &BuildManager::buildError, this,
-            [this](const QString &file, int line, int /*column*/,
-                   const QString &/*severity*/, const QString &/*message*/) {
-        Q_UNUSED(file)
-        Q_UNUSED(line)
-        // Ошибки собираются в CompilerOutputParser и доступны через buildManager
-    });
-
-    // Двойной клик по строке в Build Output → навигация к ошибке
-    connect(m_buildOutput, &QTextEdit::cursorPositionChanged, this, []() {
-        // Обработка через контекстное меню или double-click (см. ниже)
-    });
+    connect(m_buildDiagnostics, &QTreeWidget::itemDoubleClicked,
+            this, &MainWindow::onBuildDiagnosticActivated);
 
     // Дерево проекта: открытие файлов в редакторе
     connect(m_projectTree, &ProjectTreeView::fileSelected, this, &MainWindow::onFileActivated);
@@ -436,9 +505,16 @@ void MainWindow::setupConnections()
     connect(m_projectTree, &ProjectTreeView::newFileRequested, this, [this](const QString &) {
         onNewFile();
     });
+    connect(m_preBuildProcessor, &PreBuildProcessor::fileGenerated, this,
+            [this](const PreBuildArtifact &artifact) {
+        m_projectTree->markGeneratedFile(artifact.path);
+    });
 
     // Позиция курсора в редакторе → статус-бар
     connect(m_codeEditor, &CodeEditorWidget::currentTabChanged, this, &MainWindow::updateCursorPosition);
+    connect(m_codeEditor, &CodeEditorWidget::currentTabChanged, this, &MainWindow::updateEditorActions);
+    connect(m_centralStack, &QStackedWidget::currentChanged, this,
+            [this](int) { updateEditorActions(); });
 
     // Сигналы отладчика
     connect(m_debugManager, &DebugManager::debugStarted, this, [this]() {
@@ -658,12 +734,159 @@ void MainWindow::setupConnections()
     connect(m_lspClient, &LSPClient::initialized, this, [this]() {
         statusBar()->showMessage(tr("LSP server initialized"), 3000);
     });
+
+    updateEditorActions();
 }
 
 void MainWindow::closeEvent(QCloseEvent *event)
 {
     saveSession();
     event->accept();
+}
+
+bool MainWindow::eventFilter(QObject *watched, QEvent *event)
+{
+    if (watched == m_buildOutput->viewport() && event->type() == QEvent::MouseMove) {
+        auto *mouseEvent = static_cast<QMouseEvent *>(event);
+        const QTextCursor cursor = m_buildOutput->cursorForPosition(mouseEvent->position().toPoint());
+        const QString lineText = cursor.block().text();
+        const bool navigable = parseBuildOutputLine(lineText, nullptr);
+
+        m_buildOutput->viewport()->setCursor(navigable ? Qt::PointingHandCursor : Qt::IBeamCursor);
+        m_buildOutput->setToolTip(navigable
+            ? tr("Double-click to open error source")
+            : QString());
+        return QMainWindow::eventFilter(watched, event);
+    }
+
+    if (watched == m_buildOutput->viewport() && event->type() == QEvent::Leave) {
+        m_buildOutput->viewport()->unsetCursor();
+        m_buildOutput->setToolTip(QString());
+        return QMainWindow::eventFilter(watched, event);
+    }
+
+    // Двойной щелчок по строке Build Output открывает место ошибки или её source-of-truth.
+    if (watched == m_buildOutput->viewport() && event->type() == QEvent::MouseButtonDblClick) {
+        auto *mouseEvent = static_cast<QMouseEvent *>(event);
+        if (mouseEvent->button() != Qt::LeftButton)
+            return QMainWindow::eventFilter(watched, event);
+
+        const QTextCursor cursor = m_buildOutput->cursorForPosition(mouseEvent->position().toPoint());
+        const QString lineText = cursor.block().text();
+        CompilerError error;
+        if (!parseBuildOutputLine(lineText, &error))
+            return QMainWindow::eventFilter(watched, event);
+
+        navigateBuildOutputLine(lineText);
+        return true;
+    }
+
+    return QMainWindow::eventFilter(watched, event);
+}
+
+void MainWindow::appendBuildOutputChunk(const QString &text)
+{
+    // Вставляет build output построчно, чтобы навигационные строки можно было выделить отдельно.
+    QTextCursor cursor(m_buildOutput->document());
+    cursor.movePosition(QTextCursor::End);
+
+    const QStringList lines = text.split('\n');
+    for (int i = 0; i < lines.size(); ++i) {
+        const QString &line = lines.at(i);
+        cursor.insertText(line, buildOutputFormatForLine(line));
+        if (i != lines.size() - 1)
+            cursor.insertBlock();
+    }
+
+    m_buildOutput->setTextCursor(cursor);
+    m_buildOutput->ensureCursorVisible();
+}
+
+void MainWindow::addBuildDiagnosticEntry(const QString &file, int line, int column,
+                                         const QString &severity, const QString &message)
+{
+    if (!m_buildDiagnostics)
+        return;
+
+    // Привязывает строку diagnostics к реальному файлу сборки и, при наличии, к source-of-truth.
+    const QString resolvedPath = normalizeBuildErrorPath(file);
+    const QString displayPath = resolvedPath.isEmpty() ? file : resolvedPath;
+    const QString originPath = (m_projectTree && !resolvedPath.isEmpty())
+        ? m_projectTree->generatedOriginPath(resolvedPath)
+        : QString();
+
+    auto *item = new QTreeWidgetItem();
+    const QString severityKey = severity.trimmed().toLower();
+    const QString sourceLabel = !originPath.isEmpty()
+        ? QFileInfo(originPath).fileName()
+        : QFileInfo(displayPath).fileName();
+
+    item->setText(0, severityKey.isEmpty() ? tr("info") : severityKey);
+    item->setText(1, buildDiagnosticLocationText(displayPath, line, column));
+    item->setText(2, sourceLabel);
+    item->setText(3, message);
+    item->setToolTip(1, displayPath);
+    if (!originPath.isEmpty()) {
+        item->setToolTip(2, tr("Source-of-truth: %1").arg(originPath));
+        item->setToolTip(3, tr("%1\n\nGenerated file: %2").arg(message, displayPath));
+    }
+
+    item->setData(0, ResolvedPathRole, resolvedPath);
+    item->setData(0, OriginPathRole, originPath);
+    item->setData(0, LineRole, line);
+    item->setData(0, ColumnRole, column);
+
+    // Цветом отделяет ошибки от предупреждений и подсказок.
+    QColor severityColor(80, 80, 80);
+    if (severityKey == "error")
+        severityColor = QColor(180, 40, 40);
+    else if (severityKey == "warning")
+        severityColor = QColor(180, 120, 0);
+    else if (severityKey == "note")
+        severityColor = QColor(0, 102, 204);
+    item->setForeground(0, severityColor);
+
+    m_buildDiagnostics->addTopLevelItem(item);
+    m_buildDiagnostics->scrollToItem(item);
+    m_buildDiagnostics->setCurrentItem(item);
+    m_outputTabs->setCurrentWidget(m_buildDiagnostics);
+    m_outputDock->show();
+}
+
+void MainWindow::onBuildDiagnosticActivated(QTreeWidgetItem *item, int column)
+{
+    Q_UNUSED(column)
+
+    if (!item)
+        return;
+
+    // По клику в diagnostics открывает либо source-of-truth, либо точную позицию в текстовом файле.
+    const QString originPath = item->data(0, OriginPathRole).toString();
+    const QString resolvedPath = item->data(0, ResolvedPathRole).toString();
+    const int line = item->data(0, LineRole).toInt();
+    const int columnValue = item->data(0, ColumnRole).toInt();
+
+    if (!originPath.isEmpty()) {
+        switchToCodeEditor();
+        m_codeEditor->openFile(originPath);
+        statusBar()->showMessage(
+            tr("Opened source-of-truth for diagnostic: %1")
+                .arg(QFileInfo(originPath).fileName()),
+            3000);
+        return;
+    }
+
+    if (resolvedPath.isEmpty() || !QFile::exists(resolvedPath)) {
+        statusBar()->showMessage(tr("Diagnostic file not found"), 3000);
+        return;
+    }
+
+    openTextFileAtLocation(resolvedPath, line, columnValue);
+    statusBar()->showMessage(
+        tr("Opened diagnostic location: %1:%2")
+            .arg(QFileInfo(resolvedPath).fileName())
+            .arg(line),
+        3000);
 }
 
 void MainWindow::onNewProject()
@@ -754,13 +977,14 @@ void MainWindow::onBuild()
     }
 
     m_buildOutput->clear();
+    m_buildDiagnostics->clear();
     m_outputTabs->setCurrentWidget(m_buildOutput);
     m_outputDock->show();
 
     // Подключаем вывод pipeline к buildOutput (однократно через lambda)
     auto conn = connect(m_buildPipeline, &BuildPipeline::pipelineOutput,
                         this, [this](const QString &text) {
-        m_buildOutput->append(text);
+        appendBuildOutputChunk(text);
     });
 
     // По завершению pipeline отключаем соединение
@@ -994,6 +1218,189 @@ void MainWindow::onFileActivated(const QString &path)
     m_codeEditor->openFile(path);
 }
 
+void MainWindow::navigateBuildOutputLine(const QString &lineText)
+{
+    // Разбирает строку build output и ведёт пользователя либо к файлу, либо к origin.
+    CompilerError error;
+    if (!parseBuildOutputLine(lineText, &error))
+        return;
+
+    const QString resolvedPath = normalizeBuildErrorPath(error.file);
+    if (resolvedPath.isEmpty()) {
+        statusBar()->showMessage(tr("Build error path is empty"), 3000);
+        return;
+    }
+
+    if (m_projectTree) {
+        const QString originPath = m_projectTree->generatedOriginPath(resolvedPath);
+        if (!originPath.isEmpty()) {
+            // Из build output открываем origin как текстовый файл, чтобы трассировка ошибок
+            // оставалась надёжной даже для .dqgraph/.dqui source-of-truth.
+            switchToCodeEditor();
+            m_codeEditor->openFile(originPath);
+            statusBar()->showMessage(
+                tr("Opened source-of-truth for build error: %1")
+                    .arg(QFileInfo(originPath).fileName()),
+                3000);
+            return;
+        }
+    }
+
+    if (!QFile::exists(resolvedPath)) {
+        statusBar()->showMessage(
+            tr("Build error file not found: %1").arg(error.file),
+            3000);
+        return;
+    }
+
+    openTextFileAtLocation(resolvedPath, error.line, error.column);
+    statusBar()->showMessage(
+        tr("Opened build error location: %1:%2")
+            .arg(QFileInfo(resolvedPath).fileName())
+            .arg(error.line),
+        3000);
+}
+
+void MainWindow::updateEditorActions()
+{
+    // Пересчитывает доступность editor-actions по активной вкладке и её роли.
+    const bool codeEditorActive = (m_centralStack->currentWidget() == m_codeEditor);
+
+    bool canSave = false;
+    bool canEditText = false;
+
+    if (codeEditorActive) {
+        if (auto *customTab = m_codeEditor->currentCustomTabWidget()) {
+            canSave = qobject_cast<UIDesignerWidget *>(customTab)
+                || qobject_cast<BlockEditorWidget *>(customTab);
+        } else if (auto *tab = m_codeEditor->currentTab()) {
+            canEditText = tab->editor() && !tab->editor()->isReadOnly();
+            canSave = canEditText;
+        }
+    }
+
+    if (auto *saveAction = m_actionManager->saveAction())
+        saveAction->setEnabled(canSave);
+    if (auto *renameAction = m_actionManager->action("edit.rename"))
+        renameAction->setEnabled(canEditText);
+    if (auto *formatAction = m_actionManager->action("edit.format"))
+        formatAction->setEnabled(canEditText);
+
+    updateGeneratedOriginAction();
+}
+
+void MainWindow::updateGeneratedOriginAction()
+{
+    // Разрешает переход к origin только для generated-файлов с распознанным источником.
+    QAction *action = m_actionManager->action("edit.openGeneratedOrigin");
+    if (!action)
+        return;
+
+    bool enabled = false;
+    if (m_centralStack->currentWidget() == m_codeEditor) {
+        if (auto *tab = m_codeEditor->currentTab()) {
+            enabled = tab->property("deltaqGenerated").toBool()
+                && !tab->property("deltaqGeneratedSourceKind").toString().isEmpty()
+                && !tab->property("deltaqGeneratedSourceName").toString().isEmpty();
+        }
+    }
+
+    action->setEnabled(enabled);
+}
+
+QString MainWindow::normalizeBuildErrorPath(const QString &filePath) const
+{
+    // Приводит путь из compiler output к реальному пути в проекте или build-директории.
+    if (filePath.isEmpty())
+        return {};
+
+    QFileInfo info(filePath);
+    if (info.isAbsolute())
+        return QDir::cleanPath(info.absoluteFilePath());
+
+    if (m_projectManager && m_projectManager->isProjectOpen()) {
+        const QString projectDir = m_projectManager->projectDir();
+        const QString buildCandidate = QDir::cleanPath(projectDir + "/build/" + filePath);
+        if (QFile::exists(buildCandidate))
+            return buildCandidate;
+
+        const QString projectCandidate = QDir::cleanPath(projectDir + "/" + filePath);
+        if (QFile::exists(projectCandidate))
+            return projectCandidate;
+
+        return buildCandidate;
+    }
+
+    return QDir::cleanPath(QDir::current().absoluteFilePath(filePath));
+}
+
+void MainWindow::openTextFileAtLocation(const QString &path, int line, int column)
+{
+    // Открывает текстовый файл и ставит курсор в строку/колонку из сообщения компилятора.
+    onFileActivated(path);
+
+    auto *tab = m_codeEditor->findTabForFile(path);
+    if (!tab || !tab->editor())
+        return;
+
+    QTextBlock block = tab->editor()->document()->findBlockByNumber(qMax(0, line - 1));
+    if (!block.isValid())
+        return;
+
+    const int blockOffset = qMin(qMax(0, column - 1), qMax(0, block.length() - 1));
+    QTextCursor cursor(tab->editor()->document());
+    cursor.setPosition(block.position() + blockOffset);
+    tab->editor()->setTextCursor(cursor);
+    tab->editor()->centerCursor();
+    tab->editor()->setFocus();
+}
+
+void MainWindow::onOpenGeneratedOrigin()
+{
+    // Открывает source-of-truth для текущего generated-файла из редактора.
+    auto *tab = m_codeEditor->currentTab();
+    if (!tab) {
+        statusBar()->showMessage(tr("No generated file selected"), 3000);
+        return;
+    }
+
+    if (!tab->property("deltaqGenerated").toBool()) {
+        statusBar()->showMessage(tr("Current file is not generated by DeltaQ"), 3000);
+        return;
+    }
+
+    const QString sourceKind = tab->property("deltaqGeneratedSourceKind").toString();
+    const QString sourceName = tab->property("deltaqGeneratedSourceName").toString();
+    if (sourceKind.isEmpty() || sourceName.isEmpty()) {
+        statusBar()->showMessage(tr("Generated file origin is unknown"), 3000);
+        return;
+    }
+
+    if (!m_projectManager->isProjectOpen()) {
+        statusBar()->showMessage(tr("No project open"), 3000);
+        return;
+    }
+
+    QString sourcePath;
+    if (sourceKind == "graph")
+        sourcePath = m_projectManager->projectDir() + "/graphs/" + sourceName + ".dqgraph";
+    else if (sourceKind == "UI layout")
+        sourcePath = m_projectManager->projectDir() + "/ui/" + sourceName + ".dqui";
+    else {
+        statusBar()->showMessage(tr("Unsupported generated source kind: %1").arg(sourceKind), 3000);
+        return;
+    }
+
+    if (!QFile::exists(sourcePath)) {
+        QMessageBox::warning(this, tr("Generated Origin Not Found"),
+                             tr("Could not find source-of-truth file:\n%1").arg(sourcePath));
+        return;
+    }
+
+    onFileActivated(sourcePath);
+    statusBar()->showMessage(tr("Opened source of generated file: %1").arg(sourceName), 3000);
+}
+
 void MainWindow::connectBlockEditorSignals(BlockEditorWidget *editor)
 {
     if (!editor) return;
@@ -1116,9 +1523,9 @@ void MainWindow::connectUIDesignerSignals(UIDesignerWidget *designer)
         writeFile(uiDir, baseName + "_events.c", code.eventsSource);
 
         m_buildOutput->clear();
-        m_buildOutput->append(tr("=== SDL2 code generated in %1 ===\n").arg(uiDir));
-        m_buildOutput->append(tr("Files: %1.h, %1.c, %1_events.h, %1_events.c")
-                                  .arg(baseName));
+        appendBuildOutputChunk(tr("=== SDL2 code generated in %1 ===\n").arg(uiDir));
+        appendBuildOutputChunk(tr("Files: %1.h, %1.c, %1_events.h, %1_events.c")
+                                   .arg(baseName));
         m_outputTabs->setCurrentWidget(m_buildOutput);
         m_outputDock->show();
         statusBar()->showMessage(tr("SDL2 code generated"), 3000);
@@ -1181,12 +1588,12 @@ void MainWindow::connectUIDesignerSignals(UIDesignerWidget *designer)
         UILayout layout = designer->scene()->toLayout("preview");
         auto *preview = new UIPreview(this);
         connect(preview, &UIPreview::previewError, this, [this](const QString &err) {
-            m_buildOutput->append(err);
+            appendBuildOutputChunk(err);
             m_outputTabs->setCurrentWidget(m_buildOutput);
             m_outputDock->show();
         });
         connect(preview, &UIPreview::buildOutput, this, [this](const QString &text) {
-            m_buildOutput->append(text);
+            appendBuildOutputChunk(text);
         });
         connect(preview, &UIPreview::previewStarted, this, [this]() {
             statusBar()->showMessage(tr("Preview started"), 3000);
@@ -1210,24 +1617,27 @@ void MainWindow::updateStatusBar(const QString &message)
 
 void MainWindow::updateCursorPosition()
 {
+    // Следит только за активным редактором, чтобы статус-бар не копил лишние подключения.
     auto *tab = m_codeEditor->currentTab();
-    if (!tab || !tab->editor()) {
+    auto *editor = tab ? tab->editor() : nullptr;
+
+    if (m_trackedCursorEditor != editor) {
+        if (m_cursorPositionConnection)
+            disconnect(m_cursorPositionConnection);
+        m_trackedCursorEditor = editor;
+        if (editor) {
+            m_cursorPositionConnection = connect(editor, &QPlainTextEdit::cursorPositionChanged,
+                                                 this, &MainWindow::updateCursorPosition);
+        } else {
+            m_cursorPositionConnection = {};
+        }
+    }
+
+    if (!editor) {
         m_cursorPosLabel->setText("Ln 1, Col 1");
         return;
     }
 
-    auto *editor = tab->editor();
-    // Подключаем обновление при перемещении курсора (один раз на таб)
-    connect(editor, &QPlainTextEdit::cursorPositionChanged, this, [this]() {
-        auto *t = m_codeEditor->currentTab();
-        if (!t || !t->editor()) return;
-        auto cursor = t->editor()->textCursor();
-        int line = cursor.blockNumber() + 1;
-        int col = cursor.columnNumber() + 1;
-        m_cursorPosLabel->setText(QString("Ln %1, Col %2").arg(line).arg(col));
-    }, Qt::UniqueConnection);
-
-    // Обновляем сразу
     auto cursor = editor->textCursor();
     int line = cursor.blockNumber() + 1;
     int col = cursor.columnNumber() + 1;

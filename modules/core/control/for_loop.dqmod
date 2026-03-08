@@ -1,0 +1,46 @@
+{
+    "category": "control",
+    "dependencies": [],
+    "description": "Цикл с заданным числом итераций",
+    "header": "",
+    "id": "core.control.for_loop",
+    "language": "c",
+    "name": "for_loop",
+    "origin": "core",
+    "ports": {
+        "input": [
+            {
+                "kind": "execution",
+                "name": "flow_in",
+                "type": "exec"
+            },
+            {
+                "name": "count",
+                "type": "int"
+            }
+        ],
+        "output": [
+            {
+                "kind": "execution",
+                "name": "flow_body",
+                "type": "exec"
+            },
+            {
+                "kind": "execution",
+                "name": "flow_done",
+                "type": "exec"
+            },
+            {
+                "name": "index",
+                "type": "int"
+            }
+        ]
+    },
+    "source": "",
+    "source_code": "// for_loop - управление потоком, встроенный модуль\n// Генерируется как for-цикл в коде",
+    "version": "1.3",
+    "metadata": {
+        "deltaq.doc.when_to_use": "Когда нужно выполнить body фиксированное число раз и получить текущий index.",
+        "deltaq.doc.limitations": "Поддерживает только простой счётный цикл по int count и не заменяет while-паттерны."
+    }
+}

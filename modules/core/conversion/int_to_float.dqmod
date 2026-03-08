@@ -1,7 +1,6 @@
 {
     "category": "conversion",
-    "dependencies": [
-    ],
+    "dependencies": [],
     "description": "Преобразование int в float",
     "header": "",
     "id": "core.conversion.int_to_float",
@@ -24,5 +23,9 @@
     },
     "source": "",
     "source_code": "float dq_int_to_float(int value) {\n    return (float)value;\n}",
-    "version": "1.1"
+    "version": "1.1",
+    "metadata": {
+        "deltaq.doc.when_to_use": "Когда нужно использовать int в float-расчётах или float API.",
+        "deltaq.doc.limitations": "Делает только простое преобразование типа и не меняет масштаб или единицы измерения."
+    }
 }

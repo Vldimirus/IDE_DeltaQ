@@ -9,6 +9,14 @@
         "\"ui/window1.h\""
     ],
     "language": "c",
+    "metadata": {
+        "deltaq.kind": "ui_backend_runtime",
+        "deltaq.ui.backend": "sdl2",
+        "deltaq.ui.backend_role": "ui_state_cleanup",
+        "deltaq.ui.layer": "backend",
+        "deltaq.doc.when_to_use": "Когда после event loop нужно освободить ресурсы шрифта generated UI.",
+        "deltaq.doc.limitations": "Имеет смысл только если ui_init создал ui_state текущего generated UI."
+    },
     "name": "ui_cleanup_font",
     "origin": "core",
     "ports": {

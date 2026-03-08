@@ -1,0 +1,47 @@
+{
+    "id": "example.graph.measure_text",
+    "name": "measure_text",
+    "version": "1.0.0",
+    "language": "c",
+    "description": "Составной модуль: вычисляет длину строки и возвращает её как text",
+    "category": "examples",
+    "origin": "graph",
+    "ports": {
+        "input": [
+            {
+                "name": "text",
+                "type": "string"
+            }
+        ],
+        "output": [
+            {
+                "name": "result",
+                "type": "string"
+            }
+        ]
+    },
+    "source": "",
+    "header": "",
+    "dependencies": [],
+    "graph_id": "50000000-0000-0000-0000-000000000001",
+    "generated_file_base": "measure_text",
+    "boundary": {
+        "inputs": [
+            {
+                "external_port": "text",
+                "internal_node": "50000000-0000-0000-0000-000000000101",
+                "internal_port": "text"
+            }
+        ],
+        "outputs": [
+            {
+                "external_port": "result",
+                "internal_node": "50000000-0000-0000-0000-000000000102",
+                "internal_port": "result"
+            }
+        ]
+    },
+    "testing": {
+        "status": "passed"
+    }
+}

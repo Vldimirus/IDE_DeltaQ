@@ -138,6 +138,17 @@ private slots:
         QCOMPARE(parser.errors().size(), 1);
         QCOMPARE(parser.errors().first().line, 15);
     }
+
+    void testRelativeBuildPath()
+    {
+        CompilerOutputParser parser;
+        parser.parseLine("../src/main.c:12:4: error: generated failure");
+        QCOMPARE(parser.errors().size(), 1);
+        QCOMPARE(parser.errors().first().file, "../src/main.c");
+        QCOMPARE(parser.errors().first().line, 12);
+        QCOMPARE(parser.errors().first().column, 4);
+        QVERIFY(parser.errors().first().isError());
+    }
 };
 
 QTEST_MAIN(TestCompilerOutputParser)

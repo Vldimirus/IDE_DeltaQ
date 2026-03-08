@@ -343,7 +343,16 @@ void WidgetItem::paintComboBox(QPainter *painter, const QRectF &rect)
 
     // Текст
     painter->setPen(QColor(200, 200, 200));
-    QString text = m_widget.properties.value("text", m_widget.name).toString();
+    QString text = m_widget.properties.value("text").toString();
+    if (text.isEmpty()) {
+        const QString itemsText = m_widget.properties.value("items").toString();
+        const QStringList items = itemsText.split(',', Qt::SkipEmptyParts);
+        const int selectedIndex = m_widget.properties.value("selected", 0).toInt();
+        if (selectedIndex >= 0 && selectedIndex < items.size())
+            text = items.at(selectedIndex).trimmed();
+    }
+    if (text.isEmpty())
+        text = m_widget.name;
     painter->drawText(rect.adjusted(6, 0, -24, 0), Qt::AlignLeft | Qt::AlignVCenter, text);
 
     // Стрелка вниз

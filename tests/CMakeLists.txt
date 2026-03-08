@@ -20,6 +20,7 @@ dq_add_test(test_SessionManager core/test_SessionManager.cpp)
 
 # Тесты моделей данных
 dq_add_test(test_Module         core/test_Module.cpp)
+dq_add_test(test_StandardLibrary core/test_StandardLibrary.cpp)
 dq_add_test(test_Project        core/test_Project.cpp)
 dq_add_test(test_Graph          core/test_Graph.cpp)
 dq_add_test(test_UILayout       core/test_UILayout.cpp)
@@ -28,6 +29,60 @@ dq_add_test(test_UILayout       core/test_UILayout.cpp)
 dq_add_test(test_GraphStore      core/test_GraphStore.cpp)
 dq_add_test(test_UILayoutStore   core/test_UILayoutStore.cpp)
 dq_add_test(test_ProjectManager  core/test_ProjectManager.cpp)
+
+add_executable(test_MainWindowEditorActions
+    core/test_MainWindowEditorActions.cpp
+    ${CMAKE_SOURCE_DIR}/src/core/MainWindow.cpp
+    ${CMAKE_SOURCE_DIR}/src/core/NewProjectWizard.cpp
+    ${CMAKE_SOURCE_DIR}/src/core/ProjectTemplates.cpp
+    ${CMAKE_SOURCE_DIR}/src/core/SettingsDialog.cpp
+    ${CMAKE_SOURCE_DIR}/src/core/NewFileDialog.cpp
+)
+target_include_directories(test_MainWindowEditorActions PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/include
+)
+target_link_libraries(test_MainWindowEditorActions PRIVATE
+    dq_core
+    dq_editor
+    dq_block_editor
+    dq_ui_designer
+    dq_lib_processor
+    dq_codegen
+    dq_lsp
+    dq_debug
+    Qt6::Test
+    Qt6::Widgets
+)
+set_target_properties(test_MainWindowEditorActions PROPERTIES AUTOMOC ON)
+add_test(NAME test_MainWindowEditorActions COMMAND test_MainWindowEditorActions)
+
+add_executable(test_MainWindowBuildOutputNavigation
+    core/test_MainWindowBuildOutputNavigation.cpp
+    ${CMAKE_SOURCE_DIR}/src/core/MainWindow.cpp
+    ${CMAKE_SOURCE_DIR}/src/core/NewProjectWizard.cpp
+    ${CMAKE_SOURCE_DIR}/src/core/ProjectTemplates.cpp
+    ${CMAKE_SOURCE_DIR}/src/core/SettingsDialog.cpp
+    ${CMAKE_SOURCE_DIR}/src/core/NewFileDialog.cpp
+)
+target_include_directories(test_MainWindowBuildOutputNavigation PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/include
+)
+target_link_libraries(test_MainWindowBuildOutputNavigation PRIVATE
+    dq_core
+    dq_editor
+    dq_block_editor
+    dq_ui_designer
+    dq_lib_processor
+    dq_codegen
+    dq_lsp
+    dq_debug
+    Qt6::Test
+    Qt6::Widgets
+)
+set_target_properties(test_MainWindowBuildOutputNavigation PROPERTIES AUTOMOC ON)
+add_test(NAME test_MainWindowBuildOutputNavigation COMMAND test_MainWindowBuildOutputNavigation)
 
 # Тесты LSP-клиента
 add_executable(test_LSPClient lsp/test_LSPClient.cpp)
@@ -104,6 +159,26 @@ target_link_libraries(test_DiagnosticDisplay PRIVATE
 set_target_properties(test_DiagnosticDisplay PROPERTIES AUTOMOC ON)
 add_test(NAME test_DiagnosticDisplay COMMAND test_DiagnosticDisplay)
 
+add_executable(test_ProjectTreeView editor/test_ProjectTreeView.cpp)
+target_link_libraries(test_ProjectTreeView PRIVATE
+    dq_editor
+    dq_lsp
+    Qt6::Test
+    Qt6::Widgets
+)
+set_target_properties(test_ProjectTreeView PROPERTIES AUTOMOC ON)
+add_test(NAME test_ProjectTreeView COMMAND test_ProjectTreeView)
+
+add_executable(test_ModuleManagerWidget editor/test_ModuleManagerWidget.cpp)
+target_link_libraries(test_ModuleManagerWidget PRIVATE
+    dq_editor
+    dq_lsp
+    Qt6::Test
+    Qt6::Widgets
+)
+set_target_properties(test_ModuleManagerWidget PROPERTIES AUTOMOC ON)
+add_test(NAME test_ModuleManagerWidget COMMAND test_ModuleManagerWidget)
+
 # Тесты маркеров breakpoints
 add_executable(test_BreakpointMarkers editor/test_BreakpointMarkers.cpp)
 target_link_libraries(test_BreakpointMarkers PRIVATE
@@ -125,6 +200,26 @@ target_link_libraries(test_BlockScene PRIVATE
 )
 set_target_properties(test_BlockScene PROPERTIES AUTOMOC ON)
 add_test(NAME test_BlockScene COMMAND test_BlockScene)
+
+add_executable(test_ModulePalette blockEditor/test_ModulePalette.cpp)
+target_link_libraries(test_ModulePalette PRIVATE
+    dq_block_editor
+    dq_core
+    Qt6::Test
+    Qt6::Widgets
+)
+set_target_properties(test_ModulePalette PROPERTIES AUTOMOC ON)
+add_test(NAME test_ModulePalette COMMAND test_ModulePalette)
+
+add_executable(test_SubModuleFactory blockEditor/test_SubModuleFactory.cpp)
+target_link_libraries(test_SubModuleFactory PRIVATE
+    dq_block_editor
+    dq_core
+    Qt6::Test
+    Qt6::Widgets
+)
+set_target_properties(test_SubModuleFactory PROPERTIES AUTOMOC ON)
+add_test(NAME test_SubModuleFactory COMMAND test_SubModuleFactory)
 
 add_executable(test_GraphCommands blockEditor/test_GraphCommands.cpp)
 target_link_libraries(test_GraphCommands PRIVATE
@@ -155,6 +250,23 @@ target_link_libraries(test_GraphCompiler PRIVATE
 set_target_properties(test_GraphCompiler PROPERTIES AUTOMOC ON)
 add_test(NAME test_GraphCompiler COMMAND test_GraphCompiler)
 
+add_executable(test_PreBuildProcessor
+    codegen/test_PreBuildProcessor.cpp
+    ${CMAKE_SOURCE_DIR}/src/editor/CMakeGenerator.cpp
+)
+target_include_directories(test_PreBuildProcessor PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/include
+)
+target_link_libraries(test_PreBuildProcessor PRIVATE
+    dq_codegen
+    dq_core
+    dq_lib_processor
+    Qt6::Test
+)
+set_target_properties(test_PreBuildProcessor PROPERTIES AUTOMOC ON)
+add_test(NAME test_PreBuildProcessor COMMAND test_PreBuildProcessor)
+
 # Тесты popup автодополнения
 add_executable(test_CompletionPopup editor/test_CompletionPopup.cpp)
 target_link_libraries(test_CompletionPopup PRIVATE
@@ -165,6 +277,16 @@ target_link_libraries(test_CompletionPopup PRIVATE
 )
 set_target_properties(test_CompletionPopup PROPERTIES AUTOMOC ON)
 add_test(NAME test_CompletionPopup COMMAND test_CompletionPopup)
+
+add_executable(test_GeneratedFileNavigation editor/test_GeneratedFileNavigation.cpp)
+target_link_libraries(test_GeneratedFileNavigation PRIVATE
+    dq_editor
+    dq_lsp
+    Qt6::Test
+    Qt6::Widgets
+)
+set_target_properties(test_GeneratedFileNavigation PROPERTIES AUTOMOC ON)
+add_test(NAME test_GeneratedFileNavigation COMMAND test_GeneratedFileNavigation)
 
 # Тесты UI Designer
 add_executable(test_WidgetItem uiDesigner/test_WidgetItem.cpp)
@@ -186,6 +308,16 @@ target_link_libraries(test_DesignScene PRIVATE
 )
 set_target_properties(test_DesignScene PROPERTIES AUTOMOC ON)
 add_test(NAME test_DesignScene COMMAND test_DesignScene)
+
+add_executable(test_UIContractAlignment uiDesigner/test_UIContractAlignment.cpp)
+target_link_libraries(test_UIContractAlignment PRIVATE
+    dq_ui_designer
+    dq_core
+    Qt6::Test
+    Qt6::Widgets
+)
+set_target_properties(test_UIContractAlignment PROPERTIES AUTOMOC ON)
+add_test(NAME test_UIContractAlignment COMMAND test_UIContractAlignment)
 
 add_executable(test_UICommands uiDesigner/test_UICommands.cpp)
 target_link_libraries(test_UICommands PRIVATE
@@ -217,6 +349,15 @@ target_link_libraries(test_SDL2CodeGenerator PRIVATE
 set_target_properties(test_SDL2CodeGenerator PROPERTIES AUTOMOC ON)
 add_test(NAME test_SDL2CodeGenerator COMMAND test_SDL2CodeGenerator)
 
+add_executable(test_UIModuleFactory uiDesigner/test_UIModuleFactory.cpp)
+target_link_libraries(test_UIModuleFactory PRIVATE
+    dq_ui_designer
+    dq_core
+    Qt6::Test
+)
+set_target_properties(test_UIModuleFactory PROPERTIES AUTOMOC ON)
+add_test(NAME test_UIModuleFactory COMMAND test_UIModuleFactory)
+
 # Тесты Library Processor
 add_executable(test_LibclangTypes libProcessor/test_LibclangTypes.cpp)
 target_link_libraries(test_LibclangTypes PRIVATE
@@ -235,6 +376,32 @@ target_link_libraries(test_LibraryDecomposer PRIVATE
 )
 set_target_properties(test_LibraryDecomposer PROPERTIES AUTOMOC ON)
 add_test(NAME test_LibraryDecomposer COMMAND test_LibraryDecomposer)
+
+add_executable(test_LibraryPackager libProcessor/test_LibraryPackager.cpp)
+target_link_libraries(test_LibraryPackager PRIVATE
+    dq_lib_processor
+    dq_core
+    Qt6::Test
+)
+set_target_properties(test_LibraryPackager PROPERTIES AUTOMOC ON)
+add_test(NAME test_LibraryPackager COMMAND test_LibraryPackager)
+
+add_executable(test_ImportedPackFixture libProcessor/test_ImportedPackFixture.cpp)
+target_link_libraries(test_ImportedPackFixture PRIVATE
+    dq_core
+    Qt6::Test
+)
+set_target_properties(test_ImportedPackFixture PROPERTIES AUTOMOC ON)
+add_test(NAME test_ImportedPackFixture COMMAND test_ImportedPackFixture)
+
+add_executable(test_ImportedPackRawBaseline libProcessor/test_ImportedPackRawBaseline.cpp)
+target_link_libraries(test_ImportedPackRawBaseline PRIVATE
+    dq_lib_processor
+    dq_core
+    Qt6::Test
+)
+set_target_properties(test_ImportedPackRawBaseline PROPERTIES AUTOMOC ON)
+add_test(NAME test_ImportedPackRawBaseline COMMAND test_ImportedPackRawBaseline)
 
 add_executable(test_WrapperGenerator libProcessor/test_WrapperGenerator.cpp)
 target_link_libraries(test_WrapperGenerator PRIVATE

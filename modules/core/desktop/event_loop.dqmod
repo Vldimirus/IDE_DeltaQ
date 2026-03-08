@@ -8,6 +8,14 @@
         "\"ui/window1_events.h\""
     ],
     "language": "c",
+    "metadata": {
+        "deltaq.kind": "ui_backend_runtime",
+        "deltaq.ui.backend": "sdl2",
+        "deltaq.ui.backend_role": "event_loop",
+        "deltaq.ui.layer": "backend",
+        "deltaq.doc.when_to_use": "Когда нужно передать управление главному циклу desktop/UI приложения.",
+        "deltaq.doc.limitations": "Рассчитан на generated UI runtime и текущий SDL2 backend pipeline."
+    },
     "name": "event_loop",
     "origin": "core",
     "ports": {

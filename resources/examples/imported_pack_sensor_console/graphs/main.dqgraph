@@ -1,0 +1,43 @@
+{
+    "id": "71000000-0000-0000-0000-000000000001",
+    "name": "main",
+    "nodes": [
+        {
+            "id": "71000000-0000-0000-0000-000000000101",
+            "module_id": "ext.mini_sensor_sdk_curated.sensor_scale_report",
+            "position": {
+                "x": 120.0,
+                "y": 160.0
+            },
+            "properties": {
+                "device_name": "\"sensor-A\"",
+                "factor": "3"
+            }
+        },
+        {
+            "id": "71000000-0000-0000-0000-000000000102",
+            "module_id": "ext.mini_sensor_sdk_curated.sensor_error_report",
+            "position": {
+                "x": 520.0,
+                "y": 160.0
+            },
+            "properties": {
+                "device_name": "\"sensor-A\"",
+                "factor": "0"
+            }
+        }
+    ],
+    "connections": [
+        {
+            "from": {
+                "node": "71000000-0000-0000-0000-000000000101",
+                "port": "flow_out"
+            },
+            "to": {
+                "node": "71000000-0000-0000-0000-000000000102",
+                "port": "flow_in"
+            },
+            "kind": "execution"
+        }
+    ]
+}

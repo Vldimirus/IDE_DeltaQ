@@ -13,8 +13,10 @@ class ModuleRegistry;
 class SubModuleFactory {
 public:
     struct Result {
-        Module module;     // Обёрточный модуль (origin="graph")
-        Graph innerGraph;  // Внутренний граф подмодуля
+        Module module;          // Обёрточный модуль (origin="graph")
+        Graph innerGraph;       // Внутренний граф подмодуля
+        Graph updatedParentGraph; // Родительский граф после замены выделения на один submodule node
+        GraphNode createdNode;  // Узел подмодуля, вставленный в родительский граф
     };
 
     // Создать подмодуль из выделенных узлов

@@ -1,4 +1,5 @@
 #include "ModuleRegistry.h"
+#include "GraphStore.h"
 
 #include <QFile>
 #include <QJsonDocument>
@@ -9,6 +10,268 @@
 #include <QSet>
 
 namespace DeltaQ {
+
+namespace {
+
+// Проверяет, что boundary metadata составного модуля согласована с его контрактом и внутренним графом.
+bool validateCompositeBoundary(const ModuleRegistry *registry,
+                               const Graph &innerGraph,
+                               const Module &module,
+                               QString *reason)
+{
+    const auto validateBindings = [&](const QVector<Port> &externalPorts,
+                                      const QVector<CompositePortBinding> &bindings,
+                                      bool isInputSide) {
+        if (externalPorts.size() != bindings.size()) {
+            if (reason) {
+                *reason = QObject::tr("boundary mapping count does not match %1 ports")
+                              .arg(isInputSide ? QObject::tr("input") : QObject::tr("output"));
+            }
+            return false;
+        }
+
+        QSet<QString> seenExternalPorts;
+        for (const auto &binding : bindings) {
+            if (binding.externalPortName.isEmpty() ||
+                binding.internalNodeId.isEmpty() ||
+                binding.internalPortName.isEmpty()) {
+                if (reason)
+                    *reason = QObject::tr("boundary mapping contains empty fields");
+                return false;
+            }
+
+            if (seenExternalPorts.contains(binding.externalPortName)) {
+                if (reason) {
+                    *reason = QObject::tr("boundary mapping duplicates external port '%1'")
+                                  .arg(binding.externalPortName);
+                }
+                return false;
+            }
+            seenExternalPorts.insert(binding.externalPortName);
+
+            const Port *externalPort = isInputSide
+                ? module.findInput(binding.externalPortName)
+                : module.findOutput(binding.externalPortName);
+            if (!externalPort) {
+                if (reason) {
+                    *reason = QObject::tr("boundary mapping references unknown external port '%1'")
+                                  .arg(binding.externalPortName);
+                }
+                return false;
+            }
+
+            const GraphNode *innerNode = innerGraph.findNode(binding.internalNodeId);
+            if (!innerNode) {
+                if (reason) {
+                    *reason = QObject::tr("boundary mapping references missing inner node '%1'")
+                                  .arg(binding.internalNodeId);
+                }
+                return false;
+            }
+
+            const Module *innerModule = registry->findModule(innerNode->moduleId);
+            if (!innerModule) {
+                if (reason) {
+                    *reason = QObject::tr("boundary mapping references missing inner module '%1'")
+                                  .arg(innerNode->moduleId);
+                }
+                return false;
+            }
+
+            const Port *internalPort = isInputSide
+                ? innerModule->findInput(binding.internalPortName)
+                : innerModule->findOutput(binding.internalPortName);
+            if (!internalPort) {
+                if (reason) {
+                    *reason = QObject::tr("boundary mapping references invalid inner port '%1'")
+                                  .arg(binding.internalPortName);
+                }
+                return false;
+            }
+
+            if (externalPort->type != internalPort->type) {
+                if (reason) {
+                    *reason = QObject::tr("boundary type mismatch for port '%1'")
+                                  .arg(binding.externalPortName);
+                }
+                return false;
+            }
+
+            if (externalPort->kind != internalPort->kind || externalPort->kind != binding.kind) {
+                if (reason) {
+                    *reason = QObject::tr("boundary kind mismatch for port '%1'")
+                                  .arg(binding.externalPortName);
+                }
+                return false;
+            }
+        }
+
+        for (const auto &externalPort : externalPorts) {
+            if (!seenExternalPorts.contains(externalPort.name)) {
+                if (reason) {
+                    *reason = QObject::tr("boundary mapping is missing for external port '%1'")
+                                  .arg(externalPort.name);
+                }
+                return false;
+            }
+        }
+
+        return true;
+    };
+
+    if (!validateBindings(module.inputs, module.boundaryInputs, true))
+        return false;
+    if (!validateBindings(module.outputs, module.boundaryOutputs, false))
+        return false;
+
+    if (reason)
+        reason->clear();
+    return true;
+}
+
+// Рекурсивно проверяет, что модуль действительно готов к композиции.
+// Для составных модулей дополнительно проверяется внутренний граф и все вложенные модули.
+bool isModuleAdmittedRecursive(const ModuleRegistry *registry,
+                               const GraphStore *graphStore,
+                               const Module &module,
+                               QString *reason,
+                               QSet<QString> &activeCompositeModules)
+{
+    // Core/UI считаются доверенными библиотечными модулями и допускаются по умолчанию.
+    if (module.origin == "core" || module.origin == "ui") {
+        if (reason)
+            reason->clear();
+        return true;
+    }
+
+    if (!registry->validateModule(module)) {
+        if (reason)
+            *reason = QObject::tr("module contract is invalid");
+        return false;
+    }
+
+    if (!registry->moduleHasImplementation(module)) {
+        if (reason)
+            *reason = QObject::tr("module implementation is missing");
+        return false;
+    }
+
+    // Составной модуль должен иметь реальный внутренний граф и все его узлы
+    // должны ссылаться только на уже допущенные модули.
+    if (module.isComposite()) {
+        if (!graphStore) {
+            if (reason)
+                *reason = QObject::tr("graph store is not attached");
+            return false;
+        }
+
+        if (activeCompositeModules.contains(module.id)) {
+            if (reason)
+                *reason = QObject::tr("composite module dependency cycle detected");
+            return false;
+        }
+
+        const Graph *innerGraph = graphStore->findGraph(module.graphId);
+        if (!innerGraph) {
+            if (reason)
+                *reason = QObject::tr("inner graph '%1' not found").arg(module.graphId);
+            return false;
+        }
+
+        if (!innerGraph->isValid()) {
+            if (reason)
+                *reason = QObject::tr("inner graph is invalid");
+            return false;
+        }
+
+        if (!innerGraph->parentModuleId.isEmpty() && innerGraph->parentModuleId != module.id) {
+            if (reason) {
+                *reason = QObject::tr("inner graph belongs to another module ('%1')")
+                              .arg(innerGraph->parentModuleId);
+            }
+            return false;
+        }
+
+        if (!validateCompositeBoundary(registry, *innerGraph, module, reason))
+            return false;
+
+        activeCompositeModules.insert(module.id);
+
+        for (const auto &node : innerGraph->nodes) {
+            const Module *innerModule = registry->findModule(node.moduleId);
+            if (!innerModule) {
+                activeCompositeModules.remove(module.id);
+                if (reason) {
+                    *reason = QObject::tr("inner node '%1' references missing module '%2'")
+                                  .arg(node.id, node.moduleId);
+                }
+                return false;
+            }
+
+            QString innerReason;
+            if (!isModuleAdmittedRecursive(registry, graphStore, *innerModule,
+                                           &innerReason, activeCompositeModules)) {
+                activeCompositeModules.remove(module.id);
+                if (reason) {
+                    *reason = QObject::tr("inner node '%1' uses module '%2' that is not admitted: %3")
+                                  .arg(node.id, innerModule->name, innerReason);
+                }
+                return false;
+            }
+        }
+
+        for (const auto &conn : innerGraph->connections) {
+            const GraphNode *fromNode = innerGraph->findNode(conn.from.nodeId);
+            const GraphNode *toNode = innerGraph->findNode(conn.to.nodeId);
+            if (!fromNode || !toNode) {
+                activeCompositeModules.remove(module.id);
+                if (reason)
+                    *reason = QObject::tr("inner graph contains dangling connections");
+                return false;
+            }
+
+            const Module *fromModule = registry->findModule(fromNode->moduleId);
+            const Module *toModule = registry->findModule(toNode->moduleId);
+            if (!fromModule || !toModule ||
+                !fromModule->hasOutput(conn.from.portName) ||
+                !toModule->hasInput(conn.to.portName)) {
+                activeCompositeModules.remove(module.id);
+                if (reason)
+                    *reason = QObject::tr("inner graph contains invalid port connections");
+                return false;
+            }
+        }
+
+        activeCompositeModules.remove(module.id);
+        if (reason)
+            reason->clear();
+        return true;
+    }
+
+    // Пользовательский атомарный модуль допускается в сборку только после
+    // независимого прохождения compile check и test check.
+    if (module.compileStatus != "passed") {
+        if (reason) {
+            *reason = QObject::tr("module is not admitted to composition until compile check passes "
+                                  "(current status: %1)").arg(module.compileStatus);
+        }
+        return false;
+    }
+
+    if (module.testStatus != "passed") {
+        if (reason) {
+            *reason = QObject::tr("module is not admitted to composition until test check passes "
+                                  "(current status: %1)").arg(module.testStatus);
+        }
+        return false;
+    }
+
+    if (reason)
+        reason->clear();
+    return true;
+}
+
+} // namespace
 
 ModuleRegistry::ModuleRegistry(QObject *parent)
     : QObject(parent)
@@ -122,6 +385,20 @@ bool ModuleRegistry::hasDuplicateName(const QString &name, const QString &exclud
     return false;
 }
 
+bool ModuleRegistry::moduleHasImplementation(const Module &module) const
+{
+    // Реализация может быть текстовой, графовой или ссылкой на внешний исходник.
+    return !module.sourceCode.trimmed().isEmpty()
+        || !module.graphId.trimmed().isEmpty()
+        || !module.sourcePath.trimmed().isEmpty();
+}
+
+bool ModuleRegistry::isModuleAdmittedForComposition(const Module &module, QString *reason) const
+{
+    QSet<QString> activeCompositeModules;
+    return isModuleAdmittedRecursive(this, m_graphStore, module, reason, activeCompositeModules);
+}
+
 bool ModuleRegistry::loadModuleFile(const QString &dqmodPath)
 {
     QFile file(dqmodPath);
@@ -134,6 +411,7 @@ bool ModuleRegistry::loadModuleFile(const QString &dqmodPath)
         return false;
 
     Module mod = Module::fromJson(doc.object());
+    mod.storagePath = dqmodPath;
     return registerModule(mod);
 }
 
@@ -199,6 +477,7 @@ void ModuleRegistry::loadGlobalModules(const QString &globalModulesDir)
                 mod.origin = "core";
             else
                 mod.origin = "extension";
+            mod.storagePath = filePath;
 
             if (!mod.id.isEmpty())
                 registerModule(mod);
@@ -299,6 +578,7 @@ void ModuleRegistry::loadLocalModules(const QString &dqmodsDir)
 
         Module mod = Module::fromJson(doc.object());
         mod.origin = "local";
+        mod.storagePath = filePath;
         if (!mod.id.isEmpty())
             registerModule(mod);
     }

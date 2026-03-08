@@ -26,10 +26,82 @@
 #include <QShowEvent>
 #include <QMouseEvent>
 #include <QScrollBar>
-#include <QInputDialog>
 #include <QMessageBox>
+#include <QDialog>
+#include <QDialogButtonBox>
+#include <QFormLayout>
+#include <QLabel>
+#include <QLineEdit>
 
 namespace DeltaQ {
+
+namespace {
+
+// Приводит введённое пользователем имя файла к безопасному базовому имени без расширения.
+QString sanitizeGeneratedFileBaseName(const QString &value)
+{
+    QString result = value.trimmed().toLower();
+    for (QChar &ch : result) {
+        if (!ch.isLetterOrNumber())
+            ch = '_';
+    }
+    while (result.contains("__"))
+        result.replace("__", "_");
+    while (result.startsWith('_'))
+        result.remove(0, 1);
+    while (result.endsWith('_'))
+        result.chop(1);
+    return result;
+}
+
+// Старый fallback для подмодулей без явно заданного generated file base.
+QString legacyGeneratedFileBaseName(const Module &module)
+{
+    QString base = sanitizeGeneratedFileBaseName(module.name);
+    if (base.isEmpty())
+        base = "submodule";
+    if (!module.id.isEmpty())
+        return base + "_" + module.id.left(8);
+    return base;
+}
+
+// Проверяет, занято ли базовое имя generated-файла другим составным модулем.
+bool generatedFileBaseNameExists(const ModuleRegistry *registry, const QString &fileBaseName)
+{
+    if (!registry)
+        return false;
+
+    const QString normalized = sanitizeGeneratedFileBaseName(fileBaseName);
+    if (normalized.isEmpty())
+        return false;
+
+    for (const auto *module : registry->allModules()) {
+        if (!module || !module->isComposite())
+            continue;
+
+        const QString currentBase = module->generatedFileBaseName.trimmed().isEmpty()
+            ? legacyGeneratedFileBaseName(*module)
+            : sanitizeGeneratedFileBaseName(module->generatedFileBaseName);
+        if (currentBase == normalized)
+            return true;
+    }
+
+    return false;
+}
+
+// Подбирает следующее свободное имя по шаблону submodule_01, submodule_02, ...
+QString nextDefaultGeneratedFileBaseName(const ModuleRegistry *registry)
+{
+    int index = 1;
+    while (true) {
+        const QString candidate = QString("submodule_%1").arg(index, 2, 10, QChar('0'));
+        if (!generatedFileBaseNameExists(registry, candidate))
+            return candidate;
+        index++;
+    }
+}
+
+} // namespace
 
 BlockEditorWidget::BlockEditorWidget(ModuleRegistry *registry, CommandBus *bus,
                                      QWidget *parent)
@@ -356,12 +428,49 @@ void BlockEditorWidget::onSubModuleRequested(const QStringList &selectedNodeIds)
 {
     if (!m_graphStore || selectedNodeIds.size() < 2) return;
 
-    // Запрашиваем имя у пользователя
-    bool ok = false;
-    QString name = QInputDialog::getText(this, tr("Создать подмодуль"),
-        tr("Имя подмодуля:"), QLineEdit::Normal, "SubModule", &ok);
-    if (!ok || name.trimmed().isEmpty()) return;
+    // При создании подмодуля пользователь задаёт и имя модуля, и базовое имя generated .h/.c.
+    QDialog dialog(this);
+    dialog.setWindowTitle(tr("Создать подмодуль"));
+
+    auto *layout = new QFormLayout(&dialog);
+    auto *nameEdit = new QLineEdit("SubModule", &dialog);
+    auto *fileBaseEdit = new QLineEdit(nextDefaultGeneratedFileBaseName(m_registry), &dialog);
+    fileBaseEdit->setPlaceholderText(tr("Например: submodule_01"));
+    layout->addRow(tr("Имя подмодуля:"), nameEdit);
+    layout->addRow(tr("Имя generated-файла:"), fileBaseEdit);
+
+    auto *hint = new QLabel(
+        tr("Будут созданы файлы <имя>.h и <имя>.c в каталоге generated/submodules."),
+        &dialog);
+    hint->setWordWrap(true);
+    layout->addRow(hint);
+
+    auto *buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
+    layout->addRow(buttons);
+    connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+    connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+
+    if (dialog.exec() != QDialog::Accepted)
+        return;
+
+    QString name = nameEdit->text().trimmed();
+    if (name.isEmpty())
+        return;
     name = name.trimmed().replace(' ', '_');
+
+    QString fileBaseName = sanitizeGeneratedFileBaseName(fileBaseEdit->text());
+    if (fileBaseName.isEmpty())
+        fileBaseName = nextDefaultGeneratedFileBaseName(m_registry);
+
+    if (generatedFileBaseNameExists(m_registry, fileBaseName)) {
+        QMessageBox::warning(
+            this,
+            tr("Имя generated-файла занято"),
+            tr("Базовое имя '%1' уже используется другим подмодулем. "
+               "Укажите другое имя generated-файла.")
+                .arg(fileBaseName));
+        return;
+    }
 
     // Получаем текущий граф
     QString graphId = m_scene->currentGraphId();
@@ -371,30 +480,14 @@ void BlockEditorWidget::onSubModuleRequested(const QStringList &selectedNodeIds)
     // Создаём подмодуль через фабрику
     auto result = SubModuleFactory::createFromSelection(
         *currentGraph, selectedNodeIds, name, m_registry);
+    result.module.generatedFileBaseName = fileBaseName;
 
-    // Регистрируем модуль и граф
+    // Регистрируем модуль и внутренний граф подмодуля
     m_registry->registerModule(result.module);
     m_graphStore->registerGraph(result.innerGraph);
 
-    // Вычисляем среднюю позицию выделенных узлов
-    QPointF avgPos;
-    int count = 0;
-    for (const auto &nodeId : selectedNodeIds) {
-        const GraphNode *node = currentGraph->findNode(nodeId);
-        if (node) {
-            avgPos += node->position;
-            count++;
-        }
-    }
-    if (count > 0) avgPos /= count;
-
-    // Удаляем выделенные узлы из текущего графа
-    for (const auto &nodeId : selectedNodeIds)
-        currentGraph->removeNode(nodeId);
-
-    // Добавляем узел подмодуля в текущий граф
-    GraphNode subNode = GraphNode::create(result.module.id, avgPos);
-    currentGraph->addNode(subNode);
+    // Подменяем выделение на один узел подмодуля, сохраняя внешние exec/data связи.
+    *currentGraph = result.updatedParentGraph;
 
     // Перезагружаем граф на сцене
     m_scene->loadFromGraph(*currentGraph);

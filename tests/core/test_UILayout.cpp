@@ -17,6 +17,8 @@ private slots:
         QCOMPARE(w.type, "Button");
         QCOMPARE(w.name, "btn_ok");
         QCOMPARE(w.layout, "None");
+        QCOMPARE(w.contractType(), QString("button"));
+        QCOMPARE(w.metadata["deltaq.kind"].toString(), QString("ui_widget_contract"));
     }
 
     void widgetRoundtrip()
@@ -36,8 +38,26 @@ private slots:
         QCOMPARE(restored.geometry, w.geometry);
         QCOMPARE(restored.layout, w.layout);
         QCOMPARE(restored.events, w.events);
+        QCOMPARE(restored.contractType(), QString("panel"));
         // QVariant из JSON: число может восстановиться как double
         QCOMPARE(restored.properties["background_color"].toString(), "#2d2d2d");
+    }
+
+    void widgetRestoresContractMetadataForLegacyJson()
+    {
+        QJsonObject json;
+        json["id"] = "legacy_button";
+        json["type"] = "Button";
+        json["name"] = "btn_legacy";
+        json["x"] = 0;
+        json["y"] = 0;
+        json["width"] = 120;
+        json["height"] = 40;
+
+        auto restored = UIWidget::fromJson(json);
+        QCOMPARE(restored.contractType(), QString("button"));
+        QCOMPARE(restored.legacyWidgetType(), QString("Button"));
+        QCOMPARE(restored.metadata["deltaq.ui.contract_type"].toString(), QString("button"));
     }
 
     void widgetEquality()
@@ -81,6 +101,9 @@ private slots:
         QCOMPARE(l.version, "1.0.0");
         QCOMPARE(l.window.type, "Window");
         QCOMPARE(l.window.geometry, QRectF(0, 0, 800, 600));
+        QCOMPARE(l.window.contractType(), QString("window"));
+        QCOMPARE(l.metadata["deltaq.kind"].toString(), QString("ui_layout_contract"));
+        QCOMPARE(l.metadata["deltaq.ui.backend"].toString(), QString("agnostic"));
     }
 
     void layoutRoundtrip()
@@ -99,6 +122,7 @@ private slots:
         QCOMPARE(restored.window.type, "Window");
         QCOMPARE(restored.window.children.size(), 1);
         QCOMPARE(restored.window.children[0].name, "btn_save");
+        QCOMPARE(restored.metadata["deltaq.ui.layer"].toString(), QString("contract"));
     }
 
     void layoutEquality()

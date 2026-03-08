@@ -91,6 +91,7 @@ void ActionManager::setupStandardActions()
     registerAction("edit.goToLine", tr("Go to Line..."), QKeySequence("Ctrl+G"), "edit");
     registerAction("edit.goToDefinition", tr("Go to Definition"), QKeySequence("F12"), "edit");
     registerAction("edit.findReferences", tr("Find References"), QKeySequence("Shift+F12"), "edit");
+    registerAction("edit.openGeneratedOrigin", tr("Open Generated Origin"), {}, "edit");
     registerAction("edit.rename", tr("Rename Symbol"), QKeySequence("F2"), "edit");
     registerAction("edit.format", tr("Format Document"), QKeySequence("Ctrl+Shift+I"), "edit");
 

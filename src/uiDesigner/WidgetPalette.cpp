@@ -1,56 +1,24 @@
 // Палитра виджетов — реализация дерева категорий, поиска и drag&drop
 #include "WidgetPalette.h"
 
+#include <deltaq/UIContract.h>
+
 #include <QHeaderView>
 
 namespace DeltaQ {
 
-// Описание виджетов по категориям
-struct WidgetTypeInfo {
-    QString type;
-    QString displayName;
-};
-
-struct WidgetCategory {
-    QString name;
-    QColor color;
-    QVector<WidgetTypeInfo> widgets;
-};
-
-static QVector<WidgetCategory> widgetCategories()
+// Цвет категории берётся из фиксированной палитры, а сами виджеты уже читаются из UIContract.
+static QColor paletteCategoryColor(const QString &category)
 {
-    return {
-        {"Containers", QColor(80, 130, 200), {
-            {"Panel",       "Panel"},
-            {"ScrollPanel", "Scroll Panel"},
-            {"TabPanel",    "Tab Panel"},
-            {"GroupBox",    "Group Box"},
-        }},
-        {"Input", QColor(200, 140, 50), {
-            {"Button",      "Button"},
-            {"TextField",   "Text Field"},
-            {"TextArea",    "Text Area"},
-            {"Checkbox",    "Checkbox"},
-            {"RadioButton", "Radio Button"},
-            {"ComboBox",    "Combo Box"},
-            {"Slider",      "Slider"},
-            {"SpinBox",     "Spin Box"},
-        }},
-        {"Display", QColor(80, 170, 80), {
-            {"Label",       "Label"},
-            {"Image",       "Image"},
-            {"ProgressBar", "Progress Bar"},
-            {"Canvas",      "Canvas"},
-            {"Table",       "Table"},
-            {"ListView",    "List View"},
-            {"TreeView",    "Tree View"},
-        }},
-        {"Navigation", QColor(170, 80, 170), {
-            {"MenuBar",   "Menu Bar"},
-            {"ToolBar",   "Tool Bar"},
-            {"StatusBar", "Status Bar"},
-        }},
-    };
+    if (category == "Containers")
+        return QColor(80, 130, 200);
+    if (category == "Input")
+        return QColor(200, 140, 50);
+    if (category == "Display")
+        return QColor(80, 170, 80);
+    if (category == "Navigation")
+        return QColor(170, 80, 170);
+    return QColor(110, 110, 110);
 }
 
 WidgetPalette::WidgetPalette(QWidget *parent)
@@ -87,23 +55,26 @@ void WidgetPalette::buildTree()
 {
     m_tree->clear();
 
-    auto cats = widgetCategories();
-    for (const auto &cat : cats) {
-        auto *catItem = new QTreeWidgetItem(m_tree, {cat.name});
-        catItem->setFlags(catItem->flags() & ~Qt::ItemIsDragEnabled);
+    QMap<QString, QTreeWidgetItem *> categoryItems;
+    for (const auto &spec : uiContractCatalog()) {
+        if (!spec.showInPalette)
+            continue;
 
-        QPixmap px(12, 12);
-        px.fill(cat.color);
-        catItem->setIcon(0, QIcon(px));
+        QTreeWidgetItem *catItem = categoryItems.value(spec.paletteCategory);
+        if (!catItem) {
+            catItem = new QTreeWidgetItem(m_tree, {spec.paletteCategory});
+            catItem->setFlags(catItem->flags() & ~Qt::ItemIsDragEnabled);
 
-        for (const auto &w : cat.widgets) {
-            auto *wItem = new QTreeWidgetItem(catItem, {w.displayName});
-            wItem->setData(0, Qt::UserRole, w.type);
-            wItem->setFlags(wItem->flags() | Qt::ItemIsDragEnabled);
-            wItem->setToolTip(0, tr("Drag to add %1").arg(w.displayName));
+            QPixmap px(12, 12);
+            px.fill(paletteCategoryColor(spec.paletteCategory));
+            catItem->setIcon(0, QIcon(px));
+            catItem->setExpanded(true);
+            categoryItems.insert(spec.paletteCategory, catItem);
         }
 
-        catItem->setExpanded(true);
+        auto *wItem = new QTreeWidgetItem(catItem, {spec.displayName});
+        wItem->setData(0, Qt::UserRole, spec.legacyWidgetType);
+        wItem->setToolTip(0, tr("Drag to add %1").arg(spec.displayName));
     }
 }
 

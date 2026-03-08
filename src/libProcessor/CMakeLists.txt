@@ -2,6 +2,7 @@
 add_library(dq_lib_processor STATIC
     LibclangParser.cpp
     LibraryDecomposer.cpp
+    LibraryPackager.cpp
     WrapperGenerator.cpp
     LibraryImportWizard.cpp
     LibProcessorWidget.cpp

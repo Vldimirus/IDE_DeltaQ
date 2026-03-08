@@ -17,6 +17,11 @@ public:
 
     QString widgetId() const { return m_widget.id; }
     QString widgetType() const { return m_widget.type; }
+    QString widgetContractType() const { return m_widget.contractType(); }
+    QString widgetDisplayType() const {
+        const QString contractType = m_widget.contractType();
+        return contractType.isEmpty() ? m_widget.type : displayUIContractName(contractType);
+    }
     QString widgetName() const { return m_widget.name; }
 
     // Доступ к данным

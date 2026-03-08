@@ -1,7 +1,6 @@
 {
     "category": "math",
-    "dependencies": [
-    ],
+    "dependencies": [],
     "description": "Умножение (float)",
     "header": "",
     "id": "core.math.multiply_float",
@@ -28,5 +27,9 @@
     },
     "source": "",
     "source_code": "float dq_multiply_float(float a, float b) {\n    return a * b;\n}",
-    "version": "1.1"
+    "version": "1.1",
+    "metadata": {
+        "deltaq.doc.when_to_use": "Когда нужно умножить два float-значения.",
+        "deltaq.doc.limitations": "Работает только с float; для int используйте multiply."
+    }
 }

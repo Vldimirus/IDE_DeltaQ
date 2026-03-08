@@ -1,7 +1,6 @@
 {
     "category": "io",
-    "dependencies": [
-    ],
+    "dependencies": [],
     "description": "Чтение строки",
     "header": "",
     "id": "core.io.read_line",
@@ -34,5 +33,9 @@
     },
     "source": "",
     "source_code": "const char *dq_read_line(void) {\n    static char buf[1024];\n    if (fgets(buf, sizeof(buf), stdin)) {\n        buf[strcspn(buf, \"\\n\")] = '\\0';\n        return buf;\n    }\n    return \"\";\n}",
-    "version": "1.2"
+    "version": "1.2",
+    "metadata": {
+        "deltaq.doc.when_to_use": "Когда нужно прочитать строку от пользователя в интерактивном console-flow.",
+        "deltaq.doc.limitations": "Блокирует выполнение до ввода и удаляет завершающий перевод строки."
+    }
 }

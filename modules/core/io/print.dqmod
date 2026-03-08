@@ -1,7 +1,6 @@
 {
     "category": "io",
-    "dependencies": [
-    ],
+    "dependencies": [],
     "description": "Вывод текста",
     "header": "",
     "id": "core.io.print",
@@ -33,5 +32,9 @@
     },
     "source": "",
     "source_code": "void dq_print(const char *text) {\n    printf(\"%s\", text);\n}",
-    "version": "1.2"
+    "version": "1.2",
+    "metadata": {
+        "deltaq.doc.when_to_use": "Когда нужно вывести строку в stdout без перевода строки внутри console-flow.",
+        "deltaq.doc.limitations": "Работает только с текстом и console stdout; не добавляет новую строку."
+    }
 }

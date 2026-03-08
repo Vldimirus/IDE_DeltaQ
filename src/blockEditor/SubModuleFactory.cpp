@@ -7,6 +7,27 @@
 
 namespace DeltaQ {
 
+namespace {
+
+// Вычисляет среднюю позицию выделенных узлов, чтобы новый подмодуль вставлялся
+// примерно в то же место, где была исходная группа блоков.
+QPointF averageSelectionPosition(const Graph &graph, const QSet<QString> &selectedSet)
+{
+    QPointF sum;
+    int count = 0;
+
+    for (const auto &node : graph.nodes) {
+        if (!selectedSet.contains(node.id))
+            continue;
+        sum += node.position;
+        count++;
+    }
+
+    return count > 0 ? sum / count : QPointF();
+}
+
+} // namespace
+
 SubModuleFactory::Result SubModuleFactory::createFromSelection(
     const Graph &parentGraph,
     const QStringList &selectedNodeIds,
@@ -15,6 +36,23 @@ SubModuleFactory::Result SubModuleFactory::createFromSelection(
 {
     Result result;
     QSet<QString> selectedSet(selectedNodeIds.begin(), selectedNodeIds.end());
+    QSet<QString> usedExternalInputNames;
+    QSet<QString> usedExternalOutputNames;
+
+    // Модуль создаём заранее, чтобы по мере анализа сразу наполнять его boundary metadata.
+    result.module = Module::create(name);
+
+    // Делает имя внешнего порта уникальным в контракте нового подмодуля.
+    const auto makeUniqueExternalName = [](QSet<QString> &usedNames, const QString &baseName) {
+        QString candidate = baseName;
+        int suffix = 1;
+        while (usedNames.contains(candidate)) {
+            candidate = baseName + "_" + QString::number(suffix);
+            suffix++;
+        }
+        usedNames.insert(candidate);
+        return candidate;
+    };
 
     // --- 1. Создаём внутренний граф с копией выделенных узлов ---
     result.innerGraph = Graph::create(name + "_inner");
@@ -53,22 +91,19 @@ SubModuleFactory::Result SubModuleFactory::createFromSelection(
             QString key = conn.to.nodeId + ":" + conn.to.portName;
             if (!inputPortMap.contains(key)) {
                 Port extPort;
-                extPort.name = conn.to.portName;
+                extPort.name = makeUniqueExternalName(usedExternalInputNames, conn.to.portName);
                 extPort.type = port->type;
                 extPort.defaultValue = port->defaultValue;
-
-                // Обеспечиваем уникальность имён
-                int suffix = 0;
-                QString baseName = extPort.name;
-                for (const auto &p : externalInputs) {
-                    if (p.name == extPort.name) {
-                        suffix++;
-                        extPort.name = baseName + "_" + QString::number(suffix);
-                    }
-                }
+                extPort.kind = port->kind;
 
                 inputPortMap[key] = extPort.name;
                 externalInputs.append(extPort);
+                result.module.boundaryInputs.append({
+                    extPort.name,
+                    conn.to.nodeId,
+                    conn.to.portName,
+                    port->kind
+                });
             }
         }
     }
@@ -93,27 +128,23 @@ SubModuleFactory::Result SubModuleFactory::createFromSelection(
             QString key = conn.from.nodeId + ":" + conn.from.portName;
             if (!outputPortMap.contains(key)) {
                 Port extPort;
-                extPort.name = conn.from.portName;
+                extPort.name = makeUniqueExternalName(usedExternalOutputNames, conn.from.portName);
                 extPort.type = port->type;
-
-                // Обеспечиваем уникальность имён
-                int suffix = 0;
-                QString baseName = extPort.name;
-                for (const auto &p : externalOutputs) {
-                    if (p.name == extPort.name) {
-                        suffix++;
-                        extPort.name = baseName + "_" + QString::number(suffix);
-                    }
-                }
+                extPort.kind = port->kind;
 
                 outputPortMap[key] = extPort.name;
                 externalOutputs.append(extPort);
+                result.module.boundaryOutputs.append({
+                    extPort.name,
+                    conn.from.nodeId,
+                    conn.from.portName,
+                    port->kind
+                });
             }
         }
     }
 
     // --- 3. Создаём модуль-обёртку ---
-    result.module = Module::create(name);
     result.module.origin = "graph";
     result.module.category = "composite";
     result.module.description = QString("Композитный модуль '%1'").arg(name);
@@ -123,6 +154,49 @@ SubModuleFactory::Result SubModuleFactory::createFromSelection(
 
     // --- 4. Обратная ссылка на модуль ---
     result.innerGraph.parentModuleId = result.module.id;
+
+    // --- 5. Обновлённый родительский граф с подстановкой одного узла подмодуля ---
+    result.updatedParentGraph = parentGraph;
+    result.createdNode = GraphNode::create(
+        result.module.id,
+        averageSelectionPosition(parentGraph, selectedSet));
+
+    // Удаляем исходные узлы из копии родительского графа — removeNode автоматически
+    // убирает и все внутренние/граничные связи выбранной группы.
+    for (const auto &nodeId : selectedNodeIds)
+        result.updatedParentGraph.removeNode(nodeId);
+
+    result.updatedParentGraph.addNode(result.createdNode);
+
+    // Возвращаем внешние связи на новый узел подмодуля, сохраняя и data, и exec границу.
+    for (const auto &conn : parentGraph.connections) {
+        if (!selectedSet.contains(conn.from.nodeId) &&
+            selectedSet.contains(conn.to.nodeId)) {
+            const QString key = conn.to.nodeId + ":" + conn.to.portName;
+            const QString submodulePort = inputPortMap.value(key);
+            if (!submodulePort.isEmpty()) {
+                result.updatedParentGraph.addConnection({
+                    conn.from,
+                    {result.createdNode.id, submodulePort},
+                    conn.kind
+                });
+            }
+            continue;
+        }
+
+        if (selectedSet.contains(conn.from.nodeId) &&
+            !selectedSet.contains(conn.to.nodeId)) {
+            const QString key = conn.from.nodeId + ":" + conn.from.portName;
+            const QString submodulePort = outputPortMap.value(key);
+            if (!submodulePort.isEmpty()) {
+                result.updatedParentGraph.addConnection({
+                    {result.createdNode.id, submodulePort},
+                    conn.to,
+                    conn.kind
+                });
+            }
+        }
+    }
 
     return result;
 }

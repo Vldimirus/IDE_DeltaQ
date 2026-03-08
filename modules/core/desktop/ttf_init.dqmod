@@ -9,6 +9,14 @@
         "SDL2/SDL_ttf.h"
     ],
     "language": "c",
+    "metadata": {
+        "deltaq.kind": "ui_backend_runtime",
+        "deltaq.ui.backend": "sdl2",
+        "deltaq.ui.backend_role": "text_init",
+        "deltaq.ui.layer": "backend",
+        "deltaq.doc.when_to_use": "Когда desktop-flow использует text/font rendering через SDL_ttf.",
+        "deltaq.doc.limitations": "Нужен только вместе с SDL2/SDL_ttf backend и не является универсальным UI API."
+    },
     "name": "ttf_init",
     "origin": "core",
     "ports": {

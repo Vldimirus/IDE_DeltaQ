@@ -56,6 +56,9 @@ struct IR {
     void addInstruction(const IRInstruction &instr);
     void declareVariable(const QString &name, const QString &type);
 
+    // Генерация тела функции/блока без include и без внешней обёртки.
+    QString emitBodyCode(int indentLevel = 1) const;
+
     // Генерация C-кода
     QString emitCCode() const;
 };

@@ -109,6 +109,7 @@ TestResult ModuleTestRunner::runTest(const Module &module,
 
     result.compilerOutput = gcc.readAllStandardError();
     result.compiled = (gcc.exitCode() == 0);
+    emit compilationFinished(result.compiled, result.compilerOutput);
 
     if (!result.compiled) {
         result.errors.append(tr("Ошибка компиляции тестовой обвязки"));
@@ -163,6 +164,8 @@ QString ModuleTestRunner::generateTestHarness(const Module &module,
             out << "    double " << varName << " = " << value << ";\n";
         } else if (port.type == "string") {
             out << "    const char *" << varName << " = \"" << value << "\";\n";
+        } else if (port.type == "pointer") {
+            out << "    void *" << varName << " = NULL;\n";
         } else {
             out << "    int " << varName << " = " << value << ";\n";
         }
@@ -178,6 +181,7 @@ QString ModuleTestRunner::generateTestHarness(const Module &module,
         if (outPort.type == "float") cType = "float";
         else if (outPort.type == "double") cType = "double";
         else if (outPort.type == "string") cType = "const char*";
+        else if (outPort.type == "pointer") cType = "void *";
 
         out << "    " << cType << " result = " << funcName
             << "(" << callArgs.join(", ") << ");\n";
@@ -191,6 +195,8 @@ QString ModuleTestRunner::generateTestHarness(const Module &module,
             out << "    printf(\"OUTPUT:" << outPort.name << "=%lf\\n\", result);\n";
         else if (outPort.type == "string")
             out << "    printf(\"OUTPUT:" << outPort.name << "=%s\\n\", result);\n";
+        else if (outPort.type == "pointer")
+            out << "    printf(\"OUTPUT:" << outPort.name << "=%p\\n\", result);\n";
     } else {
         out << "    " << funcName << "(" << callArgs.join(", ") << ");\n";
     }

@@ -11,6 +11,7 @@
 #include "../core/CommandBus.h"
 #include "../core/ModuleRegistry.h"
 #include "../core/UILayoutStore.h"
+#include <deltaq/UIContract.h>
 
 #include <QGraphicsView>
 #include <QSplitter>
@@ -147,16 +148,8 @@ UIDesignerWidget::UIDesignerWidget(ModuleRegistry *registry, CommandBus *bus,
         auto *item = m_scene->widgetItem(widgetId);
         if (!item) return;
 
-        // Определяем имя события по типу виджета
-        QString eventName = "onClick";  // по умолчанию
-        if (item->widgetType() == "TextField" || item->widgetType() == "TextArea")
-            eventName = "onTextChanged";
-        else if (item->widgetType() == "Slider")
-            eventName = "onValueChanged";
-        else if (item->widgetType() == "ComboBox")
-            eventName = "onSelectionChanged";
-        else if (item->widgetType() == "Checkbox" || item->widgetType() == "RadioButton")
-            eventName = "onToggled";
+        // Имя события берём из единого UI-каталога, а не из локальной таблицы if/else.
+        const QString eventName = defaultUIEventForContractType(item->widgetType());
 
         // Эмитим сигнал — MainWindow обработает создание/открытие графа
         emit openEventHandler(widgetId, item->widgetName(), eventName);
@@ -275,22 +268,22 @@ void UIDesignerWidget::handleWidgetDropped(const QString &widgetType, const QPoi
     UILayout *layout = currentLayout();
     if (!layout) return;
 
-    UIWidget w = UIWidget::create(widgetType, widgetType + "_" +
-        QString::number(m_scene->widgetItems().size() + 1));
-    w.geometry = QRectF(scenePos.x(), scenePos.y(), 120, 40);
+    const QString legacyType = legacyUIWidgetType(widgetType);
+    UIWidget w = UIWidget::create(
+        legacyType,
+        legacyType + "_" + QString::number(m_scene->widgetItems().size() + 1));
+    w.geometry = QRectF(scenePos, defaultUIWidgetSize(legacyType));
 
-    if (widgetType == "Panel" || widgetType == "GroupBox")
-        w.geometry.setSize(QSizeF(200, 150));
-    else if (widgetType == "TextField" || widgetType == "ComboBox")
-        w.geometry.setSize(QSizeF(150, 30));
-    else if (widgetType == "Slider")
-        w.geometry.setSize(QSizeF(200, 30));
-    else if (widgetType == "ProgressBar")
-        w.geometry.setSize(QSizeF(200, 24));
-    else if (widgetType == "Image")
-        w.geometry.setSize(QSizeF(100, 100));
-
-    w.properties["text"] = w.name;
+    // Первичное заполнение свойств тоже берём из единого словаря контрактов,
+    // чтобы .dqui и UI-модули стартовали с одинаковыми ожиданиями.
+    if (const auto *spec = findUIContractSpecByAny(legacyType)) {
+        for (const auto &property : spec->designerProperties) {
+            if (property.useWidgetNameAsDefault)
+                w.properties[property.name] = w.name;
+            else
+                w.properties[property.name] = property.defaultValue;
+        }
+    }
 
     m_commandBus->execute(std::make_unique<AddWidgetCommand>(m_scene, layout, w, parentId));
 

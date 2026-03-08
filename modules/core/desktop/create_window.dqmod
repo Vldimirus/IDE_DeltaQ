@@ -9,6 +9,14 @@
         "SDL2/SDL_ttf.h"
     ],
     "language": "c",
+    "metadata": {
+        "deltaq.kind": "ui_backend_runtime",
+        "deltaq.ui.backend": "sdl2",
+        "deltaq.ui.backend_role": "window_create",
+        "deltaq.ui.layer": "backend",
+        "deltaq.doc.when_to_use": "Когда нужно создать основное окно desktop-приложения в SDL2 pipeline.",
+        "deltaq.doc.limitations": "Работает только в SDL2 backend и создаёт базовое окно без расширенных window flags."
+    },
     "name": "create_window",
     "origin": "core",
     "ports": {

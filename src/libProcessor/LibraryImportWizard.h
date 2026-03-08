@@ -3,6 +3,7 @@
 
 #include "LibclangParser.h"
 #include "LibraryDecomposer.h"
+#include "LibraryPackager.h"
 #include "WrapperGenerator.h"
 
 #include <QWizard>
@@ -41,6 +42,12 @@ private:
     QLineEdit *m_headerPathEdit = nullptr;
     QLineEdit *m_includePathsEdit = nullptr;
     QLineEdit *m_definesEdit = nullptr;
+    QLineEdit *m_packNameEdit = nullptr;
+    QLineEdit *m_packTitleEdit = nullptr;
+    QLineEdit *m_packAuthorEdit = nullptr;
+    QLineEdit *m_packDescriptionEdit = nullptr;
+    QLineEdit *m_categoryEdit = nullptr;
+    QLineEdit *m_linkLibrariesEdit = nullptr;
     QComboBox *m_standardCombo = nullptr;
 
     // Страница 2: Парсинг
@@ -63,6 +70,7 @@ private:
     DecompositionOptions m_options;
     QVector<Module> m_modules;
     QVector<WrapperCode> m_wrappers;
+    ImportedLibraryPackResult m_packResult;
 };
 
 } // namespace DeltaQ

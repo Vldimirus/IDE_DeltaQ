@@ -28,6 +28,37 @@ BlockScene::BlockScene(ModuleRegistry *registry, CommandBus *bus, QObject *paren
     setBackgroundBrush(QColor(35, 35, 35)); // Тёмный фон
 }
 
+bool BlockScene::canInsertModule(const QString &moduleId, QString *reason) const
+{
+    const Module *mod = m_registry ? m_registry->findModule(moduleId) : nullptr;
+    if (!mod) {
+        if (reason)
+            *reason = QObject::tr("Модуль не найден в реестре");
+        return false;
+    }
+
+    QString admissionReason;
+    if (!m_registry->isModuleAdmittedForComposition(*mod, &admissionReason)) {
+        if (reason) {
+            *reason = QObject::tr("Модуль ещё не допущен к использованию: %1")
+                          .arg(admissionReason);
+        }
+        return false;
+    }
+
+    if (m_graphStore && !m_currentGraphId.isEmpty() &&
+        CycleDetector::wouldCreateCycle(m_currentGraphId, moduleId, *m_registry, *m_graphStore)) {
+        if (reason) {
+            *reason = QObject::tr("Добавление создаст циклическую зависимость");
+        }
+        return false;
+    }
+
+    if (reason)
+        reason->clear();
+    return true;
+}
+
 // --- Узлы ---
 
 NodeItem *BlockScene::addNodeItem(const GraphNode &node)
@@ -302,20 +333,14 @@ void BlockScene::dropEvent(QGraphicsSceneDragDropEvent *event)
 {
     if (event->mimeData()->hasFormat("application/x-dqmodule")) {
         QString moduleId = QString::fromUtf8(event->mimeData()->data("application/x-dqmodule"));
-
-        // Проверка циклов для композитных модулей
-        if (m_graphStore && !m_currentGraphId.isEmpty()) {
-            if (CycleDetector::wouldCreateCycle(m_currentGraphId, moduleId,
-                                                *m_registry, *m_graphStore)) {
-                QMessageBox::warning(nullptr,
-                    QObject::tr("Циклическая зависимость"),
-                    QObject::tr("Невозможно добавить модуль '%1' — "
-                                "это создаст циклическую зависимость.\n\n"
-                                "Подмодуль не может содержать сам себя "
-                                "(прямо или косвенно).").arg(moduleId));
-                event->ignore();
-                return;
-            }
+        QString reason;
+        if (!canInsertModule(moduleId, &reason)) {
+            QMessageBox::warning(nullptr,
+                QObject::tr("Модуль недоступен"),
+                QObject::tr("Невозможно добавить модуль '%1'.\n\n%2")
+                    .arg(moduleId, reason));
+            event->ignore();
+            return;
         }
 
         emit nodeDropped(moduleId, event->scenePos());

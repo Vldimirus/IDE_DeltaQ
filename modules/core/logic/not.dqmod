@@ -1,7 +1,6 @@
 {
     "category": "logic",
-    "dependencies": [
-    ],
+    "dependencies": [],
     "description": "Логическое НЕ",
     "header": "",
     "id": "core.logic.not",
@@ -24,5 +23,9 @@
     },
     "source": "",
     "source_code": "int dq_not(int value) {\n    return !value;\n}",
-    "version": "1.1"
+    "version": "1.1",
+    "metadata": {
+        "deltaq.doc.when_to_use": "Когда нужно инвертировать булев флаг или условие.",
+        "deltaq.doc.limitations": "Работает только с bool и не выполняет побитовое отрицание."
+    }
 }

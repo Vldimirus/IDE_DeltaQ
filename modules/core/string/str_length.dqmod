@@ -1,7 +1,6 @@
 {
     "category": "string",
-    "dependencies": [
-    ],
+    "dependencies": [],
     "description": "Длина строки",
     "header": "",
     "id": "core.string.str_length",
@@ -27,5 +26,9 @@
     },
     "source": "",
     "source_code": "int dq_str_length(const char *text) {\n    return (int)strlen(text);\n}",
-    "version": "1.1"
+    "version": "1.1",
+    "metadata": {
+        "deltaq.doc.when_to_use": "Когда нужна длина строки перед валидацией, выводом или циклом.",
+        "deltaq.doc.limitations": "Считает байты C-строки, а не Unicode-символы."
+    }
 }

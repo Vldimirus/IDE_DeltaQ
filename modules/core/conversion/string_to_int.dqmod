@@ -1,7 +1,6 @@
 {
     "category": "conversion",
-    "dependencies": [
-    ],
+    "dependencies": [],
     "description": "Преобразование string в int",
     "header": "",
     "id": "core.conversion.string_to_int",
@@ -27,5 +26,9 @@
     },
     "source": "",
     "source_code": "int dq_string_to_int(const char *text) {\n    return atoi(text);\n}",
-    "version": "1.1"
+    "version": "1.1",
+    "metadata": {
+        "deltaq.doc.when_to_use": "Когда нужно быстро преобразовать строку в int в простом input-flow.",
+        "deltaq.doc.limitations": "Использует atoi без детальной диагностики ошибок и без отличия 0 от некорректного ввода."
+    }
 }

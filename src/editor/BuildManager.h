@@ -8,6 +8,8 @@ namespace DeltaQ {
 
 class CompilerOutputParser;
 class CMakeGenerator;
+class ModuleRegistry;
+class GraphStore;
 struct CompilerError;
 
 class BuildManager : public QObject {
@@ -23,6 +25,8 @@ public:
                const QString &projectType = "console");
     void clean(const QString &projectDir);
     void cancel();
+    void setModuleRegistry(ModuleRegistry *registry);
+    void setGraphStore(GraphStore *store);
 
     bool isBuilding() const { return m_process && m_process->state() != QProcess::NotRunning; }
 

@@ -1,7 +1,6 @@
 {
     "category": "io",
-    "dependencies": [
-    ],
+    "dependencies": [],
     "description": "Строковая константа",
     "header": "",
     "id": "core.io.string_constant",
@@ -25,5 +24,9 @@
     },
     "source": "",
     "source_code": "const char *dq_string_constant(const char *value) {\n    return value;\n}",
-    "version": "1.1"
+    "version": "1.1",
+    "metadata": {
+        "deltaq.doc.when_to_use": "Когда в граф нужно подать фиксированную строку из свойства узла.",
+        "deltaq.doc.limitations": "Возвращает только string; значение задаётся вручную и не вычисляется динамически."
+    }
 }

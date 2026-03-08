@@ -32,8 +32,13 @@ private:
         mod.language = "c";
         mod.version = "1.0";
         mod.origin = "user";
+        mod.compileStatus = "passed";
         mod.inputs = inputs;
         mod.outputs = outputs;
+        mod.testStatus = "passed";
+        mod.sourceCode = "int dq_test_stub(void) {\n"
+                         "    return 0;\n"
+                         "}";
         m_registry->registerModule(mod);
     }
 
@@ -271,6 +276,33 @@ private slots:
         QVERIFY(title->labelRectInNode().right() < window->labelRectInNode().left());
         QVERIFY(execIn->labelRectInNode().bottom() < 0.0);
         QVERIFY(execOut->labelRectInNode().top() > item->boundingRect().height());
+    }
+
+    void canInsertModuleRejectsUntestedDraft()
+    {
+        Module draft;
+        draft.id = "draft";
+        draft.name = "Draft";
+        draft.category = "custom";
+        draft.language = "c";
+        draft.version = "1.0";
+        draft.origin = "local";
+        draft.testStatus = "untested";
+        draft.inputs = {{"value", "int", "0"}};
+        draft.outputs = {{"result", "int", ""}};
+        draft.sourceCode = "int dq_draft(int value) {\n"
+                           "    return value;\n"
+                           "}";
+        QVERIFY(m_registry->registerModule(draft));
+
+        BlockScene scene(m_registry, m_bus);
+
+        QString reason;
+        QVERIFY(scene.canInsertModule("add", &reason));
+        QVERIFY(reason.isEmpty());
+
+        QVERIFY(!scene.canInsertModule("draft", &reason));
+        QVERIFY(reason.contains(QString::fromUtf8("не допущен")));
     }
 };
 

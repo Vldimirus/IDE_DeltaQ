@@ -6,6 +6,45 @@
 
 namespace DeltaQ {
 
+namespace {
+
+// Приводит сырые C/C++ типы из парсера к тем типам, которые понимает DeltaQ graph/codegen.
+QString importedTypeToDeltaQ(const QString &rawType)
+{
+    QString type = rawType.trimmed();
+    type.remove("const ");
+    type.remove("volatile ");
+    type = type.trimmed();
+
+    if (type == "void")
+        return "void";
+    if (type == "_Bool" || type == "bool")
+        return "bool";
+    if (type == "char" || type == "signed char" || type == "unsigned char")
+        return "int";
+    if (type == "short" || type == "unsigned short")
+        return "int";
+    if (type == "int" || type == "unsigned int" || type == "long" || type == "unsigned long")
+        return "int";
+    if (type == "long long" || type == "unsigned long long")
+        return "int";
+    if (type == "float")
+        return "float";
+    if (type == "double" || type == "long double")
+        return "double";
+    if (type == "char *" || type == "const char *")
+        return "string";
+    if (type.endsWith('*'))
+        return "pointer";
+    if (type.startsWith("struct "))
+        return "pointer";
+    if (type.startsWith("enum "))
+        return "int";
+    return "pointer";
+}
+
+} // namespace
+
 DecompositionResult LibraryDecomposer::decompose(const ParseResult &parseResult,
                                                    const DecompositionOptions &options)
 {
@@ -45,17 +84,18 @@ Module LibraryDecomposer::functionToModule(const FunctionDecl &func,
     for (const auto &param : func.parameters) {
         Port p;
         p.name = param.name.isEmpty() ? QString("arg%1").arg(m.inputs.size()) : param.name;
-        p.type = param.type;
+        p.type = importedTypeToDeltaQ(param.type);
         if (!param.defaultValue.isEmpty())
             p.defaultValue = param.defaultValue;
         m.inputs.append(p);
     }
 
     // Возвращаемый тип → выходной порт
-    if (func.returnType != "void") {
+    const QString returnType = importedTypeToDeltaQ(func.returnType);
+    if (returnType != "void") {
         Port p;
         p.name = "result";
-        p.type = func.returnType;
+        p.type = returnType;
         m.outputs.append(p);
     }
 
@@ -86,7 +126,7 @@ QVector<Module> LibraryDecomposer::classToModules(const ClassDecl &cls,
                 Port p;
                 p.name = param.name.isEmpty() ?
                     QString("arg%1").arg(m.inputs.size()) : param.name;
-                p.type = param.type;
+                p.type = importedTypeToDeltaQ(param.type);
                 m.inputs.append(p);
             }
             break; // Берём первый публичный конструктор
@@ -150,15 +190,16 @@ QVector<Module> LibraryDecomposer::classToModules(const ClassDecl &cls,
             Port p;
             p.name = param.name.isEmpty() ?
                 QString("arg%1").arg(m.inputs.size()) : param.name;
-            p.type = param.type;
+            p.type = importedTypeToDeltaQ(param.type);
             m.inputs.append(p);
         }
 
         // Возвращаемый тип → выход
-        if (method.returnType != "void") {
+        const QString methodReturnType = importedTypeToDeltaQ(method.returnType);
+        if (methodReturnType != "void") {
             Port resultPort;
             resultPort.name = "result";
-            resultPort.type = method.returnType;
+            resultPort.type = methodReturnType;
             m.outputs.append(resultPort);
         }
 

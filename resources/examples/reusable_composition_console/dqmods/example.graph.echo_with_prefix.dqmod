@@ -1,0 +1,69 @@
+{
+    "id": "example.graph.echo_with_prefix",
+    "name": "echo_with_prefix",
+    "version": "1.0.0",
+    "language": "c",
+    "description": "Составной модуль: объединяет префикс и текст, затем печатает строку",
+    "category": "examples",
+    "origin": "graph",
+    "ports": {
+        "input": [
+            {
+                "name": "flow_in",
+                "type": "exec",
+                "kind": "execution"
+            },
+            {
+                "name": "prefix",
+                "type": "string"
+            },
+            {
+                "name": "text",
+                "type": "string"
+            }
+        ],
+        "output": [
+            {
+                "name": "flow_out",
+                "type": "exec",
+                "kind": "execution"
+            }
+        ]
+    },
+    "source": "",
+    "header": "",
+    "dependencies": [],
+    "graph_id": "40000000-0000-0000-0000-000000000001",
+    "generated_file_base": "echo_with_prefix",
+    "boundary": {
+        "inputs": [
+            {
+                "external_port": "flow_in",
+                "internal_node": "40000000-0000-0000-0000-000000000102",
+                "internal_port": "flow_in",
+                "kind": "execution"
+            },
+            {
+                "external_port": "prefix",
+                "internal_node": "40000000-0000-0000-0000-000000000101",
+                "internal_port": "a"
+            },
+            {
+                "external_port": "text",
+                "internal_node": "40000000-0000-0000-0000-000000000101",
+                "internal_port": "b"
+            }
+        ],
+        "outputs": [
+            {
+                "external_port": "flow_out",
+                "internal_node": "40000000-0000-0000-0000-000000000102",
+                "internal_port": "flow_out",
+                "kind": "execution"
+            }
+        ]
+    },
+    "testing": {
+        "status": "passed"
+    }
+}

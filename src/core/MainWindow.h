@@ -8,8 +8,13 @@
 #include <QStatusBar>
 #include <QTabWidget>
 #include <QLabel>
+#include <QPointer>
 #include <QTextEdit>
 #include <memory>
+
+class QPlainTextEdit;
+class QTreeWidget;
+class QTreeWidgetItem;
 
 namespace DeltaQ {
 
@@ -50,8 +55,13 @@ public:
 
 protected:
     void closeEvent(QCloseEvent *event) override;
+    bool eventFilter(QObject *watched, QEvent *event) override;
 
 private slots:
+    void appendBuildOutputChunk(const QString &text);
+    void addBuildDiagnosticEntry(const QString &file, int line, int column,
+                                 const QString &severity, const QString &message);
+    void onBuildDiagnosticActivated(QTreeWidgetItem *item, int column);
     void onNewProject();
     void onOpenProject();
     void onCloseProject();
@@ -73,6 +83,8 @@ private slots:
     void updateStatusBar(const QString &message);
     void updateCursorPosition();
     void onFileActivated(const QString &path);
+    void navigateBuildOutputLine(const QString &lineText);
+    void onOpenGeneratedOrigin();
     void connectBlockEditorSignals(BlockEditorWidget *editor);
     void connectUIDesignerSignals(UIDesignerWidget *designer);
     void showModuleSourcePreview(const QString &moduleId);
@@ -88,6 +100,10 @@ private:
     void restoreSession();
     void saveSession();
     void updateRecentProjectsMenu();
+    void updateEditorActions();
+    void updateGeneratedOriginAction();
+    QString normalizeBuildErrorPath(const QString &filePath) const;
+    void openTextFileAtLocation(const QString &path, int line, int column);
 
     // Core services
     CommandBus *m_commandBus = nullptr;
@@ -129,9 +145,12 @@ private:
 
     // StatusBar widgets
     QLabel *m_cursorPosLabel = nullptr;
+    QMetaObject::Connection m_cursorPositionConnection;
+    QPointer<QPlainTextEdit> m_trackedCursorEditor;
 
     // Output widgets (ссылки для подключения BuildManager)
     QTextEdit *m_buildOutput = nullptr;
+    QTreeWidget *m_buildDiagnostics = nullptr;
     QTextEdit *m_appOutput = nullptr;
     QTextEdit *m_debugConsole = nullptr;
 

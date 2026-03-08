@@ -1,7 +1,6 @@
 {
     "category": "logic",
-    "dependencies": [
-    ],
+    "dependencies": [],
     "description": "Логическое ИЛИ",
     "header": "",
     "id": "core.logic.or",
@@ -28,5 +27,9 @@
     },
     "source": "",
     "source_code": "int dq_or(int a, int b) {\n    return a || b;\n}",
-    "version": "1.1"
+    "version": "1.1",
+    "metadata": {
+        "deltaq.doc.when_to_use": "Когда нужно разрешить несколько альтернативных булевых условий.",
+        "deltaq.doc.limitations": "Принимает только bool и не подходит для побитовых операций над числами."
+    }
 }

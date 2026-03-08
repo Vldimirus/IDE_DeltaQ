@@ -7,12 +7,26 @@
 #include "../uiDesigner/SDL2CodeGenerator.h"
 
 #include <deltaq/Graph.h>
+#include <deltaq/Module.h>
 #include <deltaq/UILayout.h>
 
+#include <algorithm>
 #include <QDir>
 #include <QFile>
 
 namespace DeltaQ {
+
+namespace {
+
+// Добавляет generated-артефакт в результат и сразу пробрасывает его в UI слоям IDE.
+void appendArtifact(PreBuildResult &result, PreBuildProcessor *processor,
+                    const PreBuildArtifact &artifact)
+{
+    result.generatedArtifacts.append(artifact);
+    emit processor->fileGenerated(artifact);
+}
+
+} // namespace
 
 PreBuildProcessor::PreBuildProcessor(ModuleRegistry *registry, GraphStore *graphStore,
                                      UILayoutStore *uiLayoutStore, QObject *parent)
@@ -25,6 +39,7 @@ PreBuildProcessor::PreBuildProcessor(ModuleRegistry *registry, GraphStore *graph
 
 PreBuildResult PreBuildProcessor::process(const QString &projectDir)
 {
+    // Выполняет оба этапа pre-build: графы и UI layout-ы.
     PreBuildResult result;
 
     emit progressMessage(tr("Pre-build: генерация исходников..."));
@@ -34,7 +49,7 @@ PreBuildResult PreBuildProcessor::process(const QString &projectDir)
 
     if (result.errors.isEmpty()) {
         emit progressMessage(tr("Pre-build завершён: %1 файлов сгенерировано")
-                             .arg(result.generatedFiles.size()));
+                             .arg(result.generatedArtifacts.size()));
     } else {
         result.success = false;
         emit progressMessage(tr("Pre-build завершён с ошибками: %1")
@@ -46,13 +61,22 @@ PreBuildResult PreBuildProcessor::process(const QString &projectDir)
 
 void PreBuildProcessor::processGraphs(const QString &projectDir, PreBuildResult &result)
 {
+    // Сначала генерирует отдельные compilation units для составных модулей,
+    // затем компилирует только корневые графы проекта в C-файлы.
     QString srcDir = projectDir + "/src";
     QDir().mkpath(srcDir);
 
     GraphCompiler compiler(m_registry);
     compiler.setGraphStore(m_graphStore);
 
+    processSubmodules(projectDir, result, compiler);
+    if (!result.errors.isEmpty())
+        return;
+
     for (auto *graph : m_graphStore->allGraphs()) {
+        if (!graph->parentModuleId.isEmpty())
+            continue;
+
         emit progressMessage(tr("Компиляция графа: %1").arg(graph->name));
 
         CompilationResult cr = compiler.compile(*graph);
@@ -69,16 +93,79 @@ void PreBuildProcessor::processGraphs(const QString &projectDir, PreBuildResult 
         if (f.open(QIODevice::WriteOnly | QIODevice::Text)) {
             f.write(cr.generatedCode.toUtf8());
             f.close();
-            result.generatedFiles.append(filePath);
-            emit fileGenerated(filePath);
+            appendArtifact(result, this, PreBuildArtifact{
+                filePath,
+                PreBuildArtifactKind::GraphSource,
+                graph->name,
+                graph->id
+            });
         } else {
             result.errors.append(tr("Не удалось записать файл: %1").arg(filePath));
         }
     }
 }
 
+void PreBuildProcessor::processSubmodules(const QString &projectDir, PreBuildResult &result,
+                                          GraphCompiler &compiler)
+{
+    // Для каждого составного модуля заранее генерируем отдельные .h/.c,
+    // чтобы корневые графы могли подключать их как обычные исходники проекта.
+    QString submoduleDir = projectDir + "/src/generated/submodules";
+    QDir().mkpath(submoduleDir);
+
+    QVector<const Module *> submodules;
+    for (const auto *module : m_registry->allModules()) {
+        if (module->isComposite())
+            submodules.append(module);
+    }
+
+    std::sort(submodules.begin(), submodules.end(),
+              [](const Module *lhs, const Module *rhs) {
+        return lhs->name < rhs->name;
+    });
+
+    for (const auto *module : submodules) {
+        emit progressMessage(tr("Генерация подмодуля: %1").arg(module->name));
+
+        const SubmoduleUnitResult unit = compiler.compileSubmoduleUnit(*module);
+        if (!unit.success) {
+            for (const auto &err : unit.errors)
+                result.errors.append(tr("Подмодуль '%1': %2").arg(module->name, err));
+            continue;
+        }
+
+        const Graph *innerGraph = m_graphStore->findGraph(module->graphId);
+        const QString sourceName = innerGraph ? innerGraph->name : module->name;
+        const QString sourceId = innerGraph ? innerGraph->id : module->graphId;
+
+        auto writeFile = [&](const QString &path, const QString &content,
+                             PreBuildArtifactKind kind) -> bool {
+            QFile file(path);
+            if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+                result.errors.append(tr("Не удалось записать файл: %1").arg(path));
+                return false;
+            }
+            file.write(content.toUtf8());
+            file.close();
+            appendArtifact(result, this, PreBuildArtifact{
+                path,
+                kind,
+                sourceName,
+                sourceId
+            });
+            return true;
+        };
+
+        writeFile(submoduleDir + "/" + unit.fileBaseName + ".h", unit.headerCode,
+                  PreBuildArtifactKind::SubmoduleHeader);
+        writeFile(submoduleDir + "/" + unit.fileBaseName + ".c", unit.sourceCode,
+                  PreBuildArtifactKind::SubmoduleSource);
+    }
+}
+
 void PreBuildProcessor::processUILayouts(const QString &projectDir, PreBuildResult &result)
 {
+    // Генерирует SDL2-артефакты для всех UI layout-ов проекта.
     if (!m_uiLayoutStore)
         return;
 
@@ -94,13 +181,19 @@ void PreBuildProcessor::processUILayouts(const QString &projectDir, PreBuildResu
 
         GeneratedCode code = SDL2CodeGenerator::generate(*layout, layout->name);
 
-        auto writeFile = [&](const QString &path, const QString &content) -> bool {
+        // Общий путь записи для всех generated-файлов UI с сохранением их происхождения.
+        auto writeFile = [&](const QString &path, const QString &content,
+                             PreBuildArtifactKind kind) -> bool {
             QFile f(path);
             if (f.open(QIODevice::WriteOnly | QIODevice::Text)) {
                 f.write(content.toUtf8());
                 f.close();
-                result.generatedFiles.append(path);
-                emit fileGenerated(path);
+                appendArtifact(result, this, PreBuildArtifact{
+                    path,
+                    kind,
+                    layout->name,
+                    layout->id
+                });
                 return true;
             }
             result.errors.append(tr("Не удалось записать файл: %1").arg(path));
@@ -108,10 +201,12 @@ void PreBuildProcessor::processUILayouts(const QString &projectDir, PreBuildResu
         };
 
         QString baseName = layout->name;
-        writeFile(uiDir + "/" + baseName + ".h", code.uiHeader);
-        writeFile(uiDir + "/" + baseName + ".c", code.uiSource);
-        writeFile(uiDir + "/" + baseName + "_events.h", code.eventsHeader);
-        writeFile(uiDir + "/" + baseName + "_events.c", code.eventsSource);
+        writeFile(uiDir + "/" + baseName + ".h", code.uiHeader, PreBuildArtifactKind::UIHeader);
+        writeFile(uiDir + "/" + baseName + ".c", code.uiSource, PreBuildArtifactKind::UISource);
+        writeFile(uiDir + "/" + baseName + "_events.h", code.eventsHeader,
+                  PreBuildArtifactKind::UIEventsHeader);
+        writeFile(uiDir + "/" + baseName + "_events.c", code.eventsSource,
+                  PreBuildArtifactKind::UIEventsSource);
     }
 }
 

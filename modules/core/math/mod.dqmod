@@ -1,7 +1,6 @@
 {
     "category": "math",
-    "dependencies": [
-    ],
+    "dependencies": [],
     "description": "Остаток от деления",
     "header": "",
     "id": "core.math.mod",
@@ -28,5 +27,9 @@
     },
     "source": "",
     "source_code": "int dq_mod(int a, int b) {\n    if (b == 0) return 0;\n    return a % b;\n}",
-    "version": "1.1"
+    "version": "1.1",
+    "metadata": {
+        "deltaq.doc.when_to_use": "Когда нужен остаток от целочисленного деления.",
+        "deltaq.doc.limitations": "Работает только с int и тоже возвращает 0 при делении на ноль."
+    }
 }

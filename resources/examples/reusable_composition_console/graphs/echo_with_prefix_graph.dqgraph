@@ -1,0 +1,35 @@
+{
+    "id": "40000000-0000-0000-0000-000000000001",
+    "name": "echo_with_prefix_graph",
+    "parent_module_id": "example.graph.echo_with_prefix",
+    "nodes": [
+        {
+            "id": "40000000-0000-0000-0000-000000000101",
+            "module_id": "core.string.str_concat",
+            "position": {
+                "x": 120.0,
+                "y": 120.0
+            }
+        },
+        {
+            "id": "40000000-0000-0000-0000-000000000102",
+            "module_id": "core.io.println",
+            "position": {
+                "x": 420.0,
+                "y": 120.0
+            }
+        }
+    ],
+    "connections": [
+        {
+            "from": {
+                "node": "40000000-0000-0000-0000-000000000101",
+                "port": "result"
+            },
+            "to": {
+                "node": "40000000-0000-0000-0000-000000000102",
+                "port": "text"
+            }
+        }
+    ]
+}

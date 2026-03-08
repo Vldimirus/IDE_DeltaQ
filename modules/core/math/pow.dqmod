@@ -1,7 +1,6 @@
 {
     "category": "math",
-    "dependencies": [
-    ],
+    "dependencies": [],
     "description": "Возведение в степень",
     "header": "",
     "id": "core.math.pow",
@@ -31,5 +30,9 @@
     },
     "source": "",
     "source_code": "float dq_pow(float base, float exp) {\n    return powf(base, exp);\n}",
-    "version": "1.1"
+    "version": "1.1",
+    "metadata": {
+        "deltaq.doc.when_to_use": "Когда нужно возвести float-значение в степень.",
+        "deltaq.doc.limitations": "Опирается на math.h/powf и работает только с float-аргументами."
+    }
 }

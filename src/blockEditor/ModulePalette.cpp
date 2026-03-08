@@ -1,6 +1,7 @@
 // Палитра модулей — реализация дерева категорий, поиска и drag&drop
 #include "ModulePalette.h"
 #include "../core/ModuleRegistry.h"
+#include "../core/StandardLibrary.h"
 #include <deltaq/Module.h>
 
 #include <QHeaderView>
@@ -8,8 +9,82 @@
 #include <QMimeData>
 #include <QApplication>
 #include <QMouseEvent>
+#include <QCheckBox>
 
 namespace DeltaQ {
+
+namespace {
+
+// Человекочитаемый label imported-модуля для палитры: display name плюс роль, если это raw/adapter.
+QString paletteModuleLabel(const Module &module)
+{
+    if (!module.isImportedPackModule()) {
+        QString label = module.name;
+        if ((module.origin == "core" || module.id.startsWith("core."))) {
+            // Legacy core-модуль должен быть сразу заметен в рабочей палитре,
+            // чтобы пользователь не принимал его за рекомендуемый baseline.
+            const StandardLibraryCurationInfo curation = StandardLibrary::curationForModule(module);
+            if (curation.tier == "legacy")
+                label += QObject::tr(" [legacy]");
+        }
+        return label;
+    }
+
+    QString label = module.importedDisplayName();
+    const QString role = module.importedCurationRole();
+    if (role == "raw_wrapper")
+        label += QObject::tr(" [raw]");
+    else if (role == "adapter")
+        label += QObject::tr(" [adapter]");
+    return label;
+}
+
+// Формирует блок tooltip для imported pack metadata, чтобы curation-flow был виден прямо в палитре.
+QString importedModuleTooltip(const Module &module)
+{
+    if (!module.isImportedPackModule())
+        return {};
+
+    QString roleTitle = QObject::tr("curated");
+    const QString role = module.importedCurationRole();
+    if (role == "raw_wrapper")
+        roleTitle = QObject::tr("raw");
+    else if (role == "adapter")
+        roleTitle = QObject::tr("adapter");
+    else if (role == "hidden")
+        roleTitle = QObject::tr("hidden");
+
+    return QObject::tr("\n\nImported pack: %1\nСимвол: %2\nРоль import/curation: %3")
+        .arg(module.importedPackName(),
+             module.importedOriginalSymbol(),
+             roleTitle);
+}
+
+// Добавляет к tooltip стандартизованный блок документации модуля.
+void appendDocumentationTooltip(QString &tip, const Module &module)
+{
+    if (!module.hasDocumentationDetails())
+        return;
+
+    const QString summary = module.documentationSummary();
+    const QString whenToUse = module.documentationWhenToUse();
+    const QString limitations = module.documentationLimitations();
+
+    if (!summary.isEmpty())
+        tip += QObject::tr("Назначение: %1").arg(summary);
+    if (!whenToUse.isEmpty()) {
+        if (!tip.isEmpty())
+            tip += '\n';
+        tip += QObject::tr("Когда использовать: %1").arg(whenToUse);
+    }
+    if (!limitations.isEmpty()) {
+        if (!tip.isEmpty())
+            tip += '\n';
+        tip += QObject::tr("Ограничения: %1").arg(limitations);
+    }
+}
+
+} // namespace
 
 ModulePalette::ModulePalette(ModuleRegistry *registry, QWidget *parent)
     : QWidget(parent)
@@ -22,7 +97,20 @@ ModulePalette::ModulePalette(ModuleRegistry *registry, QWidget *parent)
     m_searchEdit->setPlaceholderText(tr("Search modules..."));
     layout->addWidget(m_searchEdit);
 
+    m_showSpecializedCheck = new QCheckBox(tr("Показывать specialized"), this);
+    m_showSpecializedCheck->setObjectName("modulePaletteShowSpecializedCheck");
+    m_showSpecializedCheck->setChecked(false);
+    layout->addWidget(m_showSpecializedCheck);
+
+    // Legacy-модули не должны навязываться в рабочем baseline,
+    // но пользователь может явно вернуть их в палитру для совместимости.
+    m_showLegacyCheck = new QCheckBox(tr("Показывать legacy"), this);
+    m_showLegacyCheck->setObjectName("modulePaletteShowLegacyCheck");
+    m_showLegacyCheck->setChecked(false);
+    layout->addWidget(m_showLegacyCheck);
+
     m_tree = new ModuleTreeWidget(this);
+    m_tree->setObjectName("modulePaletteTree");
     m_tree->setHeaderHidden(true);
     m_tree->setDragEnabled(true);
     m_tree->setSelectionMode(QAbstractItemView::SingleSelection);
@@ -30,6 +118,14 @@ ModulePalette::ModulePalette(ModuleRegistry *registry, QWidget *parent)
 
     // Фильтрация при вводе
     connect(m_searchEdit, &QLineEdit::textChanged, this, &ModulePalette::filterTree);
+    connect(m_showSpecializedCheck, &QCheckBox::toggled, this, [this] {
+        rebuildTree();
+        filterTree(m_searchEdit->text());
+    });
+    connect(m_showLegacyCheck, &QCheckBox::toggled, this, [this] {
+        rebuildTree();
+        filterTree(m_searchEdit->text());
+    });
 
     // Двойной клик — добавить модуль в центр
     connect(m_tree, &QTreeWidget::itemDoubleClicked, this, [this](QTreeWidgetItem *item, int) {
@@ -74,7 +170,19 @@ static QColor categoryColor(const QString &cat)
 // Tooltip для модуля
 static QString moduleTooltip(const Module *mod)
 {
-    QString tip = mod->description;
+    QString tip;
+    appendDocumentationTooltip(tip, *mod);
+    tip += importedModuleTooltip(*mod);
+    if (mod->origin == "core" || mod->id.startsWith("core.")) {
+        const StandardLibraryCurationInfo curation = StandardLibrary::curationForModule(*mod);
+        if (curation.isKnown()) {
+            tip += QObject::tr("\n\nРоль в библиотеке: %1").arg(curation.title);
+            if (!curation.guidance.isEmpty())
+                tip += QObject::tr("\nПодсказка: %1").arg(curation.guidance);
+            if (!curation.replacementHint.isEmpty())
+                tip += QObject::tr("\nАльтернатива: %1").arg(curation.replacementHint);
+        }
+    }
     if (!mod->inputs.isEmpty()) {
         tip += "\n\nInputs:";
         for (const auto &p : mod->inputs)
@@ -88,10 +196,45 @@ static QString moduleTooltip(const Module *mod)
     return tip;
 }
 
+// Добавляет к модулю видимый и tooltip-статус допуска в граф.
+static QString moduleAdmissionSuffix(ModuleRegistry *registry, const Module *mod, QString *tooltip)
+{
+    QString reason;
+    if (!registry || registry->isModuleAdmittedForComposition(*mod, &reason)) {
+        if (tooltip)
+            *tooltip += QObject::tr("\n\nСтатус: готов к использованию в графе");
+        return {};
+    }
+
+    if (tooltip) {
+        *tooltip += QObject::tr("\n\nСтатус: не готов к использованию в графе");
+        if (!reason.isEmpty())
+            *tooltip += QObject::tr("\nПричина: %1").arg(reason);
+    }
+    return QObject::tr(" [не готов]");
+}
+
 // Добавить модуль в дерево с проверкой языка
 QTreeWidgetItem *addModuleItem(QTreeWidgetItem *parent, const Module *mod,
-                                const QString &languageFilter)
+                                const QString &languageFilter,
+                                ModuleRegistry *registry,
+                                bool showSpecializedModules,
+                                bool showLegacyModules)
 {
+    // Hidden imported wrapper-ы остаются в Module Manager, но не засоряют рабочую палитру.
+    if (mod->isHiddenFromPalette())
+        return nullptr;
+
+    if (mod->origin == "core" || mod->id.startsWith("core.")) {
+        const StandardLibraryCurationInfo curation = StandardLibrary::curationForModule(*mod);
+        // Базовая палитра должна показывать рекомендуемое ядро библиотеки.
+        // Specialized и legacy остаются доступными, но только по явному запросу.
+        if (curation.tier == "specialized" && !showSpecializedModules)
+            return nullptr;
+        if (curation.tier == "legacy" && !showLegacyModules)
+            return nullptr;
+    }
+
     if (!languageFilter.isEmpty()) {
         bool compatible = (mod->language == languageFilter) ||
             (languageFilter == "c" && mod->language == "cpp") ||
@@ -100,10 +243,19 @@ QTreeWidgetItem *addModuleItem(QTreeWidgetItem *parent, const Module *mod,
         if (!compatible) return nullptr;
     }
 
-    auto *item = new QTreeWidgetItem(parent, {mod->name});
+    QString tooltip = moduleTooltip(mod);
+    const QString suffix = moduleAdmissionSuffix(registry, mod, &tooltip);
+    auto *item = new QTreeWidgetItem(parent, {paletteModuleLabel(*mod) + suffix});
     item->setData(0, Qt::UserRole, mod->id);
-    item->setFlags(item->flags() | Qt::ItemIsDragEnabled);
-    item->setToolTip(0, moduleTooltip(mod));
+    item->setToolTip(0, tooltip);
+
+    QString reason;
+    if (registry && registry->isModuleAdmittedForComposition(*mod, &reason)) {
+        item->setFlags(item->flags() | Qt::ItemIsDragEnabled);
+    } else {
+        item->setFlags(item->flags() & ~Qt::ItemIsDragEnabled);
+        item->setForeground(0, QColor(150, 150, 150));
+    }
     return item;
 }
 
@@ -114,6 +266,8 @@ void ModulePalette::buildTree()
     if (!m_registry) return;
 
     auto allModules = m_registry->allModules();
+    const bool showSpecializedModules = m_showSpecializedCheck && m_showSpecializedCheck->isChecked();
+    const bool showLegacyModules = m_showLegacyCheck && m_showLegacyCheck->isChecked();
 
     // === Секция 1: Стандартная библиотека (core) ===
     auto *coreRoot = new QTreeWidgetItem(m_tree, {tr("Стандартная библиотека")});
@@ -133,8 +287,9 @@ void ModulePalette::buildTree()
             coreByCategory[mod->category].append(mod);
     }
 
-    QStringList coreCats = coreByCategory.keys();
-    coreCats.sort();
+    // Палитра standard library должна читаться так же, как и в Module Manager:
+    // сначала product-defined v1 категории, затем возможный алфавитный хвост.
+    const QStringList coreCats = StandardLibrary::orderCategoriesForDisplay(coreByCategory.keys());
     bool coreHasChildren = false;
 
     for (const auto &cat : coreCats) {
@@ -144,8 +299,11 @@ void ModulePalette::buildTree()
         catItem->setIcon(0, QIcon(px));
 
         bool catHasChildren = false;
-        for (const auto *mod : coreByCategory[cat]) {
-            if (addModuleItem(catItem, mod, m_languageFilter))
+        const QVector<const Module *> orderedModules =
+            StandardLibrary::orderModulesForDisplay(coreByCategory[cat]);
+        for (const auto *mod : orderedModules) {
+            if (addModuleItem(catItem, mod, m_languageFilter, m_registry,
+                              showSpecializedModules, showLegacyModules))
                 catHasChildren = true;
         }
         catItem->setHidden(!catHasChildren);
@@ -166,7 +324,7 @@ void ModulePalette::buildTree()
     bool uiHasChildren = false;
     for (const auto *mod : allModules) {
         if (mod->origin == "ui") {
-            if (addModuleItem(uiRoot, mod, m_languageFilter))
+            if (addModuleItem(uiRoot, mod, m_languageFilter, m_registry, true, showLegacyModules))
                 uiHasChildren = true;
         }
     }
@@ -200,7 +358,7 @@ void ModulePalette::buildTree()
 
         bool catHasChildren = false;
         for (const auto *mod : extByCategory[cat]) {
-            if (addModuleItem(catItem, mod, m_languageFilter))
+            if (addModuleItem(catItem, mod, m_languageFilter, m_registry, true, showLegacyModules))
                 catHasChildren = true;
         }
         catItem->setHidden(!catHasChildren);
@@ -215,7 +373,8 @@ void ModulePalette::buildTree()
                 bool found = false;
                 for (int i = 0; i < extRoot->childCount(); ++i) {
                     if (extRoot->child(i)->text(0) == mod->category) {
-                        if (addModuleItem(extRoot->child(i), mod, m_languageFilter))
+                        if (addModuleItem(extRoot->child(i), mod, m_languageFilter, m_registry,
+                                          true, showLegacyModules))
                             extHasChildren = true;
                         found = true;
                         break;
@@ -226,11 +385,11 @@ void ModulePalette::buildTree()
                     catItem->setFlags(catItem->flags() & ~Qt::ItemIsDragEnabled);
                     QPixmap px(12, 12); px.fill(categoryColor(mod->category));
                     catItem->setIcon(0, QIcon(px));
-                    if (addModuleItem(catItem, mod, m_languageFilter))
+                    if (addModuleItem(catItem, mod, m_languageFilter, m_registry, true, showLegacyModules))
                         extHasChildren = true;
                 }
             } else {
-                if (addModuleItem(extRoot, mod, m_languageFilter))
+                if (addModuleItem(extRoot, mod, m_languageFilter, m_registry, true, showLegacyModules))
                     extHasChildren = true;
             }
         }
@@ -251,7 +410,7 @@ void ModulePalette::buildTree()
     bool localHasChildren = false;
     for (const auto *mod : allModules) {
         if (mod->origin == "local" || mod->origin == "graph") {
-            if (addModuleItem(localRoot, mod, m_languageFilter))
+            if (addModuleItem(localRoot, mod, m_languageFilter, m_registry, true, showLegacyModules))
                 localHasChildren = true;
         }
     }
@@ -301,6 +460,11 @@ void ModulePalette::startDragForItem(QTreeWidgetItem *item)
     // Только листовые элементы с moduleId (не секции и не категории)
     QString moduleId = item->data(0, Qt::UserRole).toString();
     if (moduleId.isEmpty()) return;
+
+    const Module *mod = m_registry ? m_registry->findModule(moduleId) : nullptr;
+    QString reason;
+    if (!mod || !m_registry->isModuleAdmittedForComposition(*mod, &reason))
+        return;
 
     auto *drag = new QDrag(this);
     auto *mimeData = new QMimeData;

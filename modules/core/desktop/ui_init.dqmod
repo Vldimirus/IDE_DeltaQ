@@ -8,6 +8,14 @@
         "\"ui/window1.h\""
     ],
     "language": "c",
+    "metadata": {
+        "deltaq.kind": "ui_backend_runtime",
+        "deltaq.ui.backend": "sdl2",
+        "deltaq.ui.backend_role": "ui_state_init",
+        "deltaq.ui.layer": "backend",
+        "deltaq.doc.when_to_use": "Когда нужно создать ui_state для generated desktop UI перед event loop.",
+        "deltaq.doc.limitations": "Зависит от generated UI window1 и текущего SDL2 backend pipeline."
+    },
     "name": "ui_init",
     "origin": "core",
     "ports": {

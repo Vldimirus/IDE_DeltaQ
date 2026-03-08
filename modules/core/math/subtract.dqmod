@@ -1,7 +1,6 @@
 {
     "category": "math",
-    "dependencies": [
-    ],
+    "dependencies": [],
     "description": "Вычитание",
     "header": "",
     "id": "core.math.subtract",
@@ -28,5 +27,9 @@
     },
     "source": "",
     "source_code": "int dq_subtract(int a, int b) {\n    return a - b;\n}",
-    "version": "1.1"
+    "version": "1.1",
+    "metadata": {
+        "deltaq.doc.when_to_use": "Когда нужно вычесть одно целое значение из другого.",
+        "deltaq.doc.limitations": "Работает только с int; если нужны float-расчёты, используйте float-модули."
+    }
 }

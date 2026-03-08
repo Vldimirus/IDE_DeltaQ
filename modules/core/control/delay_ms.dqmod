@@ -1,7 +1,6 @@
 {
     "category": "control",
-    "dependencies": [
-    ],
+    "dependencies": [],
     "description": "Задержка в миллисекундах (execution flow)",
     "header": "",
     "id": "core.control.delay_ms",
@@ -33,5 +32,9 @@
     },
     "source": "",
     "source_code": "void dq_delay_ms(int ms) {\n    struct timespec ts;\n    ts.tv_sec = ms / 1000;\n    ts.tv_nsec = (ms % 1000) * 1000000L;\n    nanosleep(&ts, NULL);\n}",
-    "version": "1.2"
+    "version": "1.2",
+    "metadata": {
+        "deltaq.doc.when_to_use": "Когда нужно сделать паузу между шагами exec-flow или в простом polling-сценарии.",
+        "deltaq.doc.limitations": "Блокирует поток выполнения на заданное время и не подходит для неблокирующего UI/event-loop."
+    }
 }

@@ -53,6 +53,14 @@ add_custom_command(TARGET deltaq POST_BUILD
     COMMENT "Copying project templates to build output..."
 )
 
+# Копирование reference examples рядом с исполняемым файлом
+add_custom_command(TARGET deltaq POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+        ${CMAKE_SOURCE_DIR}/resources/examples
+        $<TARGET_FILE_DIR:deltaq>/examples
+    COMMENT "Copying reference examples to build output..."
+)
+
 # Цели для генерации переводов
 set(TS_FILE "${CMAKE_SOURCE_DIR}/resources/translations/deltaq_ru.ts")
 set(QM_OUTPUT_DIR "${CMAKE_CURRENT_BINARY_DIR}/translations")

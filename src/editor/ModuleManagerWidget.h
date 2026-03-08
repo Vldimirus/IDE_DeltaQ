@@ -66,6 +66,10 @@ private:
     void clearEditor();
     void updatePortTable(const Module &module);
     void updatePreview(const Module &module);
+    void updateModuleStateSummary(const Module &module);
+    void updateModuleTreeItemState(QTreeWidgetItem *item, const Module &module);
+    void updateVerificationPanel(const Module &module);
+    void invalidateVerificationStatus(Module &module);
     void parseSignature(const QString &code);
     void updateStatusIcon(QTreeWidgetItem *item, const QString &status);
     QString moduleFilePath(const QString &moduleId) const;
@@ -88,6 +92,13 @@ private:
     QLineEdit *m_descEdit = nullptr;
     QComboBox *m_categoryCombo = nullptr;
     QComboBox *m_langCombo = nullptr;
+    QLineEdit *m_importDisplayNameEdit = nullptr;
+    QComboBox *m_importRoleCombo = nullptr;
+    QLabel *m_importSourceLabel = nullptr;
+    QTextEdit *m_docWhenToUseEdit = nullptr;
+    QTextEdit *m_docLimitationsEdit = nullptr;
+    QLabel *m_moduleStateBadge = nullptr;
+    QLabel *m_moduleStateDetails = nullptr;
 
     // Зависимости (#include)
     QTextEdit *m_includesEdit = nullptr;
@@ -125,6 +136,7 @@ private:
     QString m_projectDir;
     QString m_globalModulesDir;
     bool m_modified = false;
+    bool m_loadingModule = false;
 };
 
 } // namespace DeltaQ

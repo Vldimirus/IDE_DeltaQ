@@ -2,6 +2,8 @@
 #include "BuildManager.h"
 #include "CompilerOutputParser.h"
 #include "CMakeGenerator.h"
+#include "../core/GraphStore.h"
+#include "../core/ModuleRegistry.h"
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -19,6 +21,19 @@ BuildManager::BuildManager(QObject *parent)
         QString sev = err.isError() ? "error" : (err.isWarning() ? "warning" : "note");
         emit buildError(err.file, err.line, err.column, sev, err.message);
     });
+}
+
+void BuildManager::setModuleRegistry(ModuleRegistry *registry)
+{
+    // Генератор CMake должен знать о текущем реестре, чтобы добавлять в сборку
+    // только те imported pack-ы, которые реально используются графами проекта.
+    m_generator->setModuleRegistry(registry);
+}
+
+void BuildManager::setGraphStore(GraphStore *store)
+{
+    // Графы передаём отдельно, потому что именно они определяют фактическое использование pack-ов.
+    m_generator->setGraphStore(store);
 }
 
 void BuildManager::build(const QString &projectDir, const QString &projectName,

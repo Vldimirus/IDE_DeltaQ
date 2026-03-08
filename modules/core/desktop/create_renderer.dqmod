@@ -9,6 +9,14 @@
         "SDL2/SDL_ttf.h"
     ],
     "language": "c",
+    "metadata": {
+        "deltaq.kind": "ui_backend_runtime",
+        "deltaq.ui.backend": "sdl2",
+        "deltaq.ui.backend_role": "renderer_create",
+        "deltaq.ui.layer": "backend",
+        "deltaq.doc.when_to_use": "Когда после создания окна нужен SDL renderer для отрисовки generated UI.",
+        "deltaq.doc.limitations": "Требует уже созданное SDL окно и относится только к backend-слою SDL2."
+    },
     "name": "create_renderer",
     "origin": "core",
     "ports": {

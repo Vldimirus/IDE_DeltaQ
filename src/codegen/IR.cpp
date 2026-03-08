@@ -95,6 +95,72 @@ void IR::declareVariable(const QString &name, const QString &type)
     variables[name] = type;
 }
 
+QString IR::emitBodyCode(int indentLevel) const
+{
+    // Переиспользуемый эмиттер тела функции нужен для generated submodule units,
+    // где include/сигнатура/return-обвязка формируются отдельно от main().
+    QString code;
+    const QString indent(indentLevel * 4, ' ');
+
+    for (const auto &instr : instructions) {
+        switch (instr.type) {
+        case IRInstruction::DeclareVar:
+            code += QString("%1%2 %3;\n").arg(indent, instr.varType, instr.target);
+            break;
+
+        case IRInstruction::Call:
+            if (instr.target.isEmpty())
+                code += QString("%1%2(%3);\n").arg(indent, instr.function, instr.args.join(", "));
+            else
+                code += QString("%1%2 = %3(%4);\n")
+                            .arg(indent, instr.target, instr.function, instr.args.join(", "));
+            break;
+
+        case IRInstruction::Assign:
+            code += QString("%1%2 = %3;\n").arg(indent, instr.target, instr.args.value(0));
+            break;
+
+        case IRInstruction::TypeConvert:
+            code += QString("%1%2 = (%3)%4;\n")
+                        .arg(indent, instr.target, instr.varType, instr.args.value(0));
+            break;
+
+        case IRInstruction::Comment:
+            code += QString("%1// %2\n").arg(indent, instr.comment);
+            break;
+
+        case IRInstruction::RawCode: {
+            QString raw = instr.rawCode;
+            if (!raw.endsWith('\n'))
+                raw += '\n';
+            const auto lines = raw.split('\n');
+            for (int i = 0; i < lines.size(); ++i) {
+                const QString &line = lines[i];
+                if (i == lines.size() - 1 && line.isEmpty())
+                    continue;
+                if (line.isEmpty())
+                    code += "\n";
+                else
+                    code += indent + line + "\n";
+            }
+            break;
+        }
+
+        case IRInstruction::Return:
+            if (instr.args.isEmpty())
+                code += QString("%1return;\n").arg(indent);
+            else
+                code += QString("%1return %2;\n").arg(indent, instr.args.value(0));
+            break;
+
+        default:
+            break;
+        }
+    }
+
+    return code;
+}
+
 QString IR::emitCCode() const
 {
     QString code;
@@ -114,65 +180,7 @@ QString IR::emitCCode() const
 
     // Секция 3: main()
     code += "int main(void) {\n";
-
-    // Инструкции
-    int lineNum = code.count('\n') + 1;
-    Q_UNUSED(lineNum)
-
-    for (const auto &instr : instructions) {
-        switch (instr.type) {
-        case IRInstruction::DeclareVar:
-            code += QString("    %1 %2;\n").arg(instr.varType, instr.target);
-            break;
-
-        case IRInstruction::Call:
-            if (instr.target.isEmpty())
-                code += QString("    %1(%2);\n").arg(instr.function, instr.args.join(", "));
-            else
-                code += QString("    %1 = %2(%3);\n").arg(instr.target, instr.function, instr.args.join(", "));
-            break;
-
-        case IRInstruction::Assign:
-            code += QString("    %1 = %2;\n").arg(instr.target, instr.args.value(0));
-            break;
-
-        case IRInstruction::TypeConvert:
-            code += QString("    %1 = (%2)%3;\n").arg(instr.target, instr.varType, instr.args.value(0));
-            break;
-
-        case IRInstruction::Comment:
-            code += QString("    // %1\n").arg(instr.comment);
-            break;
-
-        case IRInstruction::RawCode: {
-            QString raw = instr.rawCode;
-            if (!raw.endsWith('\n'))
-                raw += '\n';
-            const auto lines = raw.split('\n');
-            for (int i = 0; i < lines.size(); ++i) {
-                const QString &line = lines[i];
-                if (i == lines.size() - 1 && line.isEmpty())
-                    continue;
-                if (line.isEmpty())
-                    code += "\n";
-                else
-                    code += "    " + line + "\n";
-            }
-            break;
-        }
-
-        case IRInstruction::Return:
-            if (instr.args.isEmpty())
-                code += "    return 0;\n";
-            else
-                code += QString("    return %1;\n").arg(instr.args.value(0));
-            break;
-
-        default:
-            break;
-        }
-    }
-
+    code += emitBodyCode(1);
     code += "    return 0;\n";
     code += "}\n";
     return code;

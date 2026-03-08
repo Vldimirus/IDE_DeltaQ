@@ -2,6 +2,8 @@
 #include "LibraryImportWizard.h"
 #include "../core/ModuleRegistry.h"
 
+#include <QCoreApplication>
+#include <QFileInfo>
 #include <QLineEdit>
 #include <QTreeWidget>
 #include <QComboBox>
@@ -16,8 +18,28 @@
 #include <QWizardPage>
 #include <QCheckBox>
 #include <QSplitter>
+#include <QRegularExpression>
 
 namespace DeltaQ {
+
+namespace {
+
+// Подсказывает безопасное имя pack-а по выбранному header-файлу.
+QString suggestedPackNameFromHeader(const QString &headerPath)
+{
+    QString name = QFileInfo(headerPath).completeBaseName().trimmed().toLower();
+    for (QChar &ch : name) {
+        if (!ch.isLetterOrNumber())
+            ch = '_';
+    }
+    while (name.contains("__"))
+        name.replace("__", "_");
+    name.remove(QRegularExpression("^_+"));
+    name.remove(QRegularExpression("_+$"));
+    return name.isEmpty() ? QString("imported_pack") : name;
+}
+
+} // namespace
 
 LibraryImportWizard::LibraryImportWizard(ModuleRegistry *registry, QWidget *parent)
     : QWizard(parent)
@@ -52,8 +74,16 @@ void LibraryImportWizard::setupPage1_SelectLibrary()
     connect(browseBtn, &QPushButton::clicked, this, [this]() {
         QString path = QFileDialog::getOpenFileName(this, tr("Select Header"),
                                                      QString(), tr("Headers (*.h *.hpp)"));
-        if (!path.isEmpty())
+        if (!path.isEmpty()) {
             m_headerPathEdit->setText(path);
+            const QString suggestedPack = suggestedPackNameFromHeader(path);
+            if (m_packNameEdit && m_packNameEdit->text().trimmed().isEmpty())
+                m_packNameEdit->setText(suggestedPack);
+            if (m_packTitleEdit && m_packTitleEdit->text().trimmed().isEmpty())
+                m_packTitleEdit->setText(QFileInfo(path).completeBaseName());
+            if (m_categoryEdit && m_categoryEdit->text().trimmed().isEmpty())
+                m_categoryEdit->setText(suggestedPack);
+        }
     });
     hdrLayout->addWidget(hdrLabel);
     hdrLayout->addWidget(m_headerPathEdit, 1);
@@ -84,6 +114,42 @@ void LibraryImportWizard::setupPage1_SelectLibrary()
     stdLayout->addWidget(m_standardCombo);
     stdLayout->addStretch();
     layout->addLayout(stdLayout);
+
+    auto *packNameLabel = new QLabel(tr("Pack name:"), page);
+    m_packNameEdit = new QLineEdit(page);
+    m_packNameEdit->setPlaceholderText(tr("sensor_sdk"));
+    layout->addWidget(packNameLabel);
+    layout->addWidget(m_packNameEdit);
+
+    auto *packTitleLabel = new QLabel(tr("Pack title:"), page);
+    m_packTitleEdit = new QLineEdit(page);
+    m_packTitleEdit->setPlaceholderText(tr("Sensor SDK"));
+    layout->addWidget(packTitleLabel);
+    layout->addWidget(m_packTitleEdit);
+
+    auto *packAuthorLabel = new QLabel(tr("Author:"), page);
+    m_packAuthorEdit = new QLineEdit(page);
+    m_packAuthorEdit->setText(tr("User"));
+    layout->addWidget(packAuthorLabel);
+    layout->addWidget(m_packAuthorEdit);
+
+    auto *packDescriptionLabel = new QLabel(tr("Pack description:"), page);
+    m_packDescriptionEdit = new QLineEdit(page);
+    m_packDescriptionEdit->setPlaceholderText(tr("Imported C library pack"));
+    layout->addWidget(packDescriptionLabel);
+    layout->addWidget(m_packDescriptionEdit);
+
+    auto *categoryLabel = new QLabel(tr("Module category:"), page);
+    m_categoryEdit = new QLineEdit(page);
+    m_categoryEdit->setPlaceholderText(tr("sensor_sdk"));
+    layout->addWidget(categoryLabel);
+    layout->addWidget(m_categoryEdit);
+
+    auto *linkLabel = new QLabel(tr("Link libraries (semicolon-separated):"), page);
+    m_linkLibrariesEdit = new QLineEdit(page);
+    m_linkLibrariesEdit->setPlaceholderText(tr("sensor_sdk;m"));
+    layout->addWidget(linkLabel);
+    layout->addWidget(m_linkLibrariesEdit);
 
     layout->addStretch();
     addPage(page);
@@ -245,6 +311,9 @@ void LibraryImportWizard::setupPage4_ConfigureModules()
         // Определяем язык
         QString std = m_standardCombo->currentText();
         m_options.language = std.startsWith("c++") ? "cpp" : "c";
+        m_options.category = m_categoryEdit->text().trimmed().isEmpty()
+            ? QString("imported")
+            : m_categoryEdit->text().trimmed();
         m_options.excludePatterns = excludePatterns;
 
         DecompositionResult dr = LibraryDecomposer::decompose(m_parseResult, m_options);
@@ -254,6 +323,8 @@ void LibraryImportWizard::setupPage4_ConfigureModules()
         if (m_options.language == "cpp") {
             m_wrappers = WrapperGenerator::generateCWrapper(m_parseResult.classes,
                                                              m_headerPathEdit->text());
+        } else {
+            m_wrappers.clear();
         }
 
         // Заполняем дерево модулей
@@ -291,7 +362,7 @@ void LibraryImportWizard::setupPage5_Generate()
 {
     auto *page = new QWizardPage;
     page->setTitle(tr("Import Complete"));
-    page->setSubTitle(tr("Modules have been generated and registered."));
+    page->setSubTitle(tr("Modules have been generated and saved as an extension pack."));
 
     auto *layout = new QVBoxLayout(page);
 
@@ -306,17 +377,53 @@ void LibraryImportWizard::setupPage5_Generate()
     connect(this, &QWizard::currentIdChanged, this, [this](int id) {
         if (id != 4) return;
 
-        m_progressBar->setMaximum(m_modules.size());
-        int count = 0;
+        m_packResult = {};
+        m_progressBar->setMaximum(qMax(1, m_modules.size()));
+        m_progressBar->setValue(0);
 
-        for (auto &mod : m_modules) {
-            if (m_registry)
-                m_registry->registerModule(mod);
-            ++count;
-            m_progressBar->setValue(count);
+        ImportedLibraryPackSpec spec;
+        spec.packName = m_packNameEdit->text().trimmed();
+        spec.displayName = m_packTitleEdit->text().trimmed();
+        spec.author = m_packAuthorEdit->text().trimmed().isEmpty()
+            ? tr("User")
+            : m_packAuthorEdit->text().trimmed();
+        spec.description = m_packDescriptionEdit->text().trimmed();
+        spec.category = m_categoryEdit->text().trimmed().isEmpty()
+            ? QString("imported")
+            : m_categoryEdit->text().trimmed();
+        spec.language = m_options.language;
+        spec.standard = m_standardCombo->currentText();
+        spec.headerPaths = {m_headerPathEdit->text().trimmed()};
+        spec.includePaths = m_includePathsEdit->text().split(';', Qt::SkipEmptyParts);
+        spec.defines = m_definesEdit->text().split(';', Qt::SkipEmptyParts);
+        spec.linkLibraries = m_linkLibrariesEdit->text().split(';', Qt::SkipEmptyParts);
+
+        if (spec.packName.isEmpty()) {
+            m_resultLabel->setText(tr("Pack name is required."));
+            return;
         }
 
-        m_resultLabel->setText(tr("Successfully imported %1 module(s).").arg(count));
+        const QString modulesRootDir = QCoreApplication::applicationDirPath() + "/modules";
+        m_packResult = LibraryPackager::writeImportedPack(modulesRootDir, spec, m_modules, m_wrappers);
+        m_progressBar->setValue(m_progressBar->maximum());
+
+        if (!m_packResult.success()) {
+            m_resultLabel->setText(tr("Import failed:\n%1").arg(m_packResult.errors.join("\n")));
+            return;
+        }
+
+        // После записи pack-а перечитываем глобальные модули, чтобы imported pack сразу стал
+        // нормальным extension pack внутри общей экосистемы IDE.
+        if (m_registry)
+            m_registry->loadGlobalModules(modulesRootDir);
+
+        QString message = tr("Imported %1 module(s) into pack '%2'.")
+            .arg(m_packResult.writtenModuleFiles.size())
+            .arg(spec.packName);
+        message += tr("\nPack directory: %1").arg(m_packResult.packDir);
+        if (!m_packResult.warnings.isEmpty())
+            message += tr("\nWarnings:\n%1").arg(m_packResult.warnings.join("\n"));
+        m_resultLabel->setText(message);
     });
 
     addPage(page);

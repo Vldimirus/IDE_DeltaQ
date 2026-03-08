@@ -3,7 +3,61 @@
 #include "PreBuildProcessor.h"
 #include "../editor/BuildManager.h"
 
+#include <QDir>
+
 namespace DeltaQ {
+
+namespace {
+
+// Преобразует enum артефакта в человекочитаемую роль для build output.
+QString artifactKindLabel(PreBuildArtifactKind kind)
+{
+    switch (kind) {
+    case PreBuildArtifactKind::GraphSource:
+        return QObject::tr("graph C source");
+    case PreBuildArtifactKind::SubmoduleHeader:
+        return QObject::tr("submodule header");
+    case PreBuildArtifactKind::SubmoduleSource:
+        return QObject::tr("submodule implementation");
+    case PreBuildArtifactKind::UIHeader:
+        return QObject::tr("UI header");
+    case PreBuildArtifactKind::UISource:
+        return QObject::tr("UI implementation");
+    case PreBuildArtifactKind::UIEventsHeader:
+        return QObject::tr("UI event header");
+    case PreBuildArtifactKind::UIEventsSource:
+        return QObject::tr("UI event implementation");
+    }
+    return QObject::tr("generated artifact");
+}
+
+// Показывает, из какого source-of-truth получен артефакт pre-build.
+QString artifactSourceLabel(const PreBuildArtifact &artifact)
+{
+    switch (artifact.kind) {
+    case PreBuildArtifactKind::GraphSource:
+        return QObject::tr("graph '%1'").arg(artifact.sourceName);
+    case PreBuildArtifactKind::SubmoduleHeader:
+    case PreBuildArtifactKind::SubmoduleSource:
+        return QObject::tr("submodule graph '%1'").arg(artifact.sourceName);
+    case PreBuildArtifactKind::UIHeader:
+    case PreBuildArtifactKind::UISource:
+    case PreBuildArtifactKind::UIEventsHeader:
+    case PreBuildArtifactKind::UIEventsSource:
+        return QObject::tr("UI layout '%1'").arg(artifact.sourceName);
+    }
+    return artifact.sourceName;
+}
+
+// Собирает одну строку build output с путём, ролью и источником generated-файла.
+QString formatArtifactLine(const QString &projectDir, const PreBuildArtifact &artifact)
+{
+    const QString relativePath = QDir(projectDir).relativeFilePath(artifact.path);
+    return QObject::tr("  -> %1 [%2] <- %3")
+        .arg(relativePath, artifactKindLabel(artifact.kind), artifactSourceLabel(artifact));
+}
+
+} // namespace
 
 BuildPipeline::BuildPipeline(PreBuildProcessor *preBuild, BuildManager *buildManager,
                              QObject *parent)
@@ -35,9 +89,9 @@ void BuildPipeline::run(const QString &projectDir, const QString &projectName,
         return;
     }
 
-    emit pipelineOutput(tr("Сгенерировано файлов: %1").arg(result.generatedFiles.size()));
-    for (const auto &f : result.generatedFiles)
-        emit pipelineOutput(tr("  → %1").arg(f));
+    emit pipelineOutput(tr("Сгенерировано файлов: %1").arg(result.generatedArtifacts.size()));
+    for (const auto &artifact : result.generatedArtifacts)
+        emit pipelineOutput(formatArtifactLine(projectDir, artifact));
 
     emit preBuildFinished(true);
 

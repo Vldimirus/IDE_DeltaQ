@@ -1,0 +1,35 @@
+{
+    "id": "50000000-0000-0000-0000-000000000001",
+    "name": "measure_text_graph",
+    "parent_module_id": "example.graph.measure_text",
+    "nodes": [
+        {
+            "id": "50000000-0000-0000-0000-000000000101",
+            "module_id": "core.string.str_length",
+            "position": {
+                "x": 120.0,
+                "y": 120.0
+            }
+        },
+        {
+            "id": "50000000-0000-0000-0000-000000000102",
+            "module_id": "core.conversion.int_to_string",
+            "position": {
+                "x": 420.0,
+                "y": 120.0
+            }
+        }
+    ],
+    "connections": [
+        {
+            "from": {
+                "node": "50000000-0000-0000-0000-000000000101",
+                "port": "length"
+            },
+            "to": {
+                "node": "50000000-0000-0000-0000-000000000102",
+                "port": "value"
+            }
+        }
+    ]
+}

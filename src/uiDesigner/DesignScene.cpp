@@ -2,6 +2,7 @@
 #include "DesignScene.h"
 #include "WidgetItem.h"
 
+#include <deltaq/UIContract.h>
 #include <deltaq/UILayout.h>
 
 #include <QPainter>
@@ -37,8 +38,7 @@ DesignScene::DesignScene(QObject *parent)
 
 bool DesignScene::isContainerType(const QString &type)
 {
-    return type == "Panel" || type == "GroupBox"
-        || type == "ScrollPanel" || type == "TabPanel";
+    return isContainerUIContractType(type);
 }
 
 WidgetItem *DesignScene::containerAtPos(const QPointF &scenePos, WidgetItem *exclude) const
@@ -295,7 +295,7 @@ void DesignScene::drawForeground(QPainter *painter, const QRectF &rect)
     QFont font;
     font.setPixelSize(11);
     painter->setFont(font);
-    painter->drawText(previewRect, Qt::AlignCenter, m_dropPreviewType);
+    painter->drawText(previewRect, Qt::AlignCenter, displayUIContractName(m_dropPreviewType));
 
     painter->restore();
 }
@@ -315,20 +315,7 @@ void DesignScene::dragEnterEvent(QGraphicsSceneDragDropEvent *event)
     if (event->mimeData()->hasFormat("application/x-dqwidget")) {
         m_dropPreviewType = QString::fromUtf8(
             event->mimeData()->data("application/x-dqwidget"));
-
-        // Определяем размер превью в зависимости от типа
-        if (m_dropPreviewType == "Panel" || m_dropPreviewType == "GroupBox")
-            m_dropPreviewSize = QSizeF(200, 150);
-        else if (m_dropPreviewType == "TextField" || m_dropPreviewType == "ComboBox")
-            m_dropPreviewSize = QSizeF(150, 30);
-        else if (m_dropPreviewType == "Slider")
-            m_dropPreviewSize = QSizeF(200, 30);
-        else if (m_dropPreviewType == "ProgressBar")
-            m_dropPreviewSize = QSizeF(200, 24);
-        else if (m_dropPreviewType == "Image")
-            m_dropPreviewSize = QSizeF(100, 100);
-        else
-            m_dropPreviewSize = QSizeF(120, 40);
+        m_dropPreviewSize = defaultUIWidgetSize(m_dropPreviewType);
 
         event->acceptProposedAction();
     } else {
@@ -378,11 +365,12 @@ void DesignScene::dropEvent(QGraphicsSceneDragDropEvent *event)
         QPointF snapped = WidgetItem::snapToGrid(event->scenePos(), m_gridSize);
 
         // Если вне клиентской области — корректируем позицию внутрь
+        const QSizeF defaultSize = defaultUIWidgetSize(widgetType);
         QRectF clientRect(m_windowRect.x(), m_windowRect.y() + TitleBarHeight,
                           m_windowRect.width(), m_windowRect.height() - TitleBarHeight);
         if (!clientRect.contains(snapped)) {
-            snapped.setX(qBound(clientRect.left(), snapped.x(), clientRect.right() - 120));
-            snapped.setY(qBound(clientRect.top(), snapped.y(), clientRect.bottom() - 40));
+            snapped.setX(qBound(clientRect.left(), snapped.x(), clientRect.right() - defaultSize.width()));
+            snapped.setY(qBound(clientRect.top(), snapped.y(), clientRect.bottom() - defaultSize.height()));
         }
 
         // Определяем родительский контейнер

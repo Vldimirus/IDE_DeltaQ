@@ -1,7 +1,6 @@
 {
     "category": "math",
-    "dependencies": [
-    ],
+    "dependencies": [],
     "description": "Квадратный корень",
     "header": "",
     "id": "core.math.sqrt",
@@ -27,5 +26,9 @@
     },
     "source": "",
     "source_code": "float dq_sqrt(float value) {\n    return sqrtf(value);\n}",
-    "version": "1.1"
+    "version": "1.1",
+    "metadata": {
+        "deltaq.doc.when_to_use": "Когда нужно вычислить квадратный корень из float-значения.",
+        "deltaq.doc.limitations": "Не валидирует отрицательные значения отдельно; поведение задаёт backend math."
+    }
 }

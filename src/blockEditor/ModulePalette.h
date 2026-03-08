@@ -3,6 +3,7 @@
 
 #include <QWidget>
 #include <QLineEdit>
+#include <QCheckBox>
 #include <QTreeWidget>
 #include <QMimeData>
 #include <QVBoxLayout>
@@ -54,6 +55,8 @@ private:
 
     ModuleRegistry *m_registry;
     QLineEdit *m_searchEdit = nullptr;
+    QCheckBox *m_showSpecializedCheck = nullptr;
+    QCheckBox *m_showLegacyCheck = nullptr;
     ModuleTreeWidget *m_tree = nullptr;
     QString m_languageFilter; // "" = все, "c", "cpp"
 };

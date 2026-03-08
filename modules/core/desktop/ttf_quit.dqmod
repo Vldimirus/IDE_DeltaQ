@@ -8,6 +8,14 @@
         "SDL2/SDL_ttf.h"
     ],
     "language": "c",
+    "metadata": {
+        "deltaq.kind": "ui_backend_runtime",
+        "deltaq.ui.backend": "sdl2",
+        "deltaq.ui.backend_role": "text_shutdown",
+        "deltaq.ui.layer": "backend",
+        "deltaq.doc.when_to_use": "Когда нужно завершить SDL_ttf после освобождения UI/text ресурсов.",
+        "deltaq.doc.limitations": "Это lifecycle-шаг SDL2 text backend и он актуален только для desktop SDL2 pipeline."
+    },
     "name": "ttf_quit",
     "origin": "core",
     "ports": {

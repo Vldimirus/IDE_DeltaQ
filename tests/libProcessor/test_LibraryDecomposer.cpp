@@ -132,6 +132,24 @@ private slots:
         QCOMPARE(result.modules[0].category, QString("mylib"));
     }
 
+    void testCTypeMappingToDeltaQPorts()
+    {
+        ParseResult pr;
+        FunctionDecl f;
+        f.name = "sensor_name";
+        f.returnType = "const char *";
+        f.parameters.append({"ctx", "void *", ""});
+        pr.functions.append(f);
+        pr.success = true;
+
+        auto result = LibraryDecomposer::decompose(pr);
+        QCOMPARE(result.modules.size(), 1);
+        QCOMPARE(result.modules[0].inputs.size(), 1);
+        QCOMPARE(result.modules[0].inputs[0].type, QString("pointer"));
+        QCOMPARE(result.modules[0].outputs.size(), 1);
+        QCOMPARE(result.modules[0].outputs[0].type, QString("string"));
+    }
+
     void testEmptyResult()
     {
         ParseResult pr;

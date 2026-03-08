@@ -26,6 +26,9 @@ public:
     explicit BlockScene(ModuleRegistry *registry, CommandBus *bus,
                         QObject *parent = nullptr);
 
+    // Проверка, можно ли добавить модуль в текущий граф до фактического drop.
+    bool canInsertModule(const QString &moduleId, QString *reason = nullptr) const;
+
     // Работа с узлами
     NodeItem *addNodeItem(const GraphNode &node);
     void removeNodeItem(const QString &nodeId);

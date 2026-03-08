@@ -3,6 +3,8 @@
 #include "DesignScene.h"
 #include "WidgetItem.h"
 
+#include <deltaq/UIContract.h>
+
 #include <QHeaderView>
 
 namespace DeltaQ {
@@ -94,7 +96,11 @@ void ObjectTreeWidget::selectWidget(const QString &widgetId)
 
 void ObjectTreeWidget::addWidgetToTree(WidgetItem *item, QTreeWidgetItem *parentTreeItem)
 {
-    QString label = QString("%1 (%2)").arg(item->widgetName(), item->widgetType());
+    const QString displayType = item->widgetDisplayType();
+    const QString contractType = item->widgetContractType();
+    QString label = QString("%1 (%2)").arg(item->widgetName(), displayType);
+    if (!contractType.isEmpty())
+        label += QString(" [%1]").arg(contractType);
     auto *treeItem = new QTreeWidgetItem(parentTreeItem, {label});
     treeItem->setData(0, Qt::UserRole, item->widgetId());
 

@@ -8,6 +8,14 @@
         "SDL2/SDL.h"
     ],
     "language": "c",
+    "metadata": {
+        "deltaq.kind": "ui_backend_runtime",
+        "deltaq.ui.backend": "sdl2",
+        "deltaq.ui.backend_role": "lifecycle_init",
+        "deltaq.ui.layer": "backend",
+        "deltaq.doc.when_to_use": "Когда начинается desktop/UI runtime на backend SDL2.",
+        "deltaq.doc.limitations": "Это backend-модуль SDL2 и он нужен только в desktop-потоке, а не в console-графах."
+    },
     "name": "sdl_init",
     "origin": "core",
     "ports": {

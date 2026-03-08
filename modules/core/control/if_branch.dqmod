@@ -1,0 +1,42 @@
+{
+    "category": "control",
+    "dependencies": [],
+    "description": "Ветвление execution flow по условию",
+    "header": "",
+    "id": "core.control.if_branch",
+    "language": "c",
+    "name": "if_branch",
+    "origin": "core",
+    "ports": {
+        "input": [
+            {
+                "kind": "execution",
+                "name": "flow_in",
+                "type": "exec"
+            },
+            {
+                "name": "condition",
+                "type": "bool"
+            }
+        ],
+        "output": [
+            {
+                "kind": "execution",
+                "name": "flow_true",
+                "type": "exec"
+            },
+            {
+                "kind": "execution",
+                "name": "flow_false",
+                "type": "exec"
+            }
+        ]
+    },
+    "source": "",
+    "source_code": "// if_branch - управление потоком, встроенный модуль\n// Генерируется как if/else в коде",
+    "version": "1.3",
+    "metadata": {
+        "deltaq.doc.when_to_use": "Когда нужно развести exec-flow по булевому условию.",
+        "deltaq.doc.limitations": "Управляет только execution-ветками; для выбора data-значения используйте if_then."
+    }
+}

@@ -17,6 +17,8 @@ struct ModulePack {
     bool isCore = false;
 };
 
+class GraphStore;
+
 class ModuleRegistry : public QObject {
     Q_OBJECT
 
@@ -54,6 +56,9 @@ public:
     bool loadRegistry(const QString &projectDir);
     bool saveRegistry(const QString &projectDir) const;
 
+    // GraphStore нужен для проверки составных модулей по их внутреннему графу.
+    void setGraphStore(GraphStore *store) { m_graphStore = store; }
+
     // Список установленных пакетов
     QVector<ModulePack> installedPacks() const;
 
@@ -64,6 +69,8 @@ public:
     // Валидация
     bool validateModule(const Module &module) const;
     bool hasDuplicateName(const QString &name, const QString &excludeId = QString()) const;
+    bool moduleHasImplementation(const Module &module) const;
+    bool isModuleAdmittedForComposition(const Module &module, QString *reason = nullptr) const;
 
     int count() const { return m_modules.size(); }
     void clear();
@@ -77,6 +84,7 @@ signals:
 private:
     QMap<QString, Module> m_modules;        // id -> Module
     QVector<ModulePack> m_packs;            // установленные пакеты
+    GraphStore *m_graphStore = nullptr;     // внутренние графы составных модулей
 };
 
 } // namespace DeltaQ
