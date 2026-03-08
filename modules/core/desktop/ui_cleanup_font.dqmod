@@ -1,0 +1,36 @@
+{
+    "category": "desktop",
+    "dependencies": [],
+    "description": "Освобождение шрифта UI",
+    "header": "",
+    "id": "core.desktop.ui_cleanup_font",
+    "includes": [
+        "SDL2/SDL_ttf.h",
+        "\"ui/window1.h\""
+    ],
+    "language": "c",
+    "name": "ui_cleanup_font",
+    "origin": "core",
+    "ports": {
+        "input": [
+            {
+                "kind": "execution",
+                "name": "flow_in",
+                "type": "exec"
+            },
+            {
+                "name": "ui_state",
+                "type": "ui_state"
+            }
+        ],
+        "output": [
+            {
+                "kind": "execution",
+                "name": "flow_out",
+                "type": "exec"
+            }
+        ]
+    },
+    "source": "",
+    "version": "1.0"
+}

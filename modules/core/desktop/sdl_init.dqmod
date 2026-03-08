@@ -1,0 +1,25 @@
+{
+    "category": "desktop",
+    "dependencies": [],
+    "description": "Инициализация SDL video subsystem",
+    "header": "",
+    "id": "core.desktop.sdl_init",
+    "includes": [
+        "SDL2/SDL.h"
+    ],
+    "language": "c",
+    "name": "sdl_init",
+    "origin": "core",
+    "ports": {
+        "input": [],
+        "output": [
+            {
+                "kind": "execution",
+                "name": "flow_out",
+                "type": "exec"
+            }
+        ]
+    },
+    "source": "",
+    "version": "1.0"
+}

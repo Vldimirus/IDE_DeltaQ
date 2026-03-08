@@ -59,14 +59,14 @@ void PortItem::paint(QPainter *painter, const QStyleOptionGraphicsItem *option,
 
         QPolygonF triangle;
         if (m_direction == PortDirection::Output) {
-            // Треугольник вправо ▶
+            // Нижний exec-output — треугольник вниз ▼
             triangle << QPointF(-r, -r)
-                     << QPointF(r, 0)
-                     << QPointF(-r, r);
+                     << QPointF(0, r)
+                     << QPointF(r, -r);
         } else {
-            // Треугольник влево ◀
-            triangle << QPointF(r, -r)
-                     << QPointF(-r, 0)
+            // Верхний exec-input — треугольник вверх ▲
+            triangle << QPointF(-r, r)
+                     << QPointF(0, -r)
                      << QPointF(r, r);
         }
         painter->drawPolygon(triangle);
@@ -86,9 +86,9 @@ QPainterPath PortItem::shape() const
     if (m_kind == PortKind::Execution) {
         QPolygonF triangle;
         if (m_direction == PortDirection::Output) {
-            triangle << QPointF(-r, -r) << QPointF(r, 0) << QPointF(-r, r);
+            triangle << QPointF(-r, -r) << QPointF(0, r) << QPointF(r, -r);
         } else {
-            triangle << QPointF(r, -r) << QPointF(-r, 0) << QPointF(r, r);
+            triangle << QPointF(-r, r) << QPointF(0, -r) << QPointF(r, r);
         }
         path.addPolygon(triangle);
         path.closeSubpath();
@@ -112,6 +112,18 @@ QColor PortItem::colorForType(const QString &type)
     if (type == "string") return QColor(180, 120, 255); // фиолетовый
     if (type == "exec")   return QColor(220, 220, 220); // белый
     return QColor(180, 180, 180); // серый по умолчанию
+}
+
+QSizeF PortItem::labelSize() const
+{
+    return m_label ? m_label->boundingRect().size() : QSizeF();
+}
+
+QRectF PortItem::labelRectInNode() const
+{
+    if (!m_label || !m_parentNode)
+        return {};
+    return m_label->mapRectToItem(m_parentNode, m_label->boundingRect());
 }
 
 void PortItem::addConnection(ConnectionItem *conn)
@@ -147,10 +159,18 @@ void PortItem::updateAppearance()
 {
     qreal r = m_hovered ? HoverRadius : NormalRadius;
 
-    // Позиция подписи: input — справа, output — слева
     if (m_label) {
         qreal tw = m_label->boundingRect().width();
         qreal th = m_label->boundingRect().height();
+        if (m_kind == PortKind::Execution) {
+            if (m_direction == PortDirection::Input)
+                m_label->setPos(-tw / 2, -r - 4 - th);
+            else
+                m_label->setPos(-tw / 2, r + 4);
+            return;
+        }
+
+        // Data-подписи: input справа, output слева
         if (m_direction == PortDirection::Input)
             m_label->setPos(r + 4, -th / 2);
         else

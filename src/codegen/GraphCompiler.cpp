@@ -11,6 +11,38 @@
 
 namespace DeltaQ {
 
+namespace {
+
+int emittedLineCount(const IRInstruction &instr)
+{
+    switch (instr.type) {
+    case IRInstruction::RawCode: {
+        QString raw = instr.rawCode;
+        if (!raw.endsWith('\n'))
+            raw += '\n';
+        int count = 0;
+        const auto lines = raw.split('\n');
+        for (int i = 0; i < lines.size(); ++i) {
+            if (i == lines.size() - 1 && lines[i].isEmpty())
+                continue;
+            count++;
+        }
+        return qMax(1, count);
+    }
+    case IRInstruction::Comment:
+    case IRInstruction::DeclareVar:
+    case IRInstruction::Call:
+    case IRInstruction::Assign:
+    case IRInstruction::TypeConvert:
+    case IRInstruction::Return:
+        return 1;
+    default:
+        return 1;
+    }
+}
+
+} // namespace
+
 GraphCompiler::GraphCompiler(ModuleRegistry *registry)
     : m_registry(registry)
 {
@@ -119,19 +151,22 @@ CompilationResult GraphCompiler::compile(const Graph &graph)
     // 4. Генерация C-кода
     result.generatedCode = ir.emitCCode();
 
-    // 5. Построение sourceMap (строка → nodeId)
-    int lineNum = 0;
-    for (const auto &line : result.generatedCode.split('\n')) {
-        lineNum++;
-        Q_UNUSED(line)
-    }
+    int currentLine = 1;
+    currentLine += ir.includes.size();
+    if (!ir.includes.isEmpty())
+        currentLine += 1;
+    for (const auto &src : ir.moduleSources)
+        currentLine += src.count('\n') + 2;
+    currentLine += 1; // строка int main(...)
 
-    // Построение sourceMap из инструкций
-    int codeLineOffset = ir.includes.size() + 2; // includes + пустая строка + main()
-    for (int i = 0; i < ir.instructions.size(); ++i) {
-        const auto &instr = ir.instructions[i];
+    for (const auto &instr : ir.instructions) {
         if (!instr.sourceNodeId.isEmpty()) {
-            result.sourceMap[codeLineOffset + i + 1] = instr.sourceNodeId;
+            const int count = emittedLineCount(instr);
+            for (int i = 0; i < count; ++i)
+                result.sourceMap[currentLine + i] = instr.sourceNodeId;
+            currentLine += count;
+        } else {
+            currentLine += emittedLineCount(instr);
         }
     }
 
@@ -305,6 +340,7 @@ IR GraphCompiler::generateIR(const Graph &graph, const QStringList &sortedNodes,
 
     // Сбор уникальных модулей — дедупликация includes и определений
     QSet<QString> processedModuleIds;
+    QSet<QString> processedModuleSources;
     for (const auto &node : graph.nodes) {
         if (processedModuleIds.contains(node.moduleId))
             continue;
@@ -322,7 +358,10 @@ IR GraphCompiler::generateIR(const Graph &graph, const QStringList &sortedNodes,
         }
 
         // Собираем sourceCode модуля (определение функции)
-        if (!mod->sourceCode.isEmpty()) {
+        if (!mod->sourceCode.isEmpty() &&
+            !isInlineDesktopModule(mod->id) &&
+            !processedModuleSources.contains(mod->sourceCode)) {
+            processedModuleSources.insert(mod->sourceCode);
             ir.moduleSources.append(mod->sourceCode);
         }
     }
@@ -340,18 +379,23 @@ IR GraphCompiler::generateIR(const Graph &graph, const QStringList &sortedNodes,
         ir.addInstruction(IRInstruction::makeComment(
             QObject::tr("Node: %1 (%2)").arg(mod->name, nodeId.left(8))));
 
+        const bool inlineDesktop = isInlineDesktopModule(mod->id);
+        const QString sanitizedNodeId = QString(nodeId).replace('-', '_');
+
         // Объявляем переменные для output-портов (пропускаем exec-порты)
         for (const auto &outPort : mod->outputs) {
             if (outPort.kind == PortKind::Execution)
                 continue;
             QString varName = QString("var_%1_%2").arg(
-                nodeId.left(8).replace('-', '_'),
+                sanitizedNodeId,
                 outPort.name);
             QString cType = toCType(outPort.type);
 
-            ir.addInstruction(IRInstruction::makeDeclareVar(varName, cType, nodeId));
-            ir.declareVariable(varName, cType);
             portVarMap[nodeId + ":" + outPort.name] = varName;
+            if (!inlineDesktop) {
+                ir.addInstruction(IRInstruction::makeDeclareVar(varName, cType, nodeId));
+                ir.declareVariable(varName, cType);
+            }
         }
 
         // Подготавливаем аргументы (входные порты, пропускаем exec-порты)
@@ -391,8 +435,10 @@ IR GraphCompiler::generateIR(const Graph &graph, const QStringList &sortedNodes,
             }
 
             if (!found) {
-                // Используем значение по умолчанию
-                argValue = inPort.defaultValue.isEmpty() ? "0" : inPort.defaultValue;
+                // Используем значение из свойств узла или значение по умолчанию
+                argValue = node->properties.value(
+                    inPort.name,
+                    inPort.defaultValue.isEmpty() ? "0" : inPort.defaultValue);
             }
 
             callArgs.append(argValue);
@@ -408,15 +454,16 @@ IR GraphCompiler::generateIR(const Graph &graph, const QStringList &sortedNodes,
         }
 
         // Генерируем вызов функции
-        if (UIModuleFactory::isUIModule(node->moduleId) ||
+        if (inlineDesktop) {
+            if (!emitInlineDesktopModuleIR(*node, *mod, callArgs, portVarMap, ir, result))
+                result.errors.append(QObject::tr("Failed to emit desktop runtime node '%1'").arg(mod->name));
+        } else if (UIModuleFactory::isUIModule(node->moduleId) ||
             UIModuleFactory::isUIModuleByName(mod->name)) {
-            // UI-модуль: SDL2-специфичный код
-            QString widgetVar = QString("widget_%1").arg(nodeId.left(8).replace('-', '_'));
-
+            // UI-модули пока не создают runtime-код автоматически:
+            // оставляем только безопасные комментарии/инициализацию значений.
             if (mod->name == "UI_Button") {
                 ir.addInstruction(IRInstruction::makeComment(
                     QString("UI: Button '%1'").arg(callArgs.value(0))));
-                // onClick → будет обработан как callback
                 if (!mod->outputs.isEmpty()) {
                     QString targetVar = portVarMap.value(nodeId + ":" + mod->outputs.first().name);
                     ir.addInstruction(IRInstruction::makeAssign(
@@ -425,9 +472,6 @@ IR GraphCompiler::generateIR(const Graph &graph, const QStringList &sortedNodes,
             } else if (mod->name == "UI_Label") {
                 ir.addInstruction(IRInstruction::makeComment(
                     QString("UI: Label, text=%1").arg(callArgs.value(0))));
-                QString funcName = "ui_label_set_text";
-                ir.addInstruction(IRInstruction::makeCall(
-                    {}, funcName, {"&" + widgetVar, callArgs.value(0)}, nodeId));
             } else if (mod->name == "UI_Slider") {
                 ir.addInstruction(IRInstruction::makeComment(
                     QString("UI: Slider [%1..%2]").arg(callArgs.value(0), callArgs.value(1))));
@@ -437,10 +481,8 @@ IR GraphCompiler::generateIR(const Graph &graph, const QStringList &sortedNodes,
                         targetVar, callArgs.value(2), nodeId));
                 }
             } else {
-                // Общий вариант для остальных UI-модулей
-                QString funcName = QString("ui_%1_create").arg(
-                    mod->name.toLower().replace("ui_", ""));
-                ir.addInstruction(IRInstruction::makeCall({}, funcName, callArgs, nodeId));
+                ir.addInstruction(IRInstruction::makeComment(
+                    QString("UI: %1").arg(mod->name)));
             }
         } else if (mod->origin == "graph" && !mod->graphId.isEmpty() && m_graphStore) {
             // Композитный подмодуль — рекурсивная компиляция
@@ -468,9 +510,189 @@ IR GraphCompiler::generateIR(const Graph &graph, const QStringList &sortedNodes,
         }
     }
 
-    ir.addInstruction(IRInstruction::makeReturn("0"));
-
     return ir;
+}
+
+bool GraphCompiler::isInlineDesktopModule(const QString &moduleId) const
+{
+    static const QSet<QString> inlineModules = {
+        "core.desktop.sdl_init",
+        "core.desktop.ttf_init",
+        "core.desktop.create_window",
+        "core.desktop.create_renderer",
+        "core.desktop.ui_init",
+        "core.desktop.event_loop",
+        "core.desktop.ui_cleanup_font",
+        "core.desktop.destroy_renderer",
+        "core.desktop.destroy_window",
+        "core.desktop.ttf_quit",
+        "core.desktop.sdl_quit"
+    };
+
+    return inlineModules.contains(moduleId);
+}
+
+bool GraphCompiler::emitInlineDesktopModuleIR(const GraphNode &node, const Module &mod,
+                                              const QStringList &callArgs,
+                                              const QMap<QString, QString> &portVarMap,
+                                              IR &ir, CompilationResult &result)
+{
+    const auto outputVar = [&](const QString &portName) {
+        return portVarMap.value(node.id + ":" + portName);
+    };
+
+    if (mod.id == "core.desktop.sdl_init") {
+        ir.addInstruction(IRInstruction::makeRawCode(
+            "if (SDL_Init(SDL_INIT_VIDEO) < 0) {\n"
+            "    SDL_Log(\"SDL_Init failed: %s\", SDL_GetError());\n"
+            "    return 1;\n"
+            "}",
+            node.id));
+        return true;
+    }
+
+    if (mod.id == "core.desktop.ttf_init") {
+        ir.addInstruction(IRInstruction::makeRawCode(
+            "if (TTF_Init() < 0) {\n"
+            "    SDL_Log(\"TTF_Init failed: %s\", TTF_GetError());\n"
+            "    SDL_Quit();\n"
+            "    return 1;\n"
+            "}",
+            node.id));
+        return true;
+    }
+
+    if (mod.id == "core.desktop.create_window") {
+        const QString windowVar = outputVar("window");
+        if (windowVar.isEmpty()) {
+            result.errors.append(QObject::tr("Desktop module '%1' requires 'window' output")
+                                 .arg(mod.name));
+            return false;
+        }
+
+        ir.addInstruction(IRInstruction::makeRawCode(
+            QString(
+                "SDL_Window *%1 = SDL_CreateWindow(\n"
+                "    %2,\n"
+                "    SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,\n"
+                "    %3, %4,\n"
+                "    SDL_WINDOW_SHOWN);\n"
+                "if (!%1) {\n"
+                "    SDL_Log(\"CreateWindow failed: %s\", SDL_GetError());\n"
+                "    TTF_Quit();\n"
+                "    SDL_Quit();\n"
+                "    return 1;\n"
+                "}")
+                .arg(windowVar,
+                     callArgs.value(0, "\"window1\""),
+                     callArgs.value(1, "640"),
+                     callArgs.value(2, "480")),
+            node.id));
+        return true;
+    }
+
+    if (mod.id == "core.desktop.create_renderer") {
+        const QString rendererVar = outputVar("renderer");
+        if (rendererVar.isEmpty()) {
+            result.errors.append(QObject::tr("Desktop module '%1' requires 'renderer' output")
+                                 .arg(mod.name));
+            return false;
+        }
+
+        ir.addInstruction(IRInstruction::makeRawCode(
+            QString(
+                "SDL_Renderer *%1 = SDL_CreateRenderer(%2, -1,\n"
+                "    SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);\n"
+                "if (!%1) {\n"
+                "    SDL_Log(\"CreateRenderer failed: %s\", SDL_GetError());\n"
+                "    SDL_DestroyWindow(%2);\n"
+                "    TTF_Quit();\n"
+                "    SDL_Quit();\n"
+                "    return 1;\n"
+                "}")
+                .arg(rendererVar, callArgs.value(0, "NULL")),
+            node.id));
+        return true;
+    }
+
+    if (mod.id == "core.desktop.ui_init") {
+        const QString uiVar = outputVar("ui_state");
+        if (uiVar.isEmpty()) {
+            result.errors.append(QObject::tr("Desktop module '%1' requires 'ui_state' output")
+                                 .arg(mod.name));
+            return false;
+        }
+
+        ir.addInstruction(IRInstruction::makeRawCode(
+            QString("UIState %1;\nui_init(&%1);").arg(uiVar),
+            node.id));
+        return true;
+    }
+
+    if (mod.id == "core.desktop.event_loop") {
+        ir.addInstruction(IRInstruction::makeRawCode(
+            QString(
+                "bool running = true;\n"
+                "SDL_Event event;\n"
+                "Uint32 last_tick = SDL_GetTicks();\n"
+                "\n"
+                "while (running) {\n"
+                "    while (SDL_PollEvent(&event)) {\n"
+                "        if (event.type == SDL_QUIT) {\n"
+                "            running = false;\n"
+                "            break;\n"
+                "        }\n"
+                "        ui_handle_event(&%1, &event);\n"
+                "    }\n"
+                "\n"
+                "    Uint32 now = SDL_GetTicks();\n"
+                "    ui_update(&%1, now - last_tick);\n"
+                "    last_tick = now;\n"
+                "\n"
+                "    SDL_SetRenderDrawColor(%2, 30, 30, 30, 255);\n"
+                "    SDL_RenderClear(%2);\n"
+                "    ui_render(&%1, %2);\n"
+                "    SDL_RenderPresent(%2);\n"
+                "}")
+                .arg(callArgs.value(1, "ui"), callArgs.value(0, "renderer")),
+            node.id));
+        return true;
+    }
+
+    if (mod.id == "core.desktop.ui_cleanup_font") {
+        ir.addInstruction(IRInstruction::makeRawCode(
+            QString("if (%1.font) TTF_CloseFont(%1.font);")
+                .arg(callArgs.value(0, "ui")),
+            node.id));
+        return true;
+    }
+
+    if (mod.id == "core.desktop.destroy_renderer") {
+        ir.addInstruction(IRInstruction::makeRawCode(
+            QString("SDL_DestroyRenderer(%1);").arg(callArgs.value(0, "renderer")),
+            node.id));
+        return true;
+    }
+
+    if (mod.id == "core.desktop.destroy_window") {
+        ir.addInstruction(IRInstruction::makeRawCode(
+            QString("SDL_DestroyWindow(%1);").arg(callArgs.value(0, "window")),
+            node.id));
+        return true;
+    }
+
+    if (mod.id == "core.desktop.ttf_quit") {
+        ir.addInstruction(IRInstruction::makeRawCode("TTF_Quit();", node.id));
+        return true;
+    }
+
+    if (mod.id == "core.desktop.sdl_quit") {
+        ir.addInstruction(IRInstruction::makeRawCode("SDL_Quit();", node.id));
+        return true;
+    }
+
+    result.errors.append(QObject::tr("Unsupported desktop runtime module: '%1'").arg(mod.id));
+    return false;
 }
 
 QString GraphCompiler::compileSubModule(const Module &mod, CompilationResult &result)
@@ -530,6 +752,9 @@ QString GraphCompiler::toCType(const QString &portType) const
     if (portType == "double") return "double";
     if (portType == "bool")   return "int"; // C не имеет bool без stdbool.h
     if (portType == "string") return "const char*";
+    if (portType == "sdl_window") return "SDL_Window *";
+    if (portType == "sdl_renderer") return "SDL_Renderer *";
+    if (portType == "ui_state") return "UIState";
     return "int"; // fallback
 }
 

@@ -1,0 +1,40 @@
+{
+    "category": "desktop",
+    "dependencies": [],
+    "description": "Создание SDL renderer",
+    "header": "",
+    "id": "core.desktop.create_renderer",
+    "includes": [
+        "SDL2/SDL.h",
+        "SDL2/SDL_ttf.h"
+    ],
+    "language": "c",
+    "name": "create_renderer",
+    "origin": "core",
+    "ports": {
+        "input": [
+            {
+                "kind": "execution",
+                "name": "flow_in",
+                "type": "exec"
+            },
+            {
+                "name": "window",
+                "type": "sdl_window"
+            }
+        ],
+        "output": [
+            {
+                "kind": "execution",
+                "name": "flow_out",
+                "type": "exec"
+            },
+            {
+                "name": "renderer",
+                "type": "sdl_renderer"
+            }
+        ]
+    },
+    "source": "",
+    "version": "1.0"
+}

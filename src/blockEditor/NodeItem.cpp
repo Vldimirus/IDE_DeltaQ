@@ -3,9 +3,11 @@
 #include "PortItem.h"
 #include "ConnectionItem.h"
 
+#include <algorithm>
 #include <QPainter>
 #include <QGraphicsSceneMouseEvent>
 #include <QStyleOptionGraphicsItem>
+#include <QFontMetricsF>
 
 namespace DeltaQ {
 
@@ -19,6 +21,7 @@ NodeItem::NodeItem(const QString &nodeId, const QString &moduleName,
     setFlag(ItemIsMovable);
     setFlag(ItemIsSelectable);
     setFlag(ItemSendsGeometryChanges);
+    updatePortPositions();
 }
 
 void NodeItem::addInputPort(const QString &name, const QString &type,
@@ -47,17 +50,7 @@ PortItem *NodeItem::findPort(const QString &name, PortDirection dir) const
 
 QRectF NodeItem::boundingRect() const
 {
-    // Считаем data-порты отдельно (exec-порты размещаются в заголовке)
-    int maxDataPorts = 0;
-    for (auto *p : m_inputPorts)
-        if (p->portKind() == PortKind::Data) maxDataPorts++;
-    int outDataPorts = 0;
-    for (auto *p : m_outputPorts)
-        if (p->portKind() == PortKind::Data) outDataPorts++;
-    maxDataPorts = qMax(maxDataPorts, outDataPorts);
-
-    qreal h = HeaderHeight + maxDataPorts * PortSpacing + BottomPadding;
-    return QRectF(0, 0, Width, h);
+    return QRectF(0, 0, m_width, m_height);
 }
 
 void NodeItem::paint(QPainter *painter, const QStyleOptionGraphicsItem *option,
@@ -95,7 +88,7 @@ void NodeItem::paint(QPainter *painter, const QStyleOptionGraphicsItem *option,
     painter->drawRoundedRect(r, 6, 6);
 
     // Заголовок
-    QRectF headerRect(0, 0, Width, HeaderHeight);
+    QRectF headerRect(0, 0, m_width, HeaderHeight);
     painter->setBrush(categoryColor(m_category));
     painter->setPen(Qt::NoPen);
 
@@ -105,9 +98,9 @@ void NodeItem::paint(QPainter *painter, const QStyleOptionGraphicsItem *option,
     headerPath.lineTo(0, HeaderHeight);         // нижний левый угол (прямой)
     headerPath.lineTo(0, 6);
     headerPath.arcTo(0, 0, 12, 12, 180, -90);  // верхний левый (скруглённый)
-    headerPath.lineTo(Width - 6, 0);
-    headerPath.arcTo(Width - 12, 0, 12, 12, 90, -90); // верхний правый (скруглённый)
-    headerPath.lineTo(Width, HeaderHeight);     // нижний правый угол (прямой)
+    headerPath.lineTo(m_width - 6, 0);
+    headerPath.arcTo(m_width - 12, 0, 12, 12, 90, -90); // верхний правый (скруглённый)
+    headerPath.lineTo(m_width, HeaderHeight);     // нижний правый угол (прямой)
     headerPath.closeSubpath();
     painter->drawPath(headerPath);
 
@@ -127,6 +120,7 @@ QColor NodeItem::categoryColor(const QString &category)
     if (category == "math")   return QColor(50, 100, 180);  // синий
     if (category == "logic")  return QColor(50, 140, 80);   // зелёный
     if (category == "io")     return QColor(200, 120, 40);  // оранжевый
+    if (category == "desktop") return QColor(40, 150, 160); // бирюзовый
     if (category == "string") return QColor(140, 80, 180);  // фиолетовый
     return QColor(100, 100, 100); // серый для custom
 }
@@ -189,17 +183,37 @@ void NodeItem::mouseDoubleClickEvent(QGraphicsSceneMouseEvent *event)
 
 void NodeItem::updatePortPositions()
 {
-    // Exec-порты — в области заголовка (по бокам)
-    // Data-порты — ниже заголовка (как раньше)
+    const qreal newWidth = computeWidth();
+    const qreal newHeight = computeHeight();
+    if (!qFuzzyCompare(m_width, newWidth) || !qFuzzyCompare(m_height, newHeight)) {
+        prepareGeometryChange();
+        m_width = newWidth;
+        m_height = newHeight;
+    }
+
+    // Exec-порты — сверху/снизу узла
+    // Data-порты — по бокам под заголовком
     int execInIdx = 0, execOutIdx = 0;
     int dataInIdx = 0, dataOutIdx = 0;
+    int execInCount = 0, execOutCount = 0;
+    for (auto *port : m_inputPorts)
+        if (port->portKind() == PortKind::Execution) execInCount++;
+    for (auto *port : m_outputPorts)
+        if (port->portKind() == PortKind::Execution) execOutCount++;
+
+    const qreal nodeHeight = m_height;
+    const qreal inputExecSpan = execInCount > 0
+        ? (execInCount - 1) * ExecPortSpacing : 0.0;
+    const qreal outputExecSpan = execOutCount > 0
+        ? (execOutCount - 1) * ExecPortSpacing : 0.0;
+    const qreal inputExecStart = (m_width - inputExecSpan) * 0.5;
+    const qreal outputExecStart = (m_width - outputExecSpan) * 0.5;
 
     for (auto *port : m_inputPorts) {
         if (port->portKind() == PortKind::Execution) {
-            // Exec input — слева в области заголовка
-            qreal y = HeaderHeight * 0.5;
-            qreal x = -2.0; // чуть левее края
-            Q_UNUSED(execInIdx)
+            // Exec input — сверху узла
+            qreal y = -2.0;
+            qreal x = inputExecStart + execInIdx * ExecPortSpacing;
             port->setPos(x, y);
             execInIdx++;
         } else {
@@ -211,21 +225,75 @@ void NodeItem::updatePortPositions()
 
     for (auto *port : m_outputPorts) {
         if (port->portKind() == PortKind::Execution) {
-            // Exec output — справа в области заголовка
-            qreal y = HeaderHeight * 0.5;
-            qreal x = Width + 2.0; // чуть правее края
-            Q_UNUSED(execOutIdx)
+            // Exec output — снизу узла
+            qreal y = nodeHeight + 2.0;
+            qreal x = outputExecStart + execOutIdx * ExecPortSpacing;
             port->setPos(x, y);
             execOutIdx++;
         } else {
             qreal y = HeaderHeight + PortSpacing * 0.5 + dataOutIdx * PortSpacing;
-            port->setPos(Width, y);
+            port->setPos(m_width, y);
             dataOutIdx++;
         }
     }
 
-    // Обновить геометрию
-    prepareGeometryChange();
+    update();
+}
+
+qreal NodeItem::computeWidth() const
+{
+    QFont headerFont("Sans", 10, QFont::Bold);
+    QFontMetricsF headerMetrics(headerFont);
+    qreal headerWidth = headerMetrics.horizontalAdvance(m_moduleName) + SidePadding * 2.0;
+
+    qreal leftLabelWidth = 0.0;
+    qreal rightLabelWidth = 0.0;
+    int execInCount = 0;
+    int execOutCount = 0;
+    qreal execInLabelWidth = 0.0;
+    qreal execOutLabelWidth = 0.0;
+
+    for (auto *port : m_inputPorts) {
+        if (port->portKind() == PortKind::Execution) {
+            execInCount++;
+            execInLabelWidth = qMax(execInLabelWidth, port->labelSize().width());
+        } else {
+            leftLabelWidth = qMax(leftLabelWidth, port->labelSize().width());
+        }
+    }
+
+    for (auto *port : m_outputPorts) {
+        if (port->portKind() == PortKind::Execution) {
+            execOutCount++;
+            execOutLabelWidth = qMax(execOutLabelWidth, port->labelSize().width());
+        } else {
+            rightLabelWidth = qMax(rightLabelWidth, port->labelSize().width());
+        }
+    }
+
+    const qreal dataWidth = leftLabelWidth + rightLabelWidth
+        + SidePadding * 2.0 + PortLabelGap * 2.0 + CenterGap;
+    const qreal execInWidth = execInCount > 0
+        ? execInLabelWidth + ExecOuterPadding * 2.0 + (execInCount - 1) * ExecPortSpacing
+        : 0.0;
+    const qreal execOutWidth = execOutCount > 0
+        ? execOutLabelWidth + ExecOuterPadding * 2.0 + (execOutCount - 1) * ExecPortSpacing
+        : 0.0;
+
+    return std::max({MinWidth, headerWidth, dataWidth, execInWidth, execOutWidth});
+}
+
+qreal NodeItem::computeHeight() const
+{
+    int maxDataPorts = 0;
+    for (auto *p : m_inputPorts)
+        if (p->portKind() == PortKind::Data) maxDataPorts++;
+    int outDataPorts = 0;
+    for (auto *p : m_outputPorts)
+        if (p->portKind() == PortKind::Data) outDataPorts++;
+    maxDataPorts = qMax(maxDataPorts, outDataPorts);
+
+    return HeaderHeight + maxDataPorts * PortSpacing + BottomPadding;
 }
 
 } // namespace DeltaQ

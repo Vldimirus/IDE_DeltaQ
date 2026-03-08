@@ -41,6 +41,9 @@ public:
     void zoomOut();
     void zoomFit();
 
+signals:
+    void modulePreviewRequested(const QString &moduleId);
+
 protected:
     bool eventFilter(QObject *obj, QEvent *event) override;
     void wheelEvent(QWheelEvent *event) override;
@@ -80,7 +83,10 @@ private:
     bool m_firstShow = true;
     bool m_spacePressed = false;
     bool m_middleDragging = false;
+    bool m_rightPanCandidate = false;
+    bool m_suppressNextContextMenu = false;
     QPoint m_lastPanPos;
+    Qt::MouseButton m_panButton = Qt::NoButton;
     qreal m_currentZoom = 1.0;
     static constexpr qreal MinZoom = 0.1;
     static constexpr qreal MaxZoom = 5.0;

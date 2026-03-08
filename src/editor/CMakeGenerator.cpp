@@ -23,6 +23,14 @@ QString CMakeGenerator::generate(const QString &projectDir, const QString &proje
 
     // Записываем CMakeLists.txt в корень проекта
     QString cmakePath = projectDir + "/CMakeLists.txt";
+    QFile existingFile(cmakePath);
+    if (existingFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        const QString existingContent = QString::fromUtf8(existingFile.readAll());
+        existingFile.close();
+        if (existingContent == content)
+            return cmakePath;
+    }
+
     QFile file(cmakePath);
     if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
         QTextStream out(&file);

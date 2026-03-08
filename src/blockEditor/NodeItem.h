@@ -61,6 +61,8 @@ protected:
     void mouseDoubleClickEvent(QGraphicsSceneMouseEvent *event) override;
 
 private:
+    qreal computeWidth() const;
+    qreal computeHeight() const;
     void updatePortPositions();
 
     QString m_nodeId;
@@ -74,14 +76,21 @@ private:
     bool m_completed = false;
     bool m_hasError = false;
     QString m_errorMessage;
+    qreal m_width = 180.0;
+    qreal m_height = 65.0;
 
     // Отслеживание перемещения для MoveCommand
     QPointF m_dragStartPos;
 
-    static constexpr qreal Width = 180.0;
+    static constexpr qreal MinWidth = 180.0;
     static constexpr qreal HeaderHeight = 30.0;
-    static constexpr qreal PortSpacing = 25.0;
+    static constexpr qreal PortSpacing = 26.0;
     static constexpr qreal BottomPadding = 10.0;
+    static constexpr qreal SidePadding = 16.0;
+    static constexpr qreal PortLabelGap = 12.0;
+    static constexpr qreal CenterGap = 44.0;
+    static constexpr qreal ExecPortSpacing = 18.0;
+    static constexpr qreal ExecOuterPadding = 18.0;
 };
 
 } // namespace DeltaQ

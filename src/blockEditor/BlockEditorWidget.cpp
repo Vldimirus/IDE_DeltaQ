@@ -16,6 +16,7 @@
 
 #include <QGraphicsView>
 #include <QGraphicsItem>
+#include <QApplication>
 #include <QVBoxLayout>
 #include <QSplitter>
 #include <QToolBar>
@@ -40,7 +41,8 @@ BlockEditorWidget::BlockEditorWidget(ModuleRegistry *registry, CommandBus *bus,
 
     m_view = new QGraphicsView(m_scene, this);
     m_view->setRenderHint(QPainter::Antialiasing);
-    m_view->setDragMode(QGraphicsView::NoDrag);
+    m_view->setDragMode(QGraphicsView::RubberBandDrag);
+    m_view->setRubberBandSelectionMode(Qt::IntersectsItemShape);
     m_view->setViewportUpdateMode(QGraphicsView::SmartViewportUpdate);
     m_view->setTransformationAnchor(QGraphicsView::AnchorUnderMouse);
     m_view->setAcceptDrops(true);
@@ -159,18 +161,40 @@ bool BlockEditorWidget::eventFilter(QObject *obj, QEvent *event)
     if (obj != m_view->viewport())
         return QWidget::eventFilter(obj, event);
 
+    if (event->type() == QEvent::ContextMenu && m_suppressNextContextMenu) {
+        m_suppressNextContextMenu = false;
+        return true;
+    }
+
+    if (event->type() == QEvent::Wheel) {
+        auto *we = static_cast<QWheelEvent *>(event);
+        if (we->angleDelta().y() > 0)
+            zoomIn();
+        else if (we->angleDelta().y() < 0)
+            zoomOut();
+        we->accept();
+        return true;
+    }
+
     // Панорамирование средней кнопкой мыши
     if (event->type() == QEvent::MouseButtonPress) {
         auto *me = static_cast<QMouseEvent *>(event);
         if (me->button() == Qt::MiddleButton) {
             m_middleDragging = true;
+            m_panButton = Qt::MiddleButton;
             m_lastPanPos = me->pos();
             m_view->setCursor(Qt::ClosedHandCursor);
             return true;
         }
+        if (me->button() == Qt::RightButton) {
+            m_rightPanCandidate = true;
+            m_lastPanPos = me->pos();
+            return false;
+        }
         // Space + ЛКМ → панорамирование
         if (me->button() == Qt::LeftButton && m_spacePressed) {
             m_middleDragging = true;
+            m_panButton = Qt::LeftButton;
             m_lastPanPos = me->pos();
             m_view->setCursor(Qt::ClosedHandCursor);
             return true;
@@ -179,6 +203,15 @@ bool BlockEditorWidget::eventFilter(QObject *obj, QEvent *event)
 
     if (event->type() == QEvent::MouseMove) {
         auto *me = static_cast<QMouseEvent *>(event);
+        if (m_rightPanCandidate && (me->buttons() & Qt::RightButton) &&
+            (me->pos() - m_lastPanPos).manhattanLength() >= QApplication::startDragDistance()) {
+            m_middleDragging = true;
+            m_panButton = Qt::RightButton;
+            m_rightPanCandidate = false;
+            m_suppressNextContextMenu = true;
+            m_view->setCursor(Qt::ClosedHandCursor);
+        }
+
         if (m_middleDragging) {
             QPoint delta = me->pos() - m_lastPanPos;
             m_lastPanPos = me->pos();
@@ -192,9 +225,13 @@ bool BlockEditorWidget::eventFilter(QObject *obj, QEvent *event)
 
     if (event->type() == QEvent::MouseButtonRelease) {
         auto *me = static_cast<QMouseEvent *>(event);
-        if (me->button() == Qt::MiddleButton ||
-            (me->button() == Qt::LeftButton && m_middleDragging)) {
+        if (me->button() == Qt::RightButton && m_rightPanCandidate) {
+            m_rightPanCandidate = false;
+            return false;
+        }
+        if (m_middleDragging && me->button() == m_panButton) {
             m_middleDragging = false;
+            m_panButton = Qt::NoButton;
             m_view->setCursor(m_spacePressed ? Qt::OpenHandCursor : Qt::ArrowCursor);
             return true;
         }
@@ -205,15 +242,11 @@ bool BlockEditorWidget::eventFilter(QObject *obj, QEvent *event)
 
 void BlockEditorWidget::wheelEvent(QWheelEvent *event)
 {
-    if (event->modifiers() & Qt::ControlModifier) {
-        if (event->angleDelta().y() > 0)
-            zoomIn();
-        else
-            zoomOut();
-        event->accept();
-    } else {
-        QWidget::wheelEvent(event);
-    }
+    if (event->angleDelta().y() > 0)
+        zoomIn();
+    else if (event->angleDelta().y() < 0)
+        zoomOut();
+    event->accept();
 }
 
 void BlockEditorWidget::keyPressEvent(QKeyEvent *event)
@@ -387,7 +420,12 @@ void BlockEditorWidget::onNodeDoubleClicked(const QString &nodeId)
 
     // Проверяем, есть ли у модуля graphId (является ли он композитным)
     const Module *mod = m_registry->findModule(node->moduleId);
-    if (!mod || mod->graphId.isEmpty()) return;
+    if (!mod) return;
+
+    if (mod->graphId.isEmpty()) {
+        emit modulePreviewRequested(mod->id);
+        return;
+    }
 
     // Навигация внутрь подмодуля
     navigateInto(mod->graphId, mod->name);

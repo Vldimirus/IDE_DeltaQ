@@ -51,6 +51,10 @@
 #include <QJsonObject>
 #include <QInputDialog>
 #include <QMessageBox>
+#include <QDialog>
+#include <QDialogButtonBox>
+#include <QPlainTextEdit>
+#include <QPushButton>
 #include <QTextEdit>
 #include <QVBoxLayout>
 #include <QLabel>
@@ -1024,6 +1028,55 @@ void MainWindow::connectBlockEditorSignals(BlockEditorWidget *editor)
         if (!graph) return;
         m_commandBus->execute(std::make_unique<MoveNodeCommand>(scene, graph, nodeId, oldPos, newPos));
     });
+
+    connect(editor, &BlockEditorWidget::modulePreviewRequested, this,
+            &MainWindow::showModuleSourcePreview, Qt::UniqueConnection);
+}
+
+void MainWindow::showModuleSourcePreview(const QString &moduleId)
+{
+    if (!m_moduleRegistry)
+        return;
+
+    const Module *mod = m_moduleRegistry->findModule(moduleId);
+    if (!mod)
+        return;
+
+    auto *dialog = new QDialog(this);
+    dialog->setAttribute(Qt::WA_DeleteOnClose);
+    dialog->setWindowTitle(tr("Модуль: %1").arg(mod->name));
+    dialog->resize(820, 560);
+
+    auto *layout = new QVBoxLayout(dialog);
+    auto *title = new QLabel(
+        tr("<b>%1</b><br><span style='color:#999'>%2</span>")
+            .arg(mod->name, mod->description.isEmpty() ? tr("Описание отсутствует") : mod->description),
+        dialog);
+    title->setTextFormat(Qt::RichText);
+    title->setWordWrap(true);
+    layout->addWidget(title);
+
+    auto *codeView = new QPlainTextEdit(dialog);
+    codeView->setReadOnly(true);
+    codeView->setFont(QFont("Monospace", 10));
+    codeView->setPlainText(
+        mod->sourceCode.isEmpty()
+            ? tr("// Исходный текст модуля недоступен")
+            : mod->sourceCode);
+    layout->addWidget(codeView, 1);
+
+    auto *buttons = new QDialogButtonBox(QDialogButtonBox::Close, dialog);
+    auto *editBtn = buttons->addButton(tr("Редактировать"), QDialogButtonBox::ActionRole);
+    connect(buttons, &QDialogButtonBox::rejected, dialog, &QDialog::close);
+    connect(editBtn, &QPushButton::clicked, this, [this, dialog, moduleId]() {
+        switchToModuleManager();
+        if (m_moduleManager)
+            m_moduleManager->openModule(moduleId);
+        dialog->close();
+    });
+    layout->addWidget(buttons);
+
+    dialog->show();
 }
 
 void MainWindow::connectUIDesignerSignals(UIDesignerWidget *designer)
@@ -1061,30 +1114,6 @@ void MainWindow::connectUIDesignerSignals(UIDesignerWidget *designer)
         writeFile(uiDir, baseName + ".c", code.uiSource);
         writeFile(uiDir, baseName + "_events.h", code.eventsHeader);
         writeFile(uiDir, baseName + "_events.c", code.eventsSource);
-
-        // main.c генерируем в src/ только если его нет
-        QString srcDir = m_projectManager->projectDir() + "/src";
-        QString mainPath = srcDir + "/main.c";
-        if (!QFile::exists(mainPath)) {
-            QDir().mkpath(srcDir);
-            writeFile(srcDir, "main.c", code.mainFile);
-        }
-
-        // Добавляем #include в main.c если ещё нет
-        QFile mainFile(mainPath);
-        if (mainFile.open(QIODevice::ReadWrite | QIODevice::Text)) {
-            QString content = QString::fromUtf8(mainFile.readAll());
-            QString includeStr = QString("#include \"../ui/%1.h\"").arg(baseName);
-            if (!content.contains(includeStr)) {
-                int lastInclude = content.lastIndexOf("#include");
-                int insertPos = lastInclude >= 0 ? content.indexOf('\n', lastInclude) + 1 : 0;
-                content.insert(insertPos, includeStr + "\n");
-                mainFile.seek(0);
-                mainFile.write(content.toUtf8());
-                mainFile.resize(mainFile.pos());
-            }
-            mainFile.close();
-        }
 
         m_buildOutput->clear();
         m_buildOutput->append(tr("=== SDL2 code generated in %1 ===\n").arg(uiDir));

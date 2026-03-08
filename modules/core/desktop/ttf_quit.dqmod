@@ -1,0 +1,31 @@
+{
+    "category": "desktop",
+    "dependencies": [],
+    "description": "Завершение SDL_ttf",
+    "header": "",
+    "id": "core.desktop.ttf_quit",
+    "includes": [
+        "SDL2/SDL_ttf.h"
+    ],
+    "language": "c",
+    "name": "ttf_quit",
+    "origin": "core",
+    "ports": {
+        "input": [
+            {
+                "kind": "execution",
+                "name": "flow_in",
+                "type": "exec"
+            }
+        ],
+        "output": [
+            {
+                "kind": "execution",
+                "name": "flow_out",
+                "type": "exec"
+            }
+        ]
+    },
+    "source": "",
+    "version": "1.0"
+}

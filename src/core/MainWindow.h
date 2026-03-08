@@ -75,6 +75,7 @@ private slots:
     void onFileActivated(const QString &path);
     void connectBlockEditorSignals(BlockEditorWidget *editor);
     void connectUIDesignerSignals(UIDesignerWidget *designer);
+    void showModuleSourcePreview(const QString &moduleId);
 
 private:
     void setupCoreServices();

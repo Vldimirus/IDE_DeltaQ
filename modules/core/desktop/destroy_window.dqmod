@@ -1,0 +1,35 @@
+{
+    "category": "desktop",
+    "dependencies": [],
+    "description": "Освобождение SDL окна",
+    "header": "",
+    "id": "core.desktop.destroy_window",
+    "includes": [
+        "SDL2/SDL.h"
+    ],
+    "language": "c",
+    "name": "destroy_window",
+    "origin": "core",
+    "ports": {
+        "input": [
+            {
+                "kind": "execution",
+                "name": "flow_in",
+                "type": "exec"
+            },
+            {
+                "name": "window",
+                "type": "sdl_window"
+            }
+        ],
+        "output": [
+            {
+                "kind": "execution",
+                "name": "flow_out",
+                "type": "exec"
+            }
+        ]
+    },
+    "source": "",
+    "version": "1.0"
+}

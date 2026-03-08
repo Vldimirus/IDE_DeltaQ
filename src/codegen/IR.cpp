@@ -51,6 +51,15 @@ IRInstruction IRInstruction::makeDeclareVar(const QString &name, const QString &
     return i;
 }
 
+IRInstruction IRInstruction::makeRawCode(const QString &code, const QString &nodeId)
+{
+    IRInstruction i;
+    i.type = RawCode;
+    i.rawCode = code;
+    i.sourceNodeId = nodeId;
+    return i;
+}
+
 IRInstruction IRInstruction::makeComment(const QString &text)
 {
     IRInstruction i;
@@ -134,6 +143,23 @@ QString IR::emitCCode() const
         case IRInstruction::Comment:
             code += QString("    // %1\n").arg(instr.comment);
             break;
+
+        case IRInstruction::RawCode: {
+            QString raw = instr.rawCode;
+            if (!raw.endsWith('\n'))
+                raw += '\n';
+            const auto lines = raw.split('\n');
+            for (int i = 0; i < lines.size(); ++i) {
+                const QString &line = lines[i];
+                if (i == lines.size() - 1 && line.isEmpty())
+                    continue;
+                if (line.isEmpty())
+                    code += "\n";
+                else
+                    code += "    " + line + "\n";
+            }
+            break;
+        }
 
         case IRInstruction::Return:
             if (instr.args.isEmpty())

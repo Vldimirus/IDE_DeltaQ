@@ -1,0 +1,32 @@
+{
+    "category": "desktop",
+    "dependencies": [],
+    "description": "Инициализация SDL_ttf",
+    "header": "",
+    "id": "core.desktop.ttf_init",
+    "includes": [
+        "SDL2/SDL.h",
+        "SDL2/SDL_ttf.h"
+    ],
+    "language": "c",
+    "name": "ttf_init",
+    "origin": "core",
+    "ports": {
+        "input": [
+            {
+                "kind": "execution",
+                "name": "flow_in",
+                "type": "exec"
+            }
+        ],
+        "output": [
+            {
+                "kind": "execution",
+                "name": "flow_out",
+                "type": "exec"
+            }
+        ]
+    },
+    "source": "",
+    "version": "1.0"
+}

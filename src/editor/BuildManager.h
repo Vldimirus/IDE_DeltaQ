@@ -31,6 +31,12 @@ public:
     int lastWarningCount() const;
     CompilerOutputParser *outputParser() const { return m_parser; }
 
+    // Диагностика состояния build-директории
+    bool shouldConfigure(const QString &projectDir, const QString &buildDir,
+                         QString *reason = nullptr) const;
+    QString cacheValue(const QString &cachePath, const QString &key) const;
+    QString expectedBuildArtifact(const QString &buildDir) const;
+
 signals:
     void buildStarted();
     void buildOutput(const QString &text);

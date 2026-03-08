@@ -57,6 +57,15 @@ target_link_libraries(test_CMakeGenerator PRIVATE
 set_target_properties(test_CMakeGenerator PROPERTIES AUTOMOC ON)
 add_test(NAME test_CMakeGenerator COMMAND test_CMakeGenerator)
 
+add_executable(test_BuildManager editor/test_BuildManager.cpp)
+target_link_libraries(test_BuildManager PRIVATE
+    dq_editor
+    dq_lsp
+    Qt6::Test
+)
+set_target_properties(test_BuildManager PROPERTIES AUTOMOC ON)
+add_test(NAME test_BuildManager COMMAND test_BuildManager)
+
 add_executable(test_AnnotationParser editor/test_AnnotationParser.cpp)
 target_link_libraries(test_AnnotationParser PRIVATE
     dq_editor

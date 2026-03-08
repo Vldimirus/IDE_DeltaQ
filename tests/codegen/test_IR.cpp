@@ -40,6 +40,18 @@ private slots:
         QVERIFY(code.contains("// test comment"));
     }
 
+    void emitRawCode()
+    {
+        IR ir;
+        ir.addInstruction(IRInstruction::makeRawCode(
+            "if (ready) {\n"
+            "    run();\n"
+            "}"));
+        QString code = ir.emitCCode();
+        QVERIFY(code.contains("if (ready) {"));
+        QVERIFY(code.contains("run();"));
+    }
+
     void emitReturn()
     {
         IR ir;

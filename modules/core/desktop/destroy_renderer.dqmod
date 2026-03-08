@@ -1,0 +1,35 @@
+{
+    "category": "desktop",
+    "dependencies": [],
+    "description": "Освобождение SDL renderer",
+    "header": "",
+    "id": "core.desktop.destroy_renderer",
+    "includes": [
+        "SDL2/SDL.h"
+    ],
+    "language": "c",
+    "name": "destroy_renderer",
+    "origin": "core",
+    "ports": {
+        "input": [
+            {
+                "kind": "execution",
+                "name": "flow_in",
+                "type": "exec"
+            },
+            {
+                "name": "renderer",
+                "type": "sdl_renderer"
+            }
+        ],
+        "output": [
+            {
+                "kind": "execution",
+                "name": "flow_out",
+                "type": "exec"
+            }
+        ]
+    },
+    "source": "",
+    "version": "1.0"
+}

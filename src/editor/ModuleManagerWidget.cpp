@@ -514,6 +514,40 @@ void ModuleManagerWidget::setGlobalModulesDir(const QString &dir)
     m_globalModulesDir = dir;
 }
 
+bool ModuleManagerWidget::openModule(const QString &moduleId)
+{
+    if (moduleId.isEmpty())
+        return false;
+
+    std::function<QTreeWidgetItem *(QTreeWidgetItem *)> findItem;
+    findItem = [&](QTreeWidgetItem *parent) -> QTreeWidgetItem * {
+        for (int i = 0; i < parent->childCount(); ++i) {
+            auto *child = parent->child(i);
+            if (child->data(0, Qt::UserRole).toString() == moduleId)
+                return child;
+            if (auto *nested = findItem(child))
+                return nested;
+        }
+        return nullptr;
+    };
+
+    for (int i = 0; i < m_tree->topLevelItemCount(); ++i) {
+        if (auto *item = findItem(m_tree->topLevelItem(i))) {
+            m_tree->setCurrentItem(item);
+            m_tree->scrollToItem(item);
+            return true;
+        }
+    }
+
+    const Module *mod = m_registry ? m_registry->findModule(moduleId) : nullptr;
+    if (mod) {
+        loadModuleToEditor(*mod);
+        return true;
+    }
+
+    return false;
+}
+
 QString ModuleManagerWidget::moduleFilePath(const QString &moduleId) const
 {
     // Проверяем, является ли модуль локальным (проектным)

@@ -33,6 +33,8 @@ public:
 
     // Цвет по типу данных
     static QColor colorForType(const QString &type);
+    QSizeF labelSize() const;
+    QRectF labelRectInNode() const;
 
     // QGraphicsItem интерфейс
     QRectF boundingRect() const override;

@@ -50,6 +50,16 @@ private slots:
         registerTestModule("print", "Print", "io",
                            {{"value", "int", "0"}},
                            {});
+        registerTestModule("exec_chain", "ExecChain", "control",
+                           {Port::exec("flow_in"), {"value", "int", "0"}},
+                           {Port::exec("flow_out"), {"result", "int", ""}});
+        registerTestModule("wide_node", "create_window", "desktop",
+                           {Port::exec("flow_in"),
+                            {"title", "string", "\"window1\""},
+                            {"width", "int", "640"},
+                            {"height", "int", "480"}},
+                           {Port::exec("flow_out"),
+                            {"window", "sdl_window", ""}});
     }
 
     void cleanup()
@@ -215,6 +225,52 @@ private slots:
         auto *item2 = scene.addNodeItem(node); // дубликат
         QVERIFY(item1 != nullptr);
         QVERIFY(item2 == item1); // возвращает существующий
+    }
+
+    void executionPortsAreVertical()
+    {
+        BlockScene scene(m_registry, m_bus);
+        auto node = GraphNode::create("exec_chain", QPointF(0, 0));
+        auto *item = scene.addNodeItem(node);
+        QVERIFY(item != nullptr);
+
+        auto *execIn = item->findPort("flow_in", PortDirection::Input);
+        auto *execOut = item->findPort("flow_out", PortDirection::Output);
+        auto *dataIn = item->findPort("value", PortDirection::Input);
+        auto *dataOut = item->findPort("result", PortDirection::Output);
+        QVERIFY(execIn != nullptr);
+        QVERIFY(execOut != nullptr);
+        QVERIFY(dataIn != nullptr);
+        QVERIFY(dataOut != nullptr);
+
+        QCOMPARE(execIn->portKind(), PortKind::Execution);
+        QCOMPARE(execOut->portKind(), PortKind::Execution);
+        QVERIFY(qAbs(execIn->pos().x() - item->boundingRect().center().x()) < 1.0);
+        QVERIFY(qAbs(execOut->pos().x() - item->boundingRect().center().x()) < 1.0);
+        QVERIFY(execIn->pos().y() < dataIn->pos().y());
+        QVERIFY(execOut->pos().y() > dataOut->pos().y());
+    }
+
+    void longPortLabelsDoNotOverlap()
+    {
+        BlockScene scene(m_registry, m_bus);
+        auto node = GraphNode::create("wide_node", QPointF(0, 0));
+        auto *item = scene.addNodeItem(node);
+        QVERIFY(item != nullptr);
+        QVERIFY(item->boundingRect().width() > 180.0);
+
+        auto *execIn = item->findPort("flow_in", PortDirection::Input);
+        auto *execOut = item->findPort("flow_out", PortDirection::Output);
+        auto *title = item->findPort("title", PortDirection::Input);
+        auto *window = item->findPort("window", PortDirection::Output);
+        QVERIFY(execIn != nullptr);
+        QVERIFY(execOut != nullptr);
+        QVERIFY(title != nullptr);
+        QVERIFY(window != nullptr);
+
+        QVERIFY(title->labelRectInNode().right() < window->labelRectInNode().left());
+        QVERIFY(execIn->labelRectInNode().bottom() < 0.0);
+        QVERIFY(execOut->labelRectInNode().top() > item->boundingRect().height());
     }
 };
 

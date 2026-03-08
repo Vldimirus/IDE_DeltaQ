@@ -1,0 +1,39 @@
+{
+    "category": "desktop",
+    "dependencies": [],
+    "description": "Главный цикл SDL приложения",
+    "header": "",
+    "id": "core.desktop.event_loop",
+    "includes": [
+        "\"ui/window1_events.h\""
+    ],
+    "language": "c",
+    "name": "event_loop",
+    "origin": "core",
+    "ports": {
+        "input": [
+            {
+                "kind": "execution",
+                "name": "flow_in",
+                "type": "exec"
+            },
+            {
+                "name": "renderer",
+                "type": "sdl_renderer"
+            },
+            {
+                "name": "ui_state",
+                "type": "ui_state"
+            }
+        ],
+        "output": [
+            {
+                "kind": "execution",
+                "name": "flow_out",
+                "type": "exec"
+            }
+        ]
+    },
+    "source": "",
+    "version": "1.0"
+}

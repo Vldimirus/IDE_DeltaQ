@@ -105,15 +105,22 @@ void ConnectionItem::computeBezierPath()
     else
         end = m_tempEndPoint;
 
-    // Расстояние для control points (50-150px)
-    qreal dx = std::abs(end.x() - start.x());
-    qreal offset = qBound(50.0, dx * 0.5, 150.0);
-
     QPainterPath p;
     p.moveTo(start);
-    p.cubicTo(start + QPointF(offset, 0),
-              end + QPointF(-offset, 0),
-              end);
+
+    if (m_kind == PortKind::Execution) {
+        const qreal dy = std::abs(end.y() - start.y());
+        const qreal offset = qBound(50.0, dy * 0.5, 150.0);
+        p.cubicTo(start + QPointF(0, offset),
+                  end + QPointF(0, -offset),
+                  end);
+    } else {
+        const qreal dx = std::abs(end.x() - start.x());
+        const qreal offset = qBound(50.0, dx * 0.5, 150.0);
+        p.cubicTo(start + QPointF(offset, 0),
+                  end + QPointF(-offset, 0),
+                  end);
+    }
 
     setPath(p);
 }

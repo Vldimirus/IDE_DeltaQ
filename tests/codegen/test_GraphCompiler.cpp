@@ -49,6 +49,103 @@ private:
         addf.inputs = {{"a", "float", "0"}, {"b", "float", "0"}};
         addf.outputs = {{"result", "float", ""}};
         m_registry->registerModule(addf);
+
+        Module stringConst;
+        stringConst.id = "core.io.string_constant";
+        stringConst.name = "string_constant";
+        stringConst.category = "io";
+        stringConst.language = "c";
+        stringConst.version = "1.0";
+        stringConst.origin = "core";
+        stringConst.inputs = {{"value", "string", "\"Hello\""}};
+        stringConst.outputs = {{"out", "string", ""}};
+        stringConst.sourceCode = "const char *dq_string_constant(const char *value) {\n"
+                                 "    return value;\n"
+                                 "}";
+        m_registry->registerModule(stringConst);
+
+        Module intConst;
+        intConst.id = "core.io.int_constant";
+        intConst.name = "int_constant";
+        intConst.category = "io";
+        intConst.language = "c";
+        intConst.version = "1.0";
+        intConst.origin = "core";
+        intConst.inputs = {{"value", "int", "0"}};
+        intConst.outputs = {{"out", "int", ""}};
+        intConst.sourceCode = "int dq_int_constant(int value) {\n"
+                              "    return value;\n"
+                              "}";
+        m_registry->registerModule(intConst);
+    }
+
+    void registerDesktopModule(const QString &id, const QVector<Port> &inputs,
+                               const QVector<Port> &outputs, const QStringList &includes = {})
+    {
+        Module mod;
+        mod.id = id;
+        mod.name = id.section('.', -1);
+        mod.category = "desktop";
+        mod.language = "c";
+        mod.version = "1.0";
+        mod.origin = "core";
+        mod.inputs = inputs;
+        mod.outputs = outputs;
+        mod.includes = includes;
+        m_registry->registerModule(mod);
+    }
+
+    void registerDesktopRuntimeModules()
+    {
+        registerDesktopModule("core.desktop.sdl_init",
+                              {},
+                              {Port::exec("flow_out")},
+                              {"SDL2/SDL.h"});
+        registerDesktopModule("core.desktop.ttf_init",
+                              {Port::exec("flow_in")},
+                              {Port::exec("flow_out")},
+                              {"SDL2/SDL.h", "SDL2/SDL_ttf.h"});
+        registerDesktopModule("core.desktop.create_window",
+                              {Port::exec("flow_in"),
+                               {"title", "string", "\"window1\""},
+                               {"width", "int", "640"},
+                               {"height", "int", "480"}},
+                              {Port::exec("flow_out"), {"window", "sdl_window", ""}},
+                              {"SDL2/SDL.h", "SDL2/SDL_ttf.h"});
+        registerDesktopModule("core.desktop.create_renderer",
+                              {Port::exec("flow_in"), {"window", "sdl_window", ""}},
+                              {Port::exec("flow_out"), {"renderer", "sdl_renderer", ""}},
+                              {"SDL2/SDL.h", "SDL2/SDL_ttf.h"});
+        registerDesktopModule("core.desktop.ui_init",
+                              {Port::exec("flow_in")},
+                              {Port::exec("flow_out"), {"ui_state", "ui_state", ""}},
+                              {"\"ui/window1.h\""});
+        registerDesktopModule("core.desktop.event_loop",
+                              {Port::exec("flow_in"),
+                               {"renderer", "sdl_renderer", ""},
+                               {"ui_state", "ui_state", ""}},
+                              {Port::exec("flow_out")},
+                              {"\"ui/window1_events.h\""});
+        registerDesktopModule("core.desktop.ui_cleanup_font",
+                              {Port::exec("flow_in"), {"ui_state", "ui_state", ""}},
+                              {Port::exec("flow_out")},
+                              {"SDL2/SDL_ttf.h", "\"ui/window1.h\""});
+        registerDesktopModule("core.desktop.destroy_renderer",
+                              {Port::exec("flow_in"), {"renderer", "sdl_renderer", ""}},
+                              {Port::exec("flow_out")},
+                              {"SDL2/SDL.h"});
+        registerDesktopModule("core.desktop.destroy_window",
+                              {Port::exec("flow_in"), {"window", "sdl_window", ""}},
+                              {Port::exec("flow_out")},
+                              {"SDL2/SDL.h"});
+        registerDesktopModule("core.desktop.ttf_quit",
+                              {Port::exec("flow_in")},
+                              {Port::exec("flow_out")},
+                              {"SDL2/SDL_ttf.h"});
+        registerDesktopModule("core.desktop.sdl_quit",
+                              {Port::exec("flow_in")},
+                              {},
+                              {"SDL2/SDL.h"});
     }
 
 private slots:
@@ -236,6 +333,98 @@ private slots:
             }
         }
         QVERIFY(found);
+    }
+
+    void nodePropertiesOverrideDefaultInputs()
+    {
+        Graph g = Graph::create("Properties");
+        GraphNode n;
+        n.id = "n1";
+        n.moduleId = "core.io.int_constant";
+        n.properties["value"] = "42";
+        g.addNode(n);
+
+        GraphCompiler compiler(m_registry);
+        auto result = compiler.compile(g);
+
+        QVERIFY(result.success);
+        QVERIFY(result.generatedCode.contains("dq_int_constant(42)"));
+    }
+
+    void desktopRuntimeGraphGeneratesSDLMain()
+    {
+        registerDesktopRuntimeModules();
+
+        Graph g = Graph::create("main");
+
+        GraphNode title; title.id = "n_title"; title.moduleId = "core.io.string_constant";
+        title.properties["value"] = "\"window1\"";
+        GraphNode width; width.id = "n_width"; width.moduleId = "core.io.int_constant";
+        width.properties["value"] = "640";
+        GraphNode height; height.id = "n_height"; height.moduleId = "core.io.int_constant";
+        height.properties["value"] = "480";
+        GraphNode sdl; sdl.id = "n_sdl"; sdl.moduleId = "core.desktop.sdl_init";
+        GraphNode ttf; ttf.id = "n_ttf"; ttf.moduleId = "core.desktop.ttf_init";
+        GraphNode window; window.id = "n_window"; window.moduleId = "core.desktop.create_window";
+        GraphNode renderer; renderer.id = "n_renderer"; renderer.moduleId = "core.desktop.create_renderer";
+        GraphNode uiInit; uiInit.id = "n_ui"; uiInit.moduleId = "core.desktop.ui_init";
+        GraphNode loop; loop.id = "n_loop"; loop.moduleId = "core.desktop.event_loop";
+        GraphNode cleanupFont; cleanupFont.id = "n_font"; cleanupFont.moduleId = "core.desktop.ui_cleanup_font";
+        GraphNode destroyRenderer; destroyRenderer.id = "n_dr"; destroyRenderer.moduleId = "core.desktop.destroy_renderer";
+        GraphNode destroyWindow; destroyWindow.id = "n_dw"; destroyWindow.moduleId = "core.desktop.destroy_window";
+        GraphNode ttfQuit; ttfQuit.id = "n_ttf_quit"; ttfQuit.moduleId = "core.desktop.ttf_quit";
+        GraphNode sdlQuit; sdlQuit.id = "n_sdl_quit"; sdlQuit.moduleId = "core.desktop.sdl_quit";
+
+        g.addNode(title);
+        g.addNode(width);
+        g.addNode(height);
+        g.addNode(sdl);
+        g.addNode(ttf);
+        g.addNode(window);
+        g.addNode(renderer);
+        g.addNode(uiInit);
+        g.addNode(loop);
+        g.addNode(cleanupFont);
+        g.addNode(destroyRenderer);
+        g.addNode(destroyWindow);
+        g.addNode(ttfQuit);
+        g.addNode(sdlQuit);
+
+        g.addConnection({{"n_title", "out"}, {"n_window", "title"}});
+        g.addConnection({{"n_width", "out"}, {"n_window", "width"}});
+        g.addConnection({{"n_height", "out"}, {"n_window", "height"}});
+        g.addConnection({{"n_sdl", "flow_out"}, {"n_ttf", "flow_in"}, PortKind::Execution});
+        g.addConnection({{"n_ttf", "flow_out"}, {"n_window", "flow_in"}, PortKind::Execution});
+        g.addConnection({{"n_window", "window"}, {"n_renderer", "window"}});
+        g.addConnection({{"n_window", "window"}, {"n_dw", "window"}});
+        g.addConnection({{"n_window", "flow_out"}, {"n_renderer", "flow_in"}, PortKind::Execution});
+        g.addConnection({{"n_renderer", "renderer"}, {"n_loop", "renderer"}});
+        g.addConnection({{"n_renderer", "renderer"}, {"n_dr", "renderer"}});
+        g.addConnection({{"n_renderer", "flow_out"}, {"n_ui", "flow_in"}, PortKind::Execution});
+        g.addConnection({{"n_ui", "ui_state"}, {"n_loop", "ui_state"}});
+        g.addConnection({{"n_ui", "ui_state"}, {"n_font", "ui_state"}});
+        g.addConnection({{"n_ui", "flow_out"}, {"n_loop", "flow_in"}, PortKind::Execution});
+        g.addConnection({{"n_loop", "flow_out"}, {"n_font", "flow_in"}, PortKind::Execution});
+        g.addConnection({{"n_font", "flow_out"}, {"n_dr", "flow_in"}, PortKind::Execution});
+        g.addConnection({{"n_dr", "flow_out"}, {"n_dw", "flow_in"}, PortKind::Execution});
+        g.addConnection({{"n_dw", "flow_out"}, {"n_ttf_quit", "flow_in"}, PortKind::Execution});
+        g.addConnection({{"n_ttf_quit", "flow_out"}, {"n_sdl_quit", "flow_in"}, PortKind::Execution});
+
+        GraphCompiler compiler(m_registry);
+        auto result = compiler.compile(g);
+
+        QVERIFY(result.success);
+        QVERIFY(result.generatedCode.contains("SDL_Init(SDL_INIT_VIDEO)"));
+        QVERIFY(result.generatedCode.contains("TTF_Init()"));
+        QVERIFY(result.generatedCode.contains("SDL_CreateWindow("));
+        QVERIFY(result.generatedCode.contains("SDL_CreateRenderer("));
+        QVERIFY(result.generatedCode.contains("ui_init(&var_n_ui_ui_state);"));
+        QVERIFY(result.generatedCode.contains("ui_render(&var_n_ui_ui_state, var_n_renderer_renderer);"));
+        QVERIFY(result.generatedCode.contains("TTF_CloseFont(var_n_ui_ui_state.font);"));
+        QVERIFY(result.generatedCode.contains("SDL_DestroyRenderer(var_n_renderer_renderer);"));
+        QVERIFY(result.generatedCode.contains("SDL_DestroyWindow(var_n_window_window);"));
+        QVERIFY(result.generatedCode.contains("#include \"ui/window1.h\""));
+        QVERIFY(result.generatedCode.contains("#include \"ui/window1_events.h\""));
     }
 
     void execAndDataOutputs()

@@ -9,6 +9,7 @@
 namespace DeltaQ {
 
 struct Graph;
+struct GraphNode;
 struct Module;
 struct IR;
 class ModuleRegistry;
@@ -50,6 +51,13 @@ private:
 
     // Генерация IR из отсортированного графа
     IR generateIR(const Graph &graph, const QStringList &sortedNodes, CompilationResult &result);
+
+    // Специальные inline-модули desktop-runtime
+    bool isInlineDesktopModule(const QString &moduleId) const;
+    bool emitInlineDesktopModuleIR(const GraphNode &node, const Module &mod,
+                                   const QStringList &callArgs,
+                                   const QMap<QString, QString> &portVarMap,
+                                   IR &ir, CompilationResult &result);
 
     // Рекурсивная компиляция подмодуля
     QString compileSubModule(const Module &mod, CompilationResult &result);

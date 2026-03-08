@@ -1,0 +1,25 @@
+{
+    "category": "desktop",
+    "dependencies": [],
+    "description": "Завершение SDL",
+    "header": "",
+    "id": "core.desktop.sdl_quit",
+    "includes": [
+        "SDL2/SDL.h"
+    ],
+    "language": "c",
+    "name": "sdl_quit",
+    "origin": "core",
+    "ports": {
+        "input": [
+            {
+                "kind": "execution",
+                "name": "flow_in",
+                "type": "exec"
+            }
+        ],
+        "output": []
+    },
+    "source": "",
+    "version": "1.0"
+}

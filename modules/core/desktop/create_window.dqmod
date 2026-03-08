@@ -1,0 +1,51 @@
+{
+    "category": "desktop",
+    "dependencies": [],
+    "description": "Создание SDL окна",
+    "header": "",
+    "id": "core.desktop.create_window",
+    "includes": [
+        "SDL2/SDL.h",
+        "SDL2/SDL_ttf.h"
+    ],
+    "language": "c",
+    "name": "create_window",
+    "origin": "core",
+    "ports": {
+        "input": [
+            {
+                "kind": "execution",
+                "name": "flow_in",
+                "type": "exec"
+            },
+            {
+                "name": "title",
+                "type": "string",
+                "default": "\"window1\""
+            },
+            {
+                "name": "width",
+                "type": "int",
+                "default": "640"
+            },
+            {
+                "name": "height",
+                "type": "int",
+                "default": "480"
+            }
+        ],
+        "output": [
+            {
+                "kind": "execution",
+                "name": "flow_out",
+                "type": "exec"
+            },
+            {
+                "name": "window",
+                "type": "sdl_window"
+            }
+        ]
+    },
+    "source": "",
+    "version": "1.0"
+}

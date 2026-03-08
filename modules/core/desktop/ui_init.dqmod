@@ -1,0 +1,35 @@
+{
+    "category": "desktop",
+    "dependencies": [],
+    "description": "Инициализация состояния UI для window1",
+    "header": "",
+    "id": "core.desktop.ui_init",
+    "includes": [
+        "\"ui/window1.h\""
+    ],
+    "language": "c",
+    "name": "ui_init",
+    "origin": "core",
+    "ports": {
+        "input": [
+            {
+                "kind": "execution",
+                "name": "flow_in",
+                "type": "exec"
+            }
+        ],
+        "output": [
+            {
+                "kind": "execution",
+                "name": "flow_out",
+                "type": "exec"
+            },
+            {
+                "name": "ui_state",
+                "type": "ui_state"
+            }
+        ]
+    },
+    "source": "",
+    "version": "1.0"
+}

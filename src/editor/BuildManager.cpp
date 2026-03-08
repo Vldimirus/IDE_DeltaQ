@@ -4,6 +4,8 @@
 #include "CMakeGenerator.h"
 #include <QDir>
 #include <QFile>
+#include <QFileInfo>
+#include <QTextStream>
 
 namespace DeltaQ {
 
@@ -47,9 +49,14 @@ void BuildManager::build(const QString &projectDir, const QString &projectName,
         return;
     }
 
-    // Проверяем нужна ли конфигурация (если нет CMakeCache.txt)
-    if (!QFile::exists(buildDir + "/CMakeCache.txt")) {
-        emit buildOutput(tr("=== Configuring with CMake ===\n"));
+    QString configureReason;
+    if (shouldConfigure(projectDir, buildDir, &configureReason)) {
+        const QString heading = configureReason.isEmpty()
+            ? tr("=== Configuring with CMake ===\n")
+            : tr("=== Re-configuring build directory ===\n");
+        emit buildOutput(heading);
+        if (!configureReason.isEmpty())
+            emit buildOutput(tr("Reason: %1\n").arg(configureReason));
 
         m_process = new QProcess(this);
         m_process->setWorkingDirectory(buildDir);
@@ -58,6 +65,16 @@ void BuildManager::build(const QString &projectDir, const QString &projectName,
         connect(m_process, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
                 this, [this](int exitCode, QProcess::ExitStatus status) {
             if (status == QProcess::NormalExit && exitCode == 0) {
+                const QString buildArtifact = expectedBuildArtifact(m_currentBuildDir);
+                if (buildArtifact.isEmpty() || !QFile::exists(buildArtifact)) {
+                    emit buildOutput(tr("\n=== CMake configure failed ===\n"));
+                    emit buildOutput(tr("Expected build artifact was not created: %1\n")
+                                     .arg(buildArtifact.isEmpty() ? tr("<unknown>") : buildArtifact));
+                    emit buildFinished(false, m_parser->errorCount(), m_parser->warningCount());
+                    m_process->deleteLater();
+                    m_process = nullptr;
+                    return;
+                }
                 m_process->deleteLater();
                 m_process = nullptr;
                 // После успешной конфигурации — запускаем сборку
@@ -88,6 +105,73 @@ void BuildManager::runBuild(const QString &buildDir)
             this, &BuildManager::onProcessFinished);
 
     m_process->start("cmake", {"--build", ".", "--parallel"});
+}
+
+bool BuildManager::shouldConfigure(const QString &projectDir, const QString &buildDir,
+                                   QString *reason) const
+{
+    const QString cachePath = buildDir + "/CMakeCache.txt";
+    if (!QFile::exists(cachePath)) {
+        if (reason)
+            reason->clear();
+        return true;
+    }
+
+    const QString buildArtifact = expectedBuildArtifact(buildDir);
+    if (buildArtifact.isEmpty() || !QFile::exists(buildArtifact)) {
+        if (reason) {
+            *reason = buildArtifact.isEmpty()
+                ? tr("CMake generator is unknown; forcing a fresh configure")
+                : tr("Missing generated build file: %1").arg(QDir(buildDir).relativeFilePath(buildArtifact));
+        }
+        return true;
+    }
+
+    QFileInfo cmakeInfo(projectDir + "/CMakeLists.txt");
+    QFileInfo cacheInfo(cachePath);
+    if (cmakeInfo.exists() && cacheInfo.exists() &&
+        cmakeInfo.lastModified() > cacheInfo.lastModified()) {
+        if (reason)
+            *reason = tr("Project CMakeLists.txt is newer than the last configure");
+        return true;
+    }
+
+    if (reason)
+        reason->clear();
+    return false;
+}
+
+QString BuildManager::cacheValue(const QString &cachePath, const QString &key) const
+{
+    QFile cacheFile(cachePath);
+    if (!cacheFile.open(QIODevice::ReadOnly | QIODevice::Text))
+        return {};
+
+    QTextStream in(&cacheFile);
+    while (!in.atEnd()) {
+        const QString line = in.readLine().trimmed();
+        if (line.startsWith('#') || line.startsWith("//") || !line.contains('='))
+            continue;
+
+        const int equalsPos = line.indexOf('=');
+        const QString lhs = line.left(equalsPos);
+        const int colonPos = lhs.indexOf(':');
+        const QString currentKey = (colonPos >= 0) ? lhs.left(colonPos) : lhs;
+        if (currentKey == key)
+            return line.mid(equalsPos + 1).trimmed();
+    }
+
+    return {};
+}
+
+QString BuildManager::expectedBuildArtifact(const QString &buildDir) const
+{
+    const QString generator = cacheValue(buildDir + "/CMakeCache.txt", "CMAKE_GENERATOR");
+    if (generator == "Unix Makefiles")
+        return buildDir + "/Makefile";
+    if (generator == "Ninja" || generator == "Ninja Multi-Config")
+        return buildDir + "/build.ninja";
+    return {};
 }
 
 void BuildManager::clean(const QString &projectDir)

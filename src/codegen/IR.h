@@ -15,6 +15,7 @@ struct IRInstruction {
         Assign,       // Присваивание: target = args[0]
         TypeConvert,  // Приведение типа: target = (type)args[0]
         DeclareVar,   // Объявление переменной: type target;
+        RawCode,      // Готовый фрагмент C-кода в теле main()
         Comment,      // Комментарий
         Return,       // return args[0]
         Branch,       // Ветвление (для будущего)
@@ -28,6 +29,7 @@ struct IRInstruction {
     QStringList args;      // Аргументы
     QString varType;       // Тип (для DeclareVar, TypeConvert)
     QString comment;       // Текст комментария
+    QString rawCode;       // Встроенный блок кода (для RawCode)
     QString sourceNodeId;  // ID узла графа (для sourceMap)
 
     // Фабричные методы
@@ -39,6 +41,7 @@ struct IRInstruction {
                                          const QString &toType, const QString &nodeId = {});
     static IRInstruction makeDeclareVar(const QString &name, const QString &type,
                                         const QString &nodeId = {});
+    static IRInstruction makeRawCode(const QString &code, const QString &nodeId = {});
     static IRInstruction makeComment(const QString &text);
     static IRInstruction makeReturn(const QString &value = {});
 };

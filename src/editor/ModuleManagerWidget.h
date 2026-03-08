@@ -43,6 +43,9 @@ public:
     // Фильтрация по языку
     void setLanguageFilter(const QString &lang);
 
+    // Открыть модуль в редакторе по id
+    bool openModule(const QString &moduleId);
+
 signals:
     void moduleChanged(const QString &moduleId);
 
