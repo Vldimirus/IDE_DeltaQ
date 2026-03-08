@@ -118,6 +118,30 @@ private slots:
         QVERIFY(content.contains("-Wall -Wextra"));
     }
 
+    void testDesktopSDL2Dependencies()
+    {
+        QTemporaryDir tmpDir;
+        QVERIFY(tmpDir.isValid());
+
+        QFile mainFile(tmpDir.path() + "/main.c");
+        mainFile.open(QIODevice::WriteOnly);
+        mainFile.write("int main() { return 0; }\n");
+        mainFile.close();
+
+        CMakeGenerator gen;
+        gen.generate(tmpDir.path(), "DesktopApp", "17", "20", {}, "desktop");
+
+        QFile cmake(tmpDir.path() + "/CMakeLists.txt");
+        QVERIFY(cmake.open(QIODevice::ReadOnly));
+        QString content = cmake.readAll();
+
+        QVERIFY(content.contains("find_package(SDL2 QUIET)"));
+        QVERIFY(content.contains("find_package(SDL2_ttf QUIET)"));
+        QVERIFY(content.contains("pkg_check_modules(PKG_SDL2 QUIET sdl2)"));
+        QVERIFY(content.contains("pkg_check_modules(PKG_SDL2_TTF QUIET SDL2_ttf)"));
+        QVERIFY(content.contains("Desktop template requires SDL2 and SDL2_ttf"));
+    }
+
     void testEmptyProject()
     {
         QTemporaryDir tmpDir;

@@ -14,14 +14,24 @@
     "ports": {
         "input": [
             {
+                "kind": "execution",
+                "name": "flow_in",
+                "type": "exec"
+            },
+            {
                 "name": "value",
                 "type": "int"
             }
         ],
         "output": [
+            {
+                "kind": "execution",
+                "name": "flow_out",
+                "type": "exec"
+            }
         ]
     },
     "source": "",
     "source_code": "void dq_print_int(int value) {\n    printf(\"%d\", value);\n}",
-    "version": "1.1"
+    "version": "1.2"
 }

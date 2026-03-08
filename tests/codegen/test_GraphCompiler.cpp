@@ -237,6 +237,52 @@ private slots:
         }
         QVERIFY(found);
     }
+
+    void execAndDataOutputs()
+    {
+        Module readExec;
+        readExec.id = "read_exec";
+        readExec.name = "read_exec";
+        readExec.category = "io";
+        readExec.language = "c";
+        readExec.version = "1.0";
+        readExec.origin = "user";
+        readExec.inputs = {Port::exec("flow_in")};
+        readExec.outputs = {Port::exec("flow_out"), {"text", "string", ""}};
+        readExec.sourceCode = "const char *dq_read_exec(void) {\n"
+                              "    return \"ok\";\n"
+                              "}";
+        m_registry->registerModule(readExec);
+
+        Module printStr;
+        printStr.id = "print_str";
+        printStr.name = "print_str";
+        printStr.category = "io";
+        printStr.language = "c";
+        printStr.version = "1.0";
+        printStr.origin = "user";
+        printStr.inputs = {Port::exec("flow_in"), {"text", "string", ""}};
+        printStr.outputs = {Port::exec("flow_out")};
+        printStr.sourceCode = "void dq_print_str(const char *text) {\n"
+                              "    (void)text;\n"
+                              "}";
+        m_registry->registerModule(printStr);
+
+        Graph g = Graph::create("ExecAndData");
+        GraphNode n1; n1.id = "n1"; n1.moduleId = "read_exec"; n1.position = QPointF(0, 0);
+        GraphNode n2; n2.id = "n2"; n2.moduleId = "print_str"; n2.position = QPointF(200, 0);
+        g.addNode(n1);
+        g.addNode(n2);
+        g.addConnection({{"n1", "text"}, {"n2", "text"}});
+        g.addConnection({{"n1", "flow_out"}, {"n2", "flow_in"}, PortKind::Execution});
+
+        GraphCompiler compiler(m_registry);
+        auto result = compiler.compile(g);
+
+        QVERIFY(result.success);
+        QVERIFY(result.generatedCode.contains("var_n1_text = dq_read_exec("));
+        QVERIFY(result.generatedCode.contains("dq_print_str(var_n1_text)"));
+    }
 };
 
 QTEST_MAIN(TestGraphCompiler)

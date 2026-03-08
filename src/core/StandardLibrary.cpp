@@ -39,8 +39,8 @@ QVector<Module> StandardLibrary::createAll()
     // ===== io =====
     modules.append(makeCore("print", "io",
         "Вывод текста",
-        {{"text", "string", ""}},
-        {},
+        {Port::exec("flow_in"), {"text", "string", ""}},
+        {Port::exec("flow_out")},
         "void dq_print(const char *text) {\n"
         "    printf(\"%s\", text);\n"
         "}",
@@ -49,8 +49,8 @@ QVector<Module> StandardLibrary::createAll()
 
     modules.append(makeCore("println", "io",
         "Вывод текста с переводом строки",
-        {{"text", "string", ""}},
-        {},
+        {Port::exec("flow_in"), {"text", "string", ""}},
+        {Port::exec("flow_out")},
         "void dq_println(const char *text) {\n"
         "    printf(\"%s\\n\", text);\n"
         "}",
@@ -59,8 +59,8 @@ QVector<Module> StandardLibrary::createAll()
 
     modules.append(makeCore("read_line", "io",
         "Чтение строки",
-        {},
-        {{"text", "string", ""}},
+        {Port::exec("flow_in")},
+        {Port::exec("flow_out"), {"text", "string", ""}},
         "const char *dq_read_line(void) {\n"
         "    static char buf[1024];\n"
         "    if (fgets(buf, sizeof(buf), stdin)) {\n"
@@ -74,8 +74,8 @@ QVector<Module> StandardLibrary::createAll()
 
     modules.append(makeCore("print_int", "io",
         "Вывод числа",
-        {{"value", "int", ""}},
-        {},
+        {Port::exec("flow_in"), {"value", "int", ""}},
+        {Port::exec("flow_out")},
         "void dq_print_int(int value) {\n"
         "    printf(\"%d\", value);\n"
         "}",
@@ -84,8 +84,8 @@ QVector<Module> StandardLibrary::createAll()
 
     modules.append(makeCore("print_float", "io",
         "Вывод дробного числа",
-        {{"value", "float", ""}},
-        {},
+        {Port::exec("flow_in"), {"value", "float", ""}},
+        {Port::exec("flow_out")},
         "void dq_print_float(float value) {\n"
         "    printf(\"%f\", value);\n"
         "}",

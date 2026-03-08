@@ -2,7 +2,7 @@
     "category": "control",
     "dependencies": [
     ],
-    "description": "Задержка в миллисекундах",
+    "description": "Задержка в миллисекундах (execution flow)",
     "header": "",
     "id": "core.control.delay_ms",
     "includes": [
@@ -14,14 +14,24 @@
     "ports": {
         "input": [
             {
+                "kind": "execution",
+                "name": "flow_in",
+                "type": "exec"
+            },
+            {
                 "name": "ms",
                 "type": "int"
             }
         ],
         "output": [
+            {
+                "kind": "execution",
+                "name": "flow_out",
+                "type": "exec"
+            }
         ]
     },
     "source": "",
     "source_code": "void dq_delay_ms(int ms) {\n    struct timespec ts;\n    ts.tv_sec = ms / 1000;\n    ts.tv_nsec = (ms % 1000) * 1000000L;\n    nanosleep(&ts, NULL);\n}",
-    "version": "1.1"
+    "version": "1.2"
 }

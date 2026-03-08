@@ -108,13 +108,32 @@ QString CMakeGenerator::generateContent(const QString &projectName,
         cmake += QString("    %1\n").arg(flag);
     cmake += ")\n";
 
-    // SDL2 для desktop-проектов
+    // SDL2 для desktop-проектов (CMake package -> pkg-config fallback)
     if (projectType == "desktop") {
-        cmake += "\n# SDL2\n";
-        cmake += "find_package(PkgConfig REQUIRED)\n";
-        cmake += "pkg_check_modules(SDL2 REQUIRED sdl2)\n";
-        cmake += QString("target_include_directories(%1 PRIVATE ${SDL2_INCLUDE_DIRS})\n").arg(projectName);
-        cmake += QString("target_link_libraries(%1 PRIVATE ${SDL2_LIBRARIES})\n").arg(projectName);
+        cmake += "\n# SDL2 / SDL2_ttf\n";
+        cmake += "find_package(SDL2 QUIET)\n";
+        cmake += "find_package(SDL2_ttf QUIET)\n\n";
+        cmake += "if (TARGET SDL2::SDL2 AND TARGET SDL2_ttf::SDL2_ttf)\n";
+        cmake += QString("    target_link_libraries(%1 PRIVATE SDL2::SDL2 SDL2_ttf::SDL2_ttf)\n").arg(projectName);
+        cmake += "else()\n";
+        cmake += "    find_package(PkgConfig QUIET)\n";
+        cmake += "    if (PkgConfig_FOUND)\n";
+        cmake += "        pkg_check_modules(PKG_SDL2 QUIET sdl2)\n";
+        cmake += "        pkg_check_modules(PKG_SDL2_TTF QUIET SDL2_ttf)\n";
+        cmake += "    endif()\n\n";
+        cmake += "    if (PKG_SDL2_FOUND AND PKG_SDL2_TTF_FOUND)\n";
+        cmake += QString("        target_include_directories(%1 PRIVATE ${PKG_SDL2_INCLUDE_DIRS} ${PKG_SDL2_TTF_INCLUDE_DIRS})\n").arg(projectName);
+        cmake += QString("        target_link_directories(%1 PRIVATE ${PKG_SDL2_LIBRARY_DIRS} ${PKG_SDL2_TTF_LIBRARY_DIRS})\n").arg(projectName);
+        cmake += QString("        target_link_libraries(%1 PRIVATE ${PKG_SDL2_LIBRARIES} ${PKG_SDL2_TTF_LIBRARIES})\n").arg(projectName);
+        cmake += "    else()\n";
+        cmake += "        message(FATAL_ERROR\n";
+        cmake += "            \"Desktop template requires SDL2 and SDL2_ttf.\\n\"\n";
+        cmake += "            \"Install dependencies and re-run configure:\\n\"\n";
+        cmake += "            \"  Debian/Ubuntu: sudo apt install libsdl2-dev libsdl2-ttf-dev\\n\"\n";
+        cmake += "            \"  Fedora: sudo dnf install SDL2-devel SDL2_ttf-devel\\n\"\n";
+        cmake += "            \"  Arch: sudo pacman -S sdl2 sdl2_ttf\")\n";
+        cmake += "    endif()\n";
+        cmake += "endif()\n";
     }
 
     return cmake;

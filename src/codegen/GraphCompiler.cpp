@@ -398,6 +398,15 @@ IR GraphCompiler::generateIR(const Graph &graph, const QStringList &sortedNodes,
             callArgs.append(argValue);
         }
 
+        // Выходной data-порт (для присваивания результата вызова)
+        QString firstDataOutputName;
+        for (const auto &outPort : mod->outputs) {
+            if (outPort.kind != PortKind::Execution) {
+                firstDataOutputName = outPort.name;
+                break;
+            }
+        }
+
         // Генерируем вызов функции
         if (UIModuleFactory::isUIModule(node->moduleId) ||
             UIModuleFactory::isUIModuleByName(mod->name)) {
@@ -437,10 +446,10 @@ IR GraphCompiler::generateIR(const Graph &graph, const QStringList &sortedNodes,
             // Композитный подмодуль — рекурсивная компиляция
             QString subFuncName = compileSubModule(*mod, result);
             if (!subFuncName.isEmpty()) {
-                if (mod->outputs.isEmpty()) {
+                if (firstDataOutputName.isEmpty()) {
                     ir.addInstruction(IRInstruction::makeCall({}, subFuncName, callArgs, nodeId));
                 } else {
-                    QString targetVar = portVarMap.value(nodeId + ":" + mod->outputs.first().name);
+                    QString targetVar = portVarMap.value(nodeId + ":" + firstDataOutputName);
                     ir.addInstruction(IRInstruction::makeCall(targetVar, subFuncName, callArgs, nodeId));
                 }
             }
@@ -448,12 +457,12 @@ IR GraphCompiler::generateIR(const Graph &graph, const QStringList &sortedNodes,
             // Обычный модуль
             QString funcName = QString("dq_%1").arg(mod->name.toLower().replace(' ', '_'));
 
-            if (mod->outputs.isEmpty()) {
+            if (firstDataOutputName.isEmpty()) {
                 // Функция без возвращаемого значения
                 ir.addInstruction(IRInstruction::makeCall({}, funcName, callArgs, nodeId));
             } else {
                 // Функция с возвращаемым значением
-                QString targetVar = portVarMap.value(nodeId + ":" + mod->outputs.first().name);
+                QString targetVar = portVarMap.value(nodeId + ":" + firstDataOutputName);
                 ir.addInstruction(IRInstruction::makeCall(targetVar, funcName, callArgs, nodeId));
             }
         }
