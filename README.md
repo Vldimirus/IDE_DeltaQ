@@ -25,13 +25,10 @@ The idea behind DeltaQ is simple: **lower the barrier to software development** 
 - **Visual Block Editor** — node-based graph editor where you connect modules to build programs visually; graphs compile down to pure C code via topological sorting and IR generation
 - **UI Designer** — drag & drop interface builder targeting SDL2; design windows visually, bind events to graph handlers, and generate compilable C code
 - **Library Processor** — import existing C/C++ libraries through libclang AST parsing; automatically decompose functions and classes into reusable modules
-- **Module System** — everything is a module (`.dqmod`). Modules nest recursively (matryoshka principle): a graph is a module, a module can contain a graph. Standard library with ~26 core modules included
+- **Module System** — everything is a module (`.dqmod`). Modules nest recursively (matryoshka principle): a graph is a module, a module can contain a graph. The repository currently ships 43 checked-in core modules across 7 categories
+- **Project Templates** — 6 file-based starter templates are loaded from `resources/templates/` and copied into new projects as ready source trees
 - **Built-in Debugger** — GDB/MI integration with breakpoints, stepping, variable inspection, call stack, and visual debugging on the graph canvas
 - **Build System** — CMake-based build pipeline with compiler output parsing, error navigation, and one-click build & run
-
-<!-- TODO: Add screenshot of the main IDE window -->
-<!-- TODO: Add screenshot of the block editor with a sample graph -->
-<!-- TODO: Add screenshot of the UI designer -->
 
 ---
 
@@ -77,6 +74,7 @@ sudo apt install \
     libqscintilla2-qt6-dev \
     libclang-dev \
     libsdl2-dev \
+    libsdl2-ttf-dev \
     gdb clangd
 
 # Fedora
@@ -86,21 +84,22 @@ sudo dnf install \
     qscintilla-qt6-devel \
     clang-devel \
     SDL2-devel \
+    SDL2_ttf-devel \
     gdb clang-tools-extra
 ```
 
 **Optional dependencies:**
 - `libqscintilla2-qt6-dev` — advanced code editor (falls back to QPlainTextEdit if not found)
 - `libclang-dev` — library import/parsing (library processor is disabled without it)
-- `libsdl2-dev` — required only for building generated UI projects
+- `libsdl2-dev` and `libsdl2-ttf-dev` — required only for building generated UI projects
 - `clangd` — LSP server for code intelligence
 - `gdb` — debugger backend
 
 ### Build
 
 ```bash
-git clone https://github.com/pshpsh76/DeltaQ.git
-cd DeltaQ
+git clone https://github.com/Vldimirus/IDE_DeltaQ.git
+cd IDE_DeltaQ
 
 mkdir build && cd build
 cmake .. -DCMAKE_BUILD_TYPE=Release
@@ -132,12 +131,28 @@ cmake .. -DCMAKE_BUILD_TYPE=Release -DDQ_BUILD_TESTS=OFF
 
 A typical workflow in DeltaQ IDE:
 
-1. **Create a project** — File → New Project, choose Console or Desktop (SDL2) template
+1. **Create a project** — File → New Project, choose one of the 6 file-based templates: Console Hello World, Console Counter Until Q, Desktop Empty Window, Desktop UI Graph Example, Desktop Text Editor, or Desktop Multi Window Workspace
 2. **Write modules** — create C functions with `@dqmodule` annotations, or use the Module Manager to write and test modules with instant preview
 3. **Build a graph** — open the Block Editor, drag modules from the palette, and connect their ports to define program flow
 4. **Design UI** *(Desktop projects)* — open the UI Designer, place widgets (buttons, text fields, sliders...), set properties, and bind events to graph handlers
 5. **Build & Run** — hit Build (Ctrl+B) to compile the graph into C code, generate CMakeLists.txt, and produce an executable; then Run (Ctrl+R)
 6. **Debug** — set breakpoints (F9) and start debugging (F5); the debugger highlights the active node on the graph and shows variable values on ports
+
+## Project Templates And Examples
+
+DeltaQ now loads project templates directly from files in `resources/templates/` rather than generating starter source code inside the IDE.
+
+- **Console Hello World** — minimal console app that prints `Hello, world!` and exits
+- **Console Counter Until Q** — console loop that prints an incrementing counter until the user presses `q`
+- **Desktop Empty Window** — SDL2 desktop app that opens a blank window
+- **Desktop UI Graph Example** — desktop project with a ready graph, UI layout, and generated SDL2 runtime files
+- **Desktop Text Editor** — simple SDL2 text editor with a top menu bar
+- **Desktop Multi Window Workspace** — desktop workspace with child windows inside the main frame
+
+The repository currently includes 2 checked-in example projects in `resources/examples/`:
+
+- `reusable_composition_console`
+- `imported_pack_sensor_console`
 
 ---
 
@@ -145,7 +160,7 @@ A typical workflow in DeltaQ IDE:
 
 DeltaQ uses a **module-centric architecture**. Every function is a module (`.dqmod`) with typed input/output ports.
 
-- **Standard Library** — ~26 built-in modules (math, I/O, string, logic, conversion, control) installed to `~/.deltaq/modules/`
+- **Standard Library** — 43 checked-in core modules across `control`, `conversion`, `desktop`, `io`, `logic`, `math`, and `string`; installed to `~/.deltaq/modules/`
 - **Local Modules** — project-specific modules in `dqmods/`
 - **Submodules (Matryoshka)** — select nodes on a graph → "Create Submodule" → the selection becomes a reusable composite module with its own internal graph. Nesting is unlimited
 - **UI Modules** — UI widgets (Button, Label, Slider...) appear as modules with property inputs and event outputs
@@ -171,7 +186,7 @@ DeltaQ uses a **module-centric architecture**. Every function is a module (`.dqm
 
 ## Tests
 
-The project includes 32 test suites covering core services, data models, stores, LSP, build system, graph compiler, and UI components.
+The repository currently includes 48 checked-in test source files covering `core`, `editor`, `uiDesigner`, `blockEditor`, `libProcessor`, `codegen`, `lsp`, and `debug`.
 
 ```bash
 cd build
