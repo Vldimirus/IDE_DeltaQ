@@ -119,6 +119,7 @@
 - `[x]` Checked-in `modules/core` является единым source-of-truth для core pack-а
 - `[x]` Specialized core-модули выведены из default palette flow, но доступны по явному запросу
 - `[x]` Legacy core-модули выведены из default palette flow, но доступны по явному запросу
+- `[x]` `Module Manager` использует тот же baseline-filter для `specialized` и `legacy`, что и `Module Palette`
 - `[ ]` Убраны слабые и дублирующие модули `(частично: в legacy уже переведены core.io.print_int, core.control.if_then, core.control.delay_ms, узкие math int-helper-ы и слабый partial-float slice)`
 - `[ ]` Библиотека даёт заметное ускорение в 2-3 эталонных сценариях
 
@@ -127,18 +128,21 @@
 - `[x]` Унифицирован минимальный verify pipeline для модулей
 - `[x]` Чётко различается качественный модуль и сырой модуль
 - `[x]` Статус проверки модуля понятен во всех ключевых местах IDE
+- `[x]` `Module Manager` явно показывает слой экосистемы и quality bar текущего модуля
 
 ### Module Documentation
 
 - `[x]` Для ключевых модулей описаны назначение, контракт и ограничения
 - `[x]` В IDE улучшена discoverability ролей core-модулей
 - `[x]` Для значимых модулей есть документационный стандарт, видимый пользователю
+- `[x]` Есть единая точка входа в library docs для `core`, imported pack-ов и verification story
 
 ### Import And Wrapping
 
 - `[x]` Зафиксировано различие `core / external pack / project module`
 - `[x]` Зафиксирован pipeline `library -> raw wrappers -> curated pack -> graph`
 - `[x]` Зафиксирована минимальная модель imported module pack
+- `[x]` Imported pack-и читаются в `Module Manager` и `Module Palette` как отдельные pack-boundaries, а не только как россыпь extension-модулей
 - `[x]` Есть minimum viable converter для `C`-библиотек
 - `[x]` Build pipeline учитывает `include_paths / defines / link_libraries` от реально используемых imported pack-ов
 - `[x]` Есть детальный исполнимый план `imported pack showcase + curation`
@@ -154,7 +158,7 @@
 - `[x]` Есть внутренний reference flow для minimal console scenario
 - `[x]` Есть внутренний reference flow для desktop/UI scenario
 - `[x]` Есть оформленный reusable composition example
-- `[ ]` Эталонные проекты готовы не только как регрессия, но и как showcase/onboarding `(частично: imported pack showcase уже есть, но Phase 3 demo-пакет ещё не собран)`
+- `[x]` Эталонные проекты готовы не только как регрессия, но и как showcase/onboarding
 
 ## UI Contract And Backends
 
@@ -174,6 +178,9 @@
 - `[x]` Inline desktop codegen в `GraphCompiler` использует ту же backend boundary
 - `[x]` Выделена backend boundary для событий, рендера и окна
 - `[x]` SDL2 runtime-модули выровнены с UI contract layer
+- `[x]` `GroupBox`, `ComboBox` и `Image` имеют явные SDL2 runtime/render branches, а не generic `TODO` fallback
+- `[x]` `RadioButton`, `ScrollPanel` и `TabPanel` имеют явные SDL2 runtime/render branches, а `RadioButton` включён в runtime toggle flow
+- `[x]` Весь словарь `UIContract` имеет явные SDL2 runtime/render branches без пропусков по contract-типам
 
 ### Stage 3: Runtime Model Consolidation
 
@@ -189,22 +196,22 @@
 
 ### Public Narrative
 
-- `[ ]` Обновлён верхнеуровневый README под реальную философию DeltaQ
-- `[ ]` Позиционирование проекта очищено от слишком широких обещаний
+- `[x]` Обновлён верхнеуровневый README под реальную философию DeltaQ
+- `[x]` Позиционирование проекта очищено от слишком широких обещаний
 
 ### Demo Projects
 
-- `[ ]` Подготовлены 2-3 сильных публичных demo-потока
-- `[ ]` Примеры показывают преимущества модульной композиции на реальных задачах
+- `[x]` Подготовлены 2-3 сильных публичных demo-потока
+- `[x]` Примеры показывают преимущества модульной композиции на реальных задачах
 
 ### Onboarding
 
-- `[ ]` Есть короткий путь первого знакомства с продуктом
-- `[ ]` Новый пользователь быстро понимает роль модуля, графа и generated code
+- `[x]` Есть короткий путь первого знакомства с продуктом
+- `[x]` Новый пользователь быстро понимает роль модуля, графа и generated code
 
 ### External Trust
 
-- `[ ]` Внешнему пользователю легко показать прозрачность generated code
+- `[x]` Внешнему пользователю легко показать прозрачность generated code
 - `[ ]` Внешнему пользователю легко показать ценность стандартной библиотеки
 - `[ ]` Проект выглядит как целостный инструмент, а не набор несвязанных подсистем
 
@@ -220,12 +227,34 @@
 
 ### Phase 2
 
-- `[ ]` Стандартная библиотека позволяет собирать несколько meaningful сценариев
-- `[ ]` Для ключевых модулей понятен контракт и статус проверки
-- `[ ]` Reuse ощущается как практическое преимущество
+- `[x]` Стандартная библиотека позволяет собирать несколько meaningful сценариев
+- `[x]` Для ключевых модулей понятен контракт и статус проверки
+- `[x]` Reuse ощущается как практическое преимущество
 
 ### Phase 3
 
-- `[ ]` Новый пользователь понимает идею проекта по README и примерам
-- `[ ]` Есть 2-3 сильных demo-потока
+- `[x]` Новый пользователь понимает идею проекта по README и примерам
+- `[x]` Есть 2-3 сильных demo-потока
 - `[ ]` DeltaQ можно показать как целостный open-source инструмент
+
+## Delivery And Release
+
+### Linux CI Baseline
+
+- `[x]` В репозитории есть checked-in GitHub Actions workflow для Linux
+- `[x]` Workflow делает полный `configure -> build -> ctest`, а не частичный smoke-build
+- `[x]` Full-suite тесты проходят в headless-режиме через `QT_QPA_PLATFORM=offscreen`
+
+### Packaging Baseline
+
+- `[x]` Writable state вынесен из bundled app tree в пользовательский root `~/.deltaq`
+- `[x]` Есть install-layout, совместимый с текущим runtime-ожиданием `applicationDirPath()`
+- `[x]` Release bundle включает не только `deltaq` и `modules`, но и `templates` с `examples`
+- `[x]` CI выполняет install/package smoke для self-contained Linux bundle
+- `[x]` CI выполняет AppDir smoke на каждом Linux workflow run
+- `[x]` Bundle включает translation payload и проходит единый release-layout verification script
+- `[x]` CI публикует Linux package artifact и `SHA256SUMS` для каждого workflow run
+- `[x]` Есть tag-based release workflow, публикующий Linux tarball и checksum как GitHub Release assets
+- `[x]` Есть публичный packaged artifact beyond Linux tarball: AppImage для tagged releases
+- `[x]` AppImage реально собирается и проходит локальную офлайн-safe verification, а не только infrastructure scaffolding
+- `[ ]` Есть полноценная cross-platform delivery story для Windows и macOS

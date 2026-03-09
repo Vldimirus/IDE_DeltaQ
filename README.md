@@ -5,17 +5,31 @@
 [![Qt 6](https://img.shields.io/badge/Qt-6-green.svg)](https://www.qt.io/)
 [![Platform: Linux](https://img.shields.io/badge/Platform-Linux-lightgrey.svg)]()
 
-**A modular IDE that combines traditional code editing with visual block programming and UI design for C/C++ development.**
+**A Linux-first modular IDE for C/C++ workflows that combines code editing, graph composition, and SDL2 UI design.**
 
 > **[Русская версия / Russian version](README_RU.md)**
 
 ---
 
-## Background
+## What DeltaQ Is
 
-DeltaQ IDE was born out of practical necessity. As a full-cycle R&D engineer working across multiple disciplines — from mathematics and physics to electronics, embedded systems, and software — I found myself constantly switching between different tools, languages, and paradigms. Keeping all of this in your head at once is hard enough; having to fight your tools on top of that makes it harder.
+DeltaQ IDE is built around one transparent workflow:
 
-The idea behind DeltaQ is simple: **lower the barrier to software development** by letting you work at the level of abstraction that fits the task. Write C code when you need precision. Connect visual blocks when you need to see the big picture. Design a UI by dragging widgets. Let the IDE handle the glue code, the build system, and the boilerplate — so you can focus on what you're actually building.
+`module -> graph -> generated C code -> build -> run`
+
+The current project goal is deliberately narrower than a generic "all-in-one IDE" claim. DeltaQ focuses on **modular C/C++ application development on Linux**, where code editing, graph composition, generated code, UI layout, and build/debug all stay inside one inspectable toolchain.
+
+Three product principles define the repository today:
+
+- one module model across code, graphs, UI contracts, and imported packs;
+- generated C stays visible and traceable back to the source-of-truth;
+- templates and examples are checked-in source trees, not IDE-side code synthesis.
+
+## Current Scope
+
+- **Primary platform:** Linux. The repository already ships Linux CI, Linux release bundles, Linux tarball packaging, and a verified Linux AppImage flow.
+- **Strongest built-in scenarios:** console flow, desktop/UI flow, reusable composition, and imported-pack integration.
+- **Current boundary:** Windows and macOS are roadmap items, not current release claims.
 
 ---
 
@@ -63,6 +77,8 @@ All operations go through the **CommandBus**, enabling full undo/redo support ac
 ---
 
 ## Quick Start
+
+The build and release flow below is **Linux-first**. Building the repository on other platforms may be possible, but Windows/macOS are not yet supported as finished delivery targets.
 
 ### Dependencies
 
@@ -138,6 +154,22 @@ A typical workflow in DeltaQ IDE:
 5. **Build & Run** — hit Build (Ctrl+B) to compile the graph into C code, generate CMakeLists.txt, and produce an executable; then Run (Ctrl+R)
 6. **Debug** — set breakpoints (F9) and start debugging (F5); the debugger highlights the active node on the graph and shows variable values on ports
 
+## First Run
+
+If you want the shortest reproducible DeltaQ walkthrough, start with:
+
+- `resources/examples/minimal_console_flow/minimal_console_flow.dqproj`
+
+Open `graphs/main.dqgraph`, build the project, run it, type `DeltaQ`, and then inspect the generated `src/main.c`.
+
+That example is intentionally tiny and demonstrates the core path:
+
+`module -> graph -> generated C code -> build -> run`
+
+The detailed walkthrough is in:
+
+- `docs/onboarding/first_run.md`
+
 ## Project Templates And Examples
 
 DeltaQ now loads project templates directly from files in `resources/templates/` rather than generating starter source code inside the IDE.
@@ -149,10 +181,12 @@ DeltaQ now loads project templates directly from files in `resources/templates/`
 - **Desktop Text Editor** — simple SDL2 text editor with a top menu bar
 - **Desktop Multi Window Workspace** — desktop workspace with child windows inside the main frame
 
-The repository currently includes 2 checked-in example projects in `resources/examples/`:
+The repository currently includes 4 checked-in example projects in `resources/examples/`:
 
-- `reusable_composition_console`
-- `imported_pack_sensor_console`
+- `minimal_console_flow` — shortest onboarding path for `module -> graph -> generated C code -> build -> run`
+- `desktop_ui_flow` — desktop/UI showcase with generated SDL2 runtime and live event handlers
+- `reusable_composition_console` — composite submodules and repeated reuse in one root graph
+- `imported_pack_sensor_console` — curated imported pack flow from external library to working graph runtime
 
 ---
 
@@ -165,6 +199,7 @@ DeltaQ uses a **module-centric architecture**. Every function is a module (`.dqm
 - **Submodules (Matryoshka)** — select nodes on a graph → "Create Submodule" → the selection becomes a reusable composite module with its own internal graph. Nesting is unlimited
 - **UI Modules** — UI widgets (Button, Label, Slider...) appear as modules with property inputs and event outputs
 - **Library Import** — import C/C++ headers via libclang → functions/classes are automatically decomposed into modules
+- **Library Docs Hub** — `docs/library/README.md` is the entry point for core curation, verification story, and imported pack guides
 
 ---
 
@@ -196,21 +231,24 @@ ctest --output-on-failure
 Or run a specific test:
 
 ```bash
-./build/tests/test_command_bus
+./build/tests/test_CommandBus
 ```
+
+The repository also includes a Linux CI baseline in `.github/workflows/ci.yml`: GitHub Actions performs full `configure -> build -> ctest` on Ubuntu and verifies install/package smoke for the self-contained bundle layout, including translation payload and bundled templates/examples.
 
 ---
 
 ## Roadmap
 
+- [x] Linux CI baseline (GitHub Actions full build, 48 tests, install/package smoke)
 - [ ] Cross-platform support (Windows, macOS)
+- [x] Linux AppImage packaging
+- [ ] Windows installer / macOS DMG packaging
 - [ ] Python and Rust language backends (IR → Python/Rust code generation)
-- [ ] CI/CD pipeline
-- [ ] AppImage / Installer / DMG packaging
 - [ ] Plugin system for third-party extensions
 - [ ] Performance optimizations for large graphs (100+ nodes)
 - [ ] User documentation and tutorials
-- [ ] Example projects
+- [x] Example projects
 
 ---
 

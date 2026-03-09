@@ -3547,3 +3547,44 @@
 - следующий логичный шаг:
   - либо закрывать curation на текущем срезе и считать string-slice последним честным `specialized`,
   - либо отдельно обсуждать судьбу string-модулей.
+
+### Шаг 64 — верхнеуровневый README выровнен под Linux-first public narrative
+
+**Фаза:** `Phase 3 / Public Narrative`
+
+**Что сделано:**
+
+- `README.md` и `README_RU.md` больше не подают DeltaQ как слишком широкую "универсальную IDE";
+- в README добавлены явные секции `What DeltaQ Is / Что такое DeltaQ` и `Current Scope / Текущий scope`;
+- верхнеуровневая подача теперь прямо фиксирует главный workflow:
+  - `module -> graph -> generated C code -> build -> run`;
+- README теперь явно называют Linux текущей целевой платформой и отделяют:
+  - уже закрытый Linux delivery;
+  - ещё не закрытые Windows/macOS claims;
+- Quick Start теперь тоже прямо помечен как Linux-first build/release path;
+- в `98_strategy_checklist.md` закрыт пункт про очистку позиционирования от слишком широких обещаний.
+
+**Зачем это сделано:**
+
+- выровнять public-facing narrative с реальным состоянием репозитория;
+- убрать разрыв между сильной Linux delivery readiness и незавершённой cross-platform story;
+- сделать DeltaQ более цельным продуктом в подаче, а не набором технических подсистем.
+
+**Технические изменения:**
+
+- обновлены:
+  - `README.md`
+  - `README_RU.md`
+  - `docs/plan/strategy_2026/98_strategy_checklist.md`
+
+**Проверка:**
+
+- выполнено ручное ревью текстов и roadmap-секций;
+- тесты не запускались, так как изменения только документационные.
+
+**Итог:**
+
+- верхнеуровневый narrative теперь честно фиксирует DeltaQ как Linux-first modular C/C++ workflow IDE;
+- следующий логичный шаг:
+  - либо дожимать внешний narrative вокруг ценности standard library,
+  - либо закрывать пункт про "целостный open-source инструмент" уже через финальную polishing-подачу Linux release surface.
