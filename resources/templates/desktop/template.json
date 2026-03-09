@@ -1,0 +1,17 @@
+{
+    "id": "desktop",
+    "name": "Desktop UI Graph Example",
+    "description": "Existing DeltaQ desktop template with a graph, UI layout, and generated SDL2 UI runtime files.",
+    "project_type": "desktop",
+    "sort_order": 40,
+    "summary_files": [
+        "__PROJECT_NAME__.dqproj",
+        "graphs/main.dqgraph",
+        "ui/window1.dqui",
+        "src/main.c",
+        "src/ui/window1.h",
+        "src/ui/window1.c",
+        "src/ui/window1_events.h",
+        "src/ui/window1_events.c"
+    ]
+}

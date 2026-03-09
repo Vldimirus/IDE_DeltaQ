@@ -63,6 +63,7 @@ protected:
 private:
     qreal computeWidth() const;
     qreal computeHeight() const;
+    qreal computeHeaderHeight() const;
     void updatePortPositions();
 
     QString m_nodeId;
@@ -78,19 +79,24 @@ private:
     QString m_errorMessage;
     qreal m_width = 180.0;
     qreal m_height = 65.0;
+    qreal m_headerHeight = 30.0;
 
     // Отслеживание перемещения для MoveCommand
     QPointF m_dragStartPos;
 
     static constexpr qreal MinWidth = 180.0;
-    static constexpr qreal HeaderHeight = 30.0;
+    static constexpr qreal BaseHeaderHeight = 30.0;
     static constexpr qreal PortSpacing = 26.0;
     static constexpr qreal BottomPadding = 10.0;
     static constexpr qreal SidePadding = 16.0;
     static constexpr qreal PortLabelGap = 12.0;
     static constexpr qreal CenterGap = 44.0;
-    static constexpr qreal ExecPortSpacing = 18.0;
-    static constexpr qreal ExecOuterPadding = 18.0;
+    static constexpr qreal ExecPortSpacing = 22.0;
+    static constexpr qreal ExecPortInset = 10.0;
+    static constexpr qreal ExecLabelGap = 6.0;
+    static constexpr qreal ExecColumnPadding = 16.0;
+    static constexpr qreal ExecVerticalPadding = 8.0;
+    static constexpr qreal HeaderTitleGap = 18.0;
 };
 
 } // namespace DeltaQ

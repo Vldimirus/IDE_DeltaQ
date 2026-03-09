@@ -11,6 +11,20 @@
 
 namespace DeltaQ {
 
+namespace {
+
+int executionPortCount(const QVector<PortItem *> &ports)
+{
+    int count = 0;
+    for (auto *port : ports) {
+        if (port->portKind() == PortKind::Execution)
+            ++count;
+    }
+    return count;
+}
+
+} // namespace
+
 NodeItem::NodeItem(const QString &nodeId, const QString &moduleName,
                    const QString &category, QGraphicsItem *parent)
     : QGraphicsObject(parent)
@@ -88,19 +102,19 @@ void NodeItem::paint(QPainter *painter, const QStyleOptionGraphicsItem *option,
     painter->drawRoundedRect(r, 6, 6);
 
     // Заголовок
-    QRectF headerRect(0, 0, m_width, HeaderHeight);
+    QRectF headerRect(0, 0, m_width, m_headerHeight);
     painter->setBrush(categoryColor(m_category));
     painter->setPen(Qt::NoPen);
 
     // Рисуем заголовок с закруглением только сверху
     QPainterPath headerPath;
-    headerPath.moveTo(6, HeaderHeight);
-    headerPath.lineTo(0, HeaderHeight);         // нижний левый угол (прямой)
+    headerPath.moveTo(6, m_headerHeight);
+    headerPath.lineTo(0, m_headerHeight);         // нижний левый угол (прямой)
     headerPath.lineTo(0, 6);
     headerPath.arcTo(0, 0, 12, 12, 180, -90);  // верхний левый (скруглённый)
     headerPath.lineTo(m_width - 6, 0);
     headerPath.arcTo(m_width - 12, 0, 12, 12, 90, -90); // верхний правый (скруглённый)
-    headerPath.lineTo(m_width, HeaderHeight);     // нижний правый угол (прямой)
+    headerPath.lineTo(m_width, m_headerHeight);     // нижний правый угол (прямой)
     headerPath.closeSubpath();
     painter->drawPath(headerPath);
 
@@ -184,40 +198,37 @@ void NodeItem::mouseDoubleClickEvent(QGraphicsSceneMouseEvent *event)
 void NodeItem::updatePortPositions()
 {
     const qreal newWidth = computeWidth();
+    const qreal newHeaderHeight = computeHeaderHeight();
     const qreal newHeight = computeHeight();
-    if (!qFuzzyCompare(m_width, newWidth) || !qFuzzyCompare(m_height, newHeight)) {
+    if (!qFuzzyCompare(m_width, newWidth)
+        || !qFuzzyCompare(m_height, newHeight)
+        || !qFuzzyCompare(m_headerHeight, newHeaderHeight)) {
         prepareGeometryChange();
         m_width = newWidth;
+        m_headerHeight = newHeaderHeight;
         m_height = newHeight;
     }
 
-    // Exec-порты — сверху/снизу узла
-    // Data-порты — по бокам под заголовком
-    int execInIdx = 0, execOutIdx = 0;
-    int dataInIdx = 0, dataOutIdx = 0;
-    int execInCount = 0, execOutCount = 0;
-    for (auto *port : m_inputPorts)
-        if (port->portKind() == PortKind::Execution) execInCount++;
-    for (auto *port : m_outputPorts)
-        if (port->portKind() == PortKind::Execution) execOutCount++;
+    int execInIdx = 0;
+    int execOutIdx = 0;
+    int dataInIdx = 0;
+    int dataOutIdx = 0;
+    const int execInCount = executionPortCount(m_inputPorts);
+    const int execOutCount = executionPortCount(m_outputPorts);
 
-    const qreal nodeHeight = m_height;
-    const qreal inputExecSpan = execInCount > 0
-        ? (execInCount - 1) * ExecPortSpacing : 0.0;
-    const qreal outputExecSpan = execOutCount > 0
-        ? (execOutCount - 1) * ExecPortSpacing : 0.0;
-    const qreal inputExecStart = (m_width - inputExecSpan) * 0.5;
-    const qreal outputExecStart = (m_width - outputExecSpan) * 0.5;
+    const qreal inputExecSpan = execInCount > 0 ? (execInCount - 1) * ExecPortSpacing : 0.0;
+    const qreal outputExecSpan = execOutCount > 0 ? (execOutCount - 1) * ExecPortSpacing : 0.0;
+    const qreal inputExecStart = (m_headerHeight - inputExecSpan) * 0.5;
+    const qreal outputExecStart = (m_headerHeight - outputExecSpan) * 0.5;
 
     for (auto *port : m_inputPorts) {
         if (port->portKind() == PortKind::Execution) {
-            // Exec input — сверху узла
-            qreal y = -2.0;
-            qreal x = inputExecStart + execInIdx * ExecPortSpacing;
+            qreal x = ExecPortInset;
+            qreal y = inputExecStart + execInIdx * ExecPortSpacing;
             port->setPos(x, y);
             execInIdx++;
         } else {
-            qreal y = HeaderHeight + PortSpacing * 0.5 + dataInIdx * PortSpacing;
+            qreal y = m_headerHeight + PortSpacing * 0.5 + dataInIdx * PortSpacing;
             port->setPos(0, y);
             dataInIdx++;
         }
@@ -225,13 +236,12 @@ void NodeItem::updatePortPositions()
 
     for (auto *port : m_outputPorts) {
         if (port->portKind() == PortKind::Execution) {
-            // Exec output — снизу узла
-            qreal y = nodeHeight + 2.0;
-            qreal x = outputExecStart + execOutIdx * ExecPortSpacing;
+            qreal x = m_width - ExecPortInset;
+            qreal y = outputExecStart + execOutIdx * ExecPortSpacing;
             port->setPos(x, y);
             execOutIdx++;
         } else {
-            qreal y = HeaderHeight + PortSpacing * 0.5 + dataOutIdx * PortSpacing;
+            qreal y = m_headerHeight + PortSpacing * 0.5 + dataOutIdx * PortSpacing;
             port->setPos(m_width, y);
             dataOutIdx++;
         }
@@ -244,7 +254,7 @@ qreal NodeItem::computeWidth() const
 {
     QFont headerFont("Sans", 10, QFont::Bold);
     QFontMetricsF headerMetrics(headerFont);
-    qreal headerWidth = headerMetrics.horizontalAdvance(m_moduleName) + SidePadding * 2.0;
+    qreal titleWidth = headerMetrics.horizontalAdvance(m_moduleName);
 
     qreal leftLabelWidth = 0.0;
     qreal rightLabelWidth = 0.0;
@@ -271,16 +281,20 @@ qreal NodeItem::computeWidth() const
         }
     }
 
+    const qreal execMarkerWidth = 14.0;
+    const qreal leftHeaderWidth = execInCount > 0
+        ? ExecColumnPadding + ExecPortInset + execMarkerWidth + ExecLabelGap + execInLabelWidth
+        : 0.0;
+    const qreal rightHeaderWidth = execOutCount > 0
+        ? ExecColumnPadding + ExecPortInset + execMarkerWidth + ExecLabelGap + execOutLabelWidth
+        : 0.0;
+    const qreal headerWidth = leftHeaderWidth + rightHeaderWidth
+        + titleWidth + HeaderTitleGap * 2.0;
+
     const qreal dataWidth = leftLabelWidth + rightLabelWidth
         + SidePadding * 2.0 + PortLabelGap * 2.0 + CenterGap;
-    const qreal execInWidth = execInCount > 0
-        ? execInLabelWidth + ExecOuterPadding * 2.0 + (execInCount - 1) * ExecPortSpacing
-        : 0.0;
-    const qreal execOutWidth = execOutCount > 0
-        ? execOutLabelWidth + ExecOuterPadding * 2.0 + (execOutCount - 1) * ExecPortSpacing
-        : 0.0;
 
-    return std::max({MinWidth, headerWidth, dataWidth, execInWidth, execOutWidth});
+    return std::max({MinWidth, headerWidth, dataWidth});
 }
 
 qreal NodeItem::computeHeight() const
@@ -293,7 +307,17 @@ qreal NodeItem::computeHeight() const
         if (p->portKind() == PortKind::Data) outDataPorts++;
     maxDataPorts = qMax(maxDataPorts, outDataPorts);
 
-    return HeaderHeight + maxDataPorts * PortSpacing + BottomPadding;
+    return computeHeaderHeight() + maxDataPorts * PortSpacing + BottomPadding;
+}
+
+qreal NodeItem::computeHeaderHeight() const
+{
+    const int execRows = qMax(executionPortCount(m_inputPorts), executionPortCount(m_outputPorts));
+    if (execRows <= 1)
+        return BaseHeaderHeight;
+
+    return qMax(BaseHeaderHeight,
+                ExecVerticalPadding * 2.0 + (execRows - 1) * ExecPortSpacing + 1.0);
 }
 
 } // namespace DeltaQ

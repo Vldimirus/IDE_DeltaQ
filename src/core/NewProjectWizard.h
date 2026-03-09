@@ -2,6 +2,9 @@
 #pragma once
 
 #include <QWizard>
+#include <QVector>
+
+#include "ProjectTemplates.h"
 
 class QListWidget;
 class QLineEdit;
@@ -17,7 +20,8 @@ public:
 
     QString projectName() const;
     QString projectDir() const;
-    QString projectType() const;  // "console" / "desktop"
+    QString projectType() const;
+    QString selectedTemplateId() const;
     void setDefaultDir(const QString &dir);
 
 private:
@@ -26,9 +30,11 @@ private:
     QWizardPage *createSummaryPage();
 
     void updateSummary();
+    const ProjectTemplateInfo *selectedTemplate() const;
 
     // Страница 1 — тип проекта
     QListWidget *m_typeList = nullptr;
+    QVector<ProjectTemplateInfo> m_templates;
 
     // Страница 2 — имя и расположение
     QLineEdit *m_nameEdit = nullptr;

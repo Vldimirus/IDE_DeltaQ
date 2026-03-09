@@ -30,6 +30,21 @@ dq_add_test(test_GraphStore      core/test_GraphStore.cpp)
 dq_add_test(test_UILayoutStore   core/test_UILayoutStore.cpp)
 dq_add_test(test_ProjectManager  core/test_ProjectManager.cpp)
 
+add_executable(test_ProjectTemplates
+    core/test_ProjectTemplates.cpp
+    ${CMAKE_SOURCE_DIR}/src/core/ProjectTemplates.cpp
+)
+target_include_directories(test_ProjectTemplates PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/include
+)
+target_link_libraries(test_ProjectTemplates PRIVATE
+    Qt6::Core
+    Qt6::Test
+)
+set_target_properties(test_ProjectTemplates PROPERTIES AUTOMOC ON)
+add_test(NAME test_ProjectTemplates COMMAND test_ProjectTemplates)
+
 add_executable(test_MainWindowEditorActions
     core/test_MainWindowEditorActions.cpp
     ${CMAKE_SOURCE_DIR}/src/core/MainWindow.cpp

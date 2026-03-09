@@ -232,7 +232,7 @@ private slots:
         QVERIFY(item2 == item1); // возвращает существующий
     }
 
-    void executionPortsAreVertical()
+    void executionPortsAreInHeaderSides()
     {
         BlockScene scene(m_registry, m_bus);
         auto node = GraphNode::create("exec_chain", QPointF(0, 0));
@@ -250,10 +250,11 @@ private slots:
 
         QCOMPARE(execIn->portKind(), PortKind::Execution);
         QCOMPARE(execOut->portKind(), PortKind::Execution);
-        QVERIFY(qAbs(execIn->pos().x() - item->boundingRect().center().x()) < 1.0);
-        QVERIFY(qAbs(execOut->pos().x() - item->boundingRect().center().x()) < 1.0);
+        QVERIFY(execIn->pos().x() < item->boundingRect().center().x());
+        QVERIFY(execOut->pos().x() > item->boundingRect().center().x());
         QVERIFY(execIn->pos().y() < dataIn->pos().y());
-        QVERIFY(execOut->pos().y() > dataOut->pos().y());
+        QVERIFY(execOut->pos().y() < dataOut->pos().y());
+        QVERIFY(qAbs(execIn->pos().y() - execOut->pos().y()) < 1.0);
     }
 
     void longPortLabelsDoNotOverlap()
@@ -274,8 +275,9 @@ private slots:
         QVERIFY(window != nullptr);
 
         QVERIFY(title->labelRectInNode().right() < window->labelRectInNode().left());
-        QVERIFY(execIn->labelRectInNode().bottom() < 0.0);
-        QVERIFY(execOut->labelRectInNode().top() > item->boundingRect().height());
+        QVERIFY(execIn->labelRectInNode().top() >= 0.0);
+        QVERIFY(execOut->labelRectInNode().bottom() < title->pos().y());
+        QVERIFY(execOut->labelRectInNode().bottom() < window->pos().y());
     }
 
     void canInsertModuleRejectsUntestedDraft()

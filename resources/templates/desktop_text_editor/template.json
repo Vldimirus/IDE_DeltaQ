@@ -1,0 +1,11 @@
+{
+    "id": "desktop_text_editor",
+    "name": "Desktop Text Editor",
+    "description": "Simple SDL2 text editor with a top menu bar, editable text area, and basic keyboard shortcuts.",
+    "project_type": "desktop",
+    "sort_order": 50,
+    "summary_files": [
+        "__PROJECT_NAME__.dqproj",
+        "src/main.c"
+    ]
+}

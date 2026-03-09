@@ -1,0 +1,11 @@
+{
+    "id": "desktop_mdi",
+    "name": "Desktop Multi Window Workspace",
+    "description": "SDL2 desktop workspace with child windows inside the main frame that can be dragged around.",
+    "project_type": "desktop",
+    "sort_order": 60,
+    "summary_files": [
+        "__PROJECT_NAME__.dqproj",
+        "src/main.c"
+    ]
+}

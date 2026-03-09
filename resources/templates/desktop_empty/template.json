@@ -1,0 +1,11 @@
+{
+    "id": "desktop_empty",
+    "name": "Desktop Empty Window",
+    "description": "SDL2 desktop project that opens an empty window, renders a clean background, and closes normally.",
+    "project_type": "desktop",
+    "sort_order": 30,
+    "summary_files": [
+        "__PROJECT_NAME__.dqproj",
+        "src/main.c"
+    ]
+}

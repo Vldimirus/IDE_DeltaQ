@@ -1,0 +1,11 @@
+{
+    "id": "console_counter",
+    "name": "Console Counter Until Q",
+    "description": "Console program that prints an increasing counter in a loop and stops when the user presses q.",
+    "project_type": "console",
+    "sort_order": 20,
+    "summary_files": [
+        "__PROJECT_NAME__.dqproj",
+        "src/main.c"
+    ]
+}

@@ -23,7 +23,7 @@ PortItem::PortItem(const QString &name, const QString &type,
     setAcceptHoverEvents(true);
     setToolTip(QString("%1 (%2)").arg(m_name, m_type));
 
-    // Подпись порта (не показываем для exec-портов, чтобы не загромождать)
+    // Подпись порта
     m_label = new QGraphicsTextItem(this);
     m_label->setDefaultTextColor(Qt::white);
     QFont font("Sans", 8);
@@ -59,14 +59,12 @@ void PortItem::paint(QPainter *painter, const QStyleOptionGraphicsItem *option,
 
         QPolygonF triangle;
         if (m_direction == PortDirection::Output) {
-            // Нижний exec-output — треугольник вниз ▼
             triangle << QPointF(-r, -r)
-                     << QPointF(0, r)
-                     << QPointF(r, -r);
+                     << QPointF(r, 0)
+                     << QPointF(-r, r);
         } else {
-            // Верхний exec-input — треугольник вверх ▲
-            triangle << QPointF(-r, r)
-                     << QPointF(0, -r)
+            triangle << QPointF(r, -r)
+                     << QPointF(-r, 0)
                      << QPointF(r, r);
         }
         painter->drawPolygon(triangle);
@@ -86,9 +84,9 @@ QPainterPath PortItem::shape() const
     if (m_kind == PortKind::Execution) {
         QPolygonF triangle;
         if (m_direction == PortDirection::Output) {
-            triangle << QPointF(-r, -r) << QPointF(0, r) << QPointF(r, -r);
+            triangle << QPointF(-r, -r) << QPointF(r, 0) << QPointF(-r, r);
         } else {
-            triangle << QPointF(-r, r) << QPointF(0, -r) << QPointF(r, r);
+            triangle << QPointF(r, -r) << QPointF(-r, 0) << QPointF(r, r);
         }
         path.addPolygon(triangle);
         path.closeSubpath();
@@ -164,9 +162,9 @@ void PortItem::updateAppearance()
         qreal th = m_label->boundingRect().height();
         if (m_kind == PortKind::Execution) {
             if (m_direction == PortDirection::Input)
-                m_label->setPos(-tw / 2, -r - 4 - th);
+                m_label->setPos(r + 6, -th / 2);
             else
-                m_label->setPos(-tw / 2, r + 4);
+                m_label->setPos(-r - 6 - tw, -th / 2);
             return;
         }
 

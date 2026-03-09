@@ -1,0 +1,11 @@
+{
+    "id": "console",
+    "name": "Console Hello World",
+    "description": "Minimal console project with ready-to-build main.c that prints Hello, world! and exits.",
+    "project_type": "console",
+    "sort_order": 10,
+    "summary_files": [
+        "__PROJECT_NAME__.dqproj",
+        "src/main.c"
+    ]
+}

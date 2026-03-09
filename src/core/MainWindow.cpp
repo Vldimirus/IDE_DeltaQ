@@ -896,35 +896,34 @@ void MainWindow::onNewProject()
     if (wizard.exec() != QDialog::Accepted)
         return;
 
-    QString name = wizard.projectName();
-    QString dir = wizard.projectDir() + "/" + name;
-    QString type = wizard.projectType();
+    const QString name = wizard.projectName();
+    const QString dir = wizard.projectDir() + "/" + name;
+    const QString templateId = wizard.selectedTemplateId();
 
-    if (m_projectManager->createProject(name, dir, type)) {
-        // Генерация шаблонных файлов по типу проекта
-        ProjectTemplates::generate(type, dir, name);
-
-        // Загружаем модули и графы в stores
-        m_moduleRegistry->loadRegistry(dir);
-        m_graphStore->loadFromDirectory(dir);
-
-        // Для desktop-проекта загружаем layout в UILayoutStore
-        if (type == "desktop")
-            m_uiLayoutStore->loadFromDirectory(dir);
-
-        m_projectTree->setRootPath(dir);
-        m_sessionManager->addRecentProject(m_projectManager->currentProject().projectFilePath);
-        m_sessionManager->setDefaultProjectDir(wizard.projectDir());
-        updateRecentProjectsMenu();
-        statusBar()->showMessage(tr("Project '%1' created").arg(name), 3000);
-
-        // Автооткрытие main.c в редакторе
-        QString mainPath = dir + "/src/main.c";
-        if (QFile::exists(mainPath))
-            m_codeEditor->openFile(mainPath);
-    } else {
-        QMessageBox::warning(this, tr("Error"), tr("Failed to create project"));
+    QString templateError;
+    if (!ProjectTemplates::generate(templateId, dir, name, &templateError)) {
+        QMessageBox::warning(this, tr("Error"),
+                             templateError.isEmpty()
+                                 ? tr("Failed to create project from template")
+                                 : templateError);
+        return;
     }
+
+    const QString projectFilePath = dir + "/" + name + ".dqproj";
+    if (!m_projectManager->openProject(projectFilePath)) {
+        QMessageBox::warning(this, tr("Error"), tr("Failed to open created project"));
+        return;
+    }
+
+    m_projectTree->setRootPath(dir);
+    m_sessionManager->addRecentProject(m_projectManager->currentProject().projectFilePath);
+    m_sessionManager->setDefaultProjectDir(wizard.projectDir());
+    updateRecentProjectsMenu();
+    statusBar()->showMessage(tr("Project '%1' created").arg(name), 3000);
+
+    const QString mainPath = dir + "/src/main.c";
+    if (QFile::exists(mainPath))
+        m_codeEditor->openFile(mainPath);
 }
 
 void MainWindow::onOpenProject()

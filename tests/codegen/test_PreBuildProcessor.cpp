@@ -516,7 +516,7 @@ private slots:
         QVERIFY2(!repoRoot.isEmpty(), "Repository root was not found from test binary location");
 
         const QString projectDir = tmpDir.path() + "/console_flow";
-        QVERIFY(copyDirectory(repoRoot + "/resources/templates/console", projectDir));
+        QVERIFY(copyDirectory(repoRoot + "/resources/templates/internal_console_graph", projectDir));
 
         ModuleRegistry registry;
         registry.loadGlobalModules(repoRoot + "/modules");
@@ -805,7 +805,7 @@ private slots:
         QVERIFY2(!repoRoot.isEmpty(), "Repository root was not found from test binary location");
 
         const QString projectDir = tmpDir.path() + "/console_run_flow";
-        QVERIFY(copyDirectory(repoRoot + "/resources/templates/console", projectDir));
+        QVERIFY(copyDirectory(repoRoot + "/resources/templates/internal_console_graph", projectDir));
 
         ModuleRegistry registry;
         registry.loadGlobalModules(repoRoot + "/modules");

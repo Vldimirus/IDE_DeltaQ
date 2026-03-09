@@ -14,6 +14,19 @@
 
 namespace DeltaQ {
 
+namespace {
+
+constexpr int TemplateIdRole = Qt::UserRole + 1;
+constexpr int SummaryPageId = 2;
+
+QString renderTemplatePath(QString path, const QString &projectName)
+{
+    path.replace("__PROJECT_NAME__", projectName);
+    return path;
+}
+
+} // namespace
+
 // Страница с валидацией: имя и директория не пусты
 class NameLocationPage : public QWizardPage {
 public:
@@ -43,6 +56,7 @@ private:
 
 NewProjectWizard::NewProjectWizard(QWidget *parent)
     : QWizard(parent)
+    , m_templates(ProjectTemplates::availableTemplates())
 {
     setWindowTitle(tr("New Project"));
     setMinimumSize(550, 400);
@@ -66,10 +80,15 @@ QString NewProjectWizard::projectDir() const
 
 QString NewProjectWizard::projectType() const
 {
-    if (!m_typeList->currentItem())
-        return "console";
-    int row = m_typeList->currentRow();
-    return (row == 1) ? "desktop" : "console";
+    const ProjectTemplateInfo *info = selectedTemplate();
+    return info ? info->projectType : QString("console");
+}
+
+QString NewProjectWizard::selectedTemplateId() const
+{
+    if (!m_typeList || !m_typeList->currentItem())
+        return {};
+    return m_typeList->currentItem()->data(TemplateIdRole).toString();
 }
 
 // --- Страница 1: Тип проекта ---
@@ -81,39 +100,23 @@ QWizardPage *NewProjectWizard::createTypePage()
     page->setSubTitle(tr("Select the type of project to create."));
 
     m_typeList = new QListWidget;
-
-    // Console Application
-    auto *consoleItem = new QListWidgetItem(tr("Console Application"));
-    consoleItem->setToolTip(tr("Console application (C). Minimal main.c with hello world."));
-    m_typeList->addItem(consoleItem);
-
-    // Desktop Application (SDL2)
-    auto *desktopItem = new QListWidgetItem(tr("Desktop Application (SDL2)"));
-    desktopItem->setToolTip(tr("Graphical application with SDL2. Window with basic UI (button + label)."));
-    m_typeList->addItem(desktopItem);
-
-    // Mobile Application — disabled
-    auto *mobileItem = new QListWidgetItem(tr("Mobile Application"));
-    mobileItem->setToolTip(tr("Coming soon"));
-    mobileItem->setFlags(mobileItem->flags() & ~Qt::ItemIsEnabled);
-    mobileItem->setForeground(Qt::gray);
-    m_typeList->addItem(mobileItem);
-
-    m_typeList->setCurrentRow(0);
-
-    // Описания типов проектов
     auto *descLabel = new QLabel;
     descLabel->setWordWrap(true);
     descLabel->setStyleSheet("color: gray; padding: 8px;");
 
+    for (const auto &tmpl : m_templates) {
+        auto *item = new QListWidgetItem(tmpl.name);
+        item->setData(TemplateIdRole, tmpl.id);
+        item->setToolTip(tmpl.description);
+        m_typeList->addItem(item);
+    }
+
+    if (m_typeList->count() > 0)
+        m_typeList->setCurrentRow(0);
+
     auto updateDescription = [descLabel, this]() {
-        int row = m_typeList->currentRow();
-        if (row == 0)
-            descLabel->setText(tr("Console application (C). Minimal main.c with hello world."));
-        else if (row == 1)
-            descLabel->setText(tr("Graphical application with SDL2. Window with basic UI (button + label)."));
-        else
-            descLabel->setText(tr("Coming soon"));
+        const ProjectTemplateInfo *tmpl = selectedTemplate();
+        descLabel->setText(tmpl ? tmpl->description : tr("No project templates were found."));
     };
     connect(m_typeList, &QListWidget::currentRowChanged, this, updateDescription);
     updateDescription();
@@ -201,7 +204,7 @@ QWizardPage *NewProjectWizard::createSummaryPage()
 
     // Обновляем сводку при показе страницы
     connect(this, &QWizard::currentIdChanged, this, [this](int id) {
-        if (id == 2) // страница сводки
+        if (id == SummaryPageId)
             updateSummary();
     });
 
@@ -215,41 +218,21 @@ QWizardPage *NewProjectWizard::createSummaryPage()
 
 void NewProjectWizard::updateSummary()
 {
-    QString type = projectType();
-    QString name = projectName();
-    QString dir = projectDir() + "/" + name;
+    const QString name = projectName();
+    const QString dir = projectDir() + "/" + name;
+    const ProjectTemplateInfo *tmpl = selectedTemplate();
 
-    QString typeName = (type == "desktop")
-        ? tr("Desktop Application (SDL2)")
-        : tr("Console Application");
-
-    QString files;
-    if (type == "desktop") {
-        files = "<ul>"
-                "<li>src/main.c</li>"
-                "<li>ui/window1.dqui</li>"
-                "<li>ui/window1.h</li>"
-                "<li>ui/window1.c</li>"
-                "<li>ui/window1_events.h</li>"
-                "<li>ui/window1_events.c</li>"
-                "<li>modules/event_handler.dqmod</li>"
-                "<li>modules/update_label.dqmod</li>"
-                "<li>graphs/main.dqgraph</li>"
-                "<li>" + name + ".dqproj</li>"
-                "</ul>";
-    } else {
-        files = "<ul>"
-                "<li>src/main.c</li>"
-                "<li>modules/hello.dqmod</li>"
-                "<li>graphs/main.dqgraph</li>"
-                "<li>" + name + ".dqproj</li>"
-                "</ul>";
-    }
+    QString files = "<ul>";
+    for (const QString &path : ProjectTemplates::summaryFiles(selectedTemplateId(), name))
+        files += "<li>" + renderTemplatePath(path, name).toHtmlEscaped() + "</li>";
+    files += "</ul>";
 
     m_summaryLabel->setText(
-        "<b>" + tr("Type:") + "</b> " + typeName + "<br><br>"
-        "<b>" + tr("Name:") + "</b> " + name + "<br><br>"
-        "<b>" + tr("Path:") + "</b> " + dir + "<br><br>"
+        "<b>" + tr("Template:") + "</b> "
+            + (tmpl ? tmpl->name.toHtmlEscaped() : tr("Unknown")) + "<br><br>"
+        "<b>" + tr("Type:") + "</b> " + projectType().toHtmlEscaped() + "<br><br>"
+        "<b>" + tr("Name:") + "</b> " + name.toHtmlEscaped() + "<br><br>"
+        "<b>" + tr("Path:") + "</b> " + dir.toHtmlEscaped() + "<br><br>"
         "<b>" + tr("Files to be created:") + "</b>" + files
     );
 }
@@ -258,6 +241,16 @@ void NewProjectWizard::setDefaultDir(const QString &dir)
 {
     if (m_dirEdit && !dir.isEmpty())
         m_dirEdit->setText(dir);
+}
+
+const ProjectTemplateInfo *NewProjectWizard::selectedTemplate() const
+{
+    const QString id = selectedTemplateId();
+    for (const auto &tmpl : m_templates) {
+        if (tmpl.id == id)
+            return &tmpl;
+    }
+    return nullptr;
 }
 
 } // namespace DeltaQ
