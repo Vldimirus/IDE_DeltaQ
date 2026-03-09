@@ -216,6 +216,16 @@ target_link_libraries(test_BlockScene PRIVATE
 set_target_properties(test_BlockScene PROPERTIES AUTOMOC ON)
 add_test(NAME test_BlockScene COMMAND test_BlockScene)
 
+add_executable(test_BlockEditorWidget blockEditor/test_BlockEditorWidget.cpp)
+target_link_libraries(test_BlockEditorWidget PRIVATE
+    dq_block_editor
+    dq_core
+    Qt6::Test
+    Qt6::Widgets
+)
+set_target_properties(test_BlockEditorWidget PROPERTIES AUTOMOC ON)
+add_test(NAME test_BlockEditorWidget COMMAND test_BlockEditorWidget)
+
 add_executable(test_ModulePalette blockEditor/test_ModulePalette.cpp)
 target_link_libraries(test_ModulePalette PRIVATE
     dq_block_editor

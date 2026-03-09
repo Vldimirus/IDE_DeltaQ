@@ -3588,3 +3588,402 @@
 - следующий логичный шаг:
   - либо дожимать внешний narrative вокруг ценности standard library,
   - либо закрывать пункт про "целостный open-source инструмент" уже через финальную polishing-подачу Linux release surface.
+
+### Шаг 65 — standard library value proof зафиксирован через три checked-in сценария
+
+**Фаза:** `Phase 3 / External Trust`
+
+**Что сделано:**
+
+- в `README.md` и `README_RU.md` добавлен отдельный блок про то, почему checked-in `core` полезен на практике;
+- в `docs/library/README.md` добавлен явный section `Value Proof Для Standard Library`;
+- создан отдельный документ `docs/library/value_proof.md`, который фиксирует три сценария, через которые нужно показывать ценность `core`;
+- value proof привязан не к числу модулей, а к уже существующим checked-in example-проектам:
+  - `minimal_console_flow`
+  - `reusable_composition_console`
+  - `desktop_ui_flow`;
+- в `98_strategy_checklist.md` закрыты пункты:
+  - `Библиотека даёт заметное ускорение в 2-3 эталонных сценариях`;
+  - `Внешнему пользователю легко показать ценность стандартной библиотеки`.
+
+**Зачем это сделано:**
+
+- убрать слабое место в external trust narrative;
+- показать standard library как практический baseline, а не как набор абстрактных модулей;
+- привязать ценность `core` к живым example-flow, которые уже можно открыть, собрать и показать внешнему пользователю.
+
+**Технические изменения:**
+
+- обновлены:
+  - `README.md`
+  - `README_RU.md`
+  - `docs/library/README.md`
+  - `docs/library/value_proof.md`
+  - `docs/plan/strategy_2026/98_strategy_checklist.md`
+
+**Проверка:**
+
+- выполнено ручное ревью сценариев against checked-in examples и их graph/module composition;
+- тесты не запускались, так как изменения только документационные.
+
+**Итог:**
+
+- standard library теперь можно показывать через три конкретных runnable flow, а не через общий тезис "в core есть 43 модуля";
+- следующий логичный шаг:
+  - либо дожимать последний open пункт Phase 3 про целостность продукта,
+  - либо полировать Linux release surface уже как внешний open-source инструмент.
+
+### Шаг 66 — imported pack-и закреплены как основной supply channel экосистемы
+
+**Фаза:** `Phase 2 / Import And Wrapping`
+
+**Что сделано:**
+
+- добавлен второй controlled fixture-case `mini_checksum_sdk` рядом с `mini_sensor_sdk`;
+- добавлен второй checked-in imported-pack example:
+  - `resources/examples/imported_pack_checksum_console`;
+- новый пример содержит:
+  - локальный `vendor/mini_checksum_sdk`;
+  - curated imported pack `mini_checksum_sdk_curated` в `dqmods/`;
+  - корневой граф, использующий только curated layer;
+- для нового pack-а добавлен отдельный walkthrough:
+  - `docs/library/imported_packs/mini_checksum_sdk.md`;
+- `docs/library/README.md` теперь явно фиксирует два imported-pack reference case из разных доменных зон:
+  - hardware-like/runtime;
+  - algorithmic/text-processing;
+- в `98_strategy_checklist.md` закрыт пункт про imported pack-ы как основной supply channel расширения модульной экосистемы.
+
+**Зачем это сделано:**
+
+- убрать ощущение, что imported pack path — это один специальный showcase для `mini_sensor_sdk`;
+- показать, что расширение vocabulary DeltaQ реально идёт через external pack-и, а не через раздувание `core`;
+- закрепить imported pack-и как повторяемый продуктовый путь, а не разовую инженерную capability.
+
+**Технические изменения:**
+
+- добавлены и обновлены:
+  - `resources/examples/imported_pack_checksum_sdk/...`
+  - `resources/examples/imported_pack_checksum_console/...`
+  - `docs/library/imported_packs/mini_checksum_sdk.md`
+  - `docs/library/README.md`
+  - `docs/plan/strategy_2026/22_examples_and_reference_projects.md`
+  - `docs/plan/strategy_2026/27_library_converter_and_module_packs.md`
+  - `docs/plan/strategy_2026/98_strategy_checklist.md`
+  - `tests/codegen/test_PreBuildProcessor.cpp`
+
+**Проверка:**
+
+- новый example закреплён e2e regression-тестом, который делает:
+  - `graph -> pre-build -> CMake -> build -> run`;
+- runtime проверяет:
+  - checksum report;
+  - expected/actual comparison;
+  - корректный shutdown path.
+
+**Итог:**
+
+- imported pack-и теперь подтверждены не одним, а двумя checked-in reference case;
+- следующий логичный шаг:
+  - либо дожимать последний open narrative-пункт про целостность продукта,
+  - либо уже полировать Linux release surface как внешний open-source инструмент.
+
+### Шаг 67 — создан рабочий план Linux release polish и закрыт первый UX-bug `zoomFit`
+
+**Фаза:** `Linux-first release polish`
+
+**Что сделано:**
+
+- добавлен отдельный рабочий план этапа:
+  - `docs/plan/strategy_2026/29_linux_release_polish.md`;
+- `BlockEditorWidget::zoomFit()` перестал раздувать маленький граф выше естественного масштаба `1:1`;
+- логика auto-fit вынесена в отдельные helper-методы:
+  - `fitTargetRect()`
+  - `applyAutoFitTransform()`;
+- fit теперь:
+  - добавляет комфортный padding;
+  - расширяет слишком маленький scene-rect до размеров viewport;
+  - ограничивает auto-fit сверху значением `AutoFitMaxZoom = 1.0`;
+- добавлен отдельный widget-test:
+  - `tests/blockEditor/test_BlockEditorWidget.cpp`;
+- test покрывает два сценария:
+  - single-node graph не overscale-ится;
+  - wide graph по-прежнему реально zoom-out-ится.
+
+**Зачем это сделано:**
+
+- убрать первый явный UX-papercut из Linux polish backlog;
+- зафиксировать рабочий план этапа в репозитории, чтобы он не терялся между сессиями;
+- закрепить поведение `zoomFit` regression-тестом, а не только визуальной проверкой.
+
+**Технические изменения:**
+
+- обновлены:
+  - `src/blockEditor/BlockEditorWidget.h`
+  - `src/blockEditor/BlockEditorWidget.cpp`
+  - `tests/CMakeLists.txt`
+  - `tests/blockEditor/test_BlockEditorWidget.cpp`
+  - `docs/plan/strategy_2026/29_linux_release_polish.md`
+
+**Проверка:**
+
+- `cmake --build build --parallel --target test_BlockEditorWidget test_BlockScene`
+- `QT_QPA_PLATFORM=offscreen ./build/tests/test_BlockEditorWidget`
+- `QT_QPA_PLATFORM=offscreen ./build/tests/test_BlockScene`
+
+**Итог:**
+
+- Linux polish этап теперь зафиксирован как отдельный рабочий план;
+- первый tangible UX-fix уже сделан и покрыт тестом;
+- следующий логичный шаг:
+  - либо продолжать clean first-run / clean-machine smoke,
+  - либо собирать public release surface и screenshots.
+
+### Шаг 68 — release bundle получил automated first-run smoke через isolated `DELTAQ_HOME`
+
+**Фаза:** `Linux-first release polish`
+
+**Что сделано:**
+
+- `SessionManager` получил единый статический путь чтения языка:
+  - `storedLanguage()`;
+- startup больше не читает язык из отдельного `QSettings("DeltaQ", "IDE")`, а использует тот же writable-root, что и остальная сессия IDE;
+- в `main.cpp` добавлена поддержка `DELTAQ_SMOKE_EXIT_MS`, чтобы automation-path мог завершать GUI-процесс без ручного взаимодействия;
+- добавлен shell smoke:
+  - `scripts/smoke_linux_first_run.sh`;
+- smoke запускает `deltaq` из готового bundle с изолированным `DELTAQ_HOME` и проверяет, что на первом запуске создаются:
+  - `config/settings.ini`;
+  - `modules/core/pack.json`;
+- `build_release.sh` теперь автоматически прогоняет этот smoke после сборки release bundle;
+- `.github/workflows/ci.yml` тоже запускает этот smoke на install-layout `build/install-smoke`;
+- для детерминированности smoke по умолчанию форсирует `QT_QPA_PLATFORM=offscreen`, если пользователь сам не задал другой backend.
+
+**Зачем это сделано:**
+
+- проверить не только layout release bundle, но и реальный первый запуск IDE;
+- зафиксировать Linux-first runtime-path как воспроизводимую часть release discipline;
+- убрать зависимость automation-проверки от случайного состояния GUI-сессии.
+
+**Технические изменения:**
+
+- обновлены:
+  - `src/core/SessionManager.h`
+  - `src/core/SessionManager.cpp`
+  - `src/main.cpp`
+  - `tests/core/test_SessionManager.cpp`
+  - `scripts/smoke_linux_first_run.sh`
+  - `scripts/build_release.sh`
+  - `.github/workflows/ci.yml`
+  - `docs/release/README.md`
+  - `docs/plan/strategy_2026/29_linux_release_polish.md`
+  - `docs/plan/strategy_2026/98_strategy_checklist.md`
+
+**Проверка:**
+
+- `cmake -S . -B build -DDQ_BUILD_TESTS=ON`
+- `cmake --build build --parallel --target test_SessionManager deltaq`
+- `QT_QPA_PLATFORM=offscreen ./build/tests/test_SessionManager`
+- `./scripts/build_release.sh --no-tests`
+- `./scripts/smoke_linux_first_run.sh build/release/DeltaQ`
+
+**Итог:**
+
+- Linux release bundle теперь проходит не только static layout verification, но и реальный first-run smoke;
+- tracking этапа больше не теряется:
+  - high-level статус виден в `98_strategy_checklist.md`;
+  - подробный план живёт в `29_linux_release_polish.md`;
+  - факт выполнения зафиксирован в `99_execution_log.md`.
+
+### Шаг 69 — release bundle получил automated `open example -> build -> run` smoke
+
+**Фаза:** `Linux-first release polish`
+
+**Что сделано:**
+
+- в `MainWindow` добавлен внутренний startup automation path:
+  - открыть `.dqproj`;
+  - выполнить `build`;
+  - выполнить `run`;
+  - опционально подать stdin;
+  - проверить expected stdout;
+  - завершить IDE с детерминированным exit code;
+- `main.cpp` получил automation CLI-опции:
+  - `--automation-project`
+  - `--automation-build`
+  - `--automation-run`
+  - `--automation-stdin`
+  - `--automation-expect-output`
+  - `--automation-quit`;
+- `BuildPipeline` теперь честно завершает pipeline после compile phase, а не зависает без `pipelineFinished`;
+- `CMakeGenerator` начал нормализовывать project-facing dialect labels вроде `c17` и `c++20` в значения, которые реально понимает CMake;
+- добавлен shell smoke:
+  - `scripts/smoke_linux_example_build_run.sh`;
+- smoke:
+  - копирует checked-in example из bundled `examples/` в writable temp-workspace;
+  - запускает `deltaq` из release bundle с automation-аргументами;
+  - проходит путь `open project -> build -> run -> quit`;
+  - проверяет expected runtime output для `minimal_console_flow`;
+- `build_release.sh` и `.github/workflows/ci.yml` теперь прогоняют этот smoke как часть Linux release discipline.
+
+**Зачем это сделано:**
+
+- проверить не только запуск IDE, но и реальный продуктовый workflow из готового release bundle;
+- сделать regression-path для shortest example loop reproducible в CI и локально;
+- закрыть реальный найденный баг в build workflow: `c17` из `.dqproj` ломал generated `CMakeLists.txt`.
+
+**Технические изменения:**
+
+- обновлены:
+  - `src/codegen/BuildPipeline.cpp`
+  - `src/core/MainWindow.h`
+  - `src/core/MainWindow.cpp`
+  - `src/main.cpp`
+  - `src/editor/CMakeGenerator.cpp`
+  - `tests/editor/test_CMakeGenerator.cpp`
+  - `scripts/smoke_linux_example_build_run.sh`
+  - `scripts/build_release.sh`
+  - `.github/workflows/ci.yml`
+  - `docs/release/README.md`
+  - `docs/plan/strategy_2026/29_linux_release_polish.md`
+  - `docs/plan/strategy_2026/98_strategy_checklist.md`
+
+**Проверка:**
+
+- `cmake --build build --parallel --target deltaq test_CMakeGenerator`
+- `QT_QPA_PLATFORM=offscreen ./build/tests/test_CMakeGenerator`
+- ручной automation-run:
+  - `./build/src/deltaq --automation-project ... --automation-build --automation-run --automation-stdin 'DeltaQ\\n' --automation-expect-output 'Hello from DeltaQ!\\nDeltaQ' --automation-quit`
+- `./scripts/build_release.sh --no-tests`
+- `./scripts/smoke_linux_example_build_run.sh build/release/DeltaQ`
+
+**Итог:**
+
+- Linux release bundle теперь проходит:
+  - layout verification;
+  - isolated first-run smoke;
+  - real example `open -> build -> run` smoke;
+- clean Linux first-run path заметно продвинут, но AppImage-specific user handoff в writable workspace остаётся следующим открытым кусочком.
+
+### Шаг 70 — AppDir и extracted AppImage переведены с layout-check на runtime-smoke verification
+
+**Фаза:** `Linux-first release polish`
+
+**Что сделано:**
+
+- `verify_appdir.sh` больше не ограничивается static layout-check;
+- после проверки desktop metadata и bundle layout он теперь запускает:
+  - `smoke_linux_first_run.sh` на `AppDir/usr/bin`;
+  - `smoke_linux_example_build_run.sh` на `AppDir/usr/bin`;
+- `verify_appimage_file.sh` автоматически наследует этот же уровень проверки, потому что после `--appimage-extract` повторно вызывает `verify_appdir.sh` на unpacked image.
+
+**Зачем это сделано:**
+
+- сделать AppDir / AppImage verification сопоставимой по строгости с обычным Linux release bundle;
+- проверить, что AppImage contents не только правильно упакованы, но и реально поднимают shortest DeltaQ workflow;
+- приблизить пункт `release/AppImage -> launch -> open example -> build -> run` к честному закрытию.
+
+**Технические изменения:**
+
+- обновлены:
+  - `scripts/verify_appdir.sh`
+  - `docs/release/README.md`
+  - `docs/plan/strategy_2026/29_linux_release_polish.md`
+  - `docs/plan/strategy_2026/98_strategy_checklist.md`
+
+**Проверка:**
+
+- `./scripts/build_appimage.sh --no-tests --appdir-only`
+- при наличии готового `.AppImage`: `./scripts/verify_appimage_file.sh <file.AppImage> <SHA256SUMS>`
+
+**Итог:**
+
+- AppDir verification теперь проверяет runtime, а не только структуру папок;
+- extracted `.AppImage` наследует тот же runtime-smoke уровень через `verify_appimage_file.sh`;
+- следующий открытый пласт Linux polish уже смещается из packaging в public release surface и user-facing proof.
+
+### Шаг 71 — свежесобранный `.AppImage` доведён до полностью локально подтверждённого runtime-artifact
+
+**Фаза:** `Linux-first release polish`
+
+**Что сделано:**
+
+- в `build_appimage.sh` исправлен реальный packaging-bug: `appstreamcli` теперь резолвится до подмены `PATH`, поэтому локальный wrapper больше не рекурсирует сам в себя и не подвешивает `appimagetool`;
+- в тот же скрипт добавлено явное включение `Qt` platform plugin `libqoffscreen.so` в `AppDir/usr/plugins/platforms`;
+- после этого `build_appimage.sh` снова выполняет полный цикл:
+  - release bundle build;
+  - AppDir verification;
+  - real `.AppImage` build;
+  - `verify_appimage_file.sh` на freshly built artifact.
+
+**Зачем это сделано:**
+
+- закрыть AppImage не как infrastructure scaffolding, а как реально собранный и локально проверенный Linux artifact;
+- убрать расхождение между "AppImage собирается" и "extracted AppImage реально запускает DeltaQ в headless/runtime smoke";
+- добить delivery/runtime slice Linux polish до честного `done`.
+
+**Технические изменения:**
+
+- обновлены:
+  - `scripts/build_appimage.sh`
+  - `docs/release/README.md`
+  - `docs/plan/strategy_2026/29_linux_release_polish.md`
+  - `docs/plan/strategy_2026/98_strategy_checklist.md`
+
+**Проверка:**
+
+- `./scripts/build_appimage.sh --no-tests --linuxdeploy build/tools/linuxdeploy --linuxdeploy-qt-plugin build/tools/linuxdeploy-plugin-qt --appimagetool build/tools/appimagetool --runtime-file build/tools/runtime-x86_64`
+
+**Итог:**
+
+- новый `.AppImage` реально собирается локально;
+- `verify_appimage_file.sh` проходит на свежем artifact вместе с checksum-check, post-extract first-run smoke и post-extract example `open -> build -> run` smoke;
+- для `Linux-first release polish` открытым остаётся уже не packaging/runtime, а public release surface и visual proof.
+
+### Шаг 72 — Public release surface получил единый user-facing entry path
+
+**Фаза:** `Linux-first release polish`
+
+**Что сделано:**
+
+- добавлены:
+  - `docs/onboarding/README.md`
+  - `docs/onboarding/README_RU.md`
+  - `resources/examples/README.md`
+  - `resources/examples/README_RU.md`
+  - `docs/release/linux_first_release_checklist.md`
+  - `docs/release/linux_first_release_checklist_ru.md`;
+- `README.md`, `README_RU.md`, `docs/onboarding/first_run*.md` и `docs/release/README.md` теперь ссылаются друг на друга как на один user-facing маршрут;
+- manual Linux artifact handoff теперь описан не только через internal packaging docs, но и через отдельный human-readable checklist для tarball/AppImage.
+
+**Зачем это сделано:**
+
+- убрать разрыв между "коротким first-run", "каталогом examples" и "release artifact validation";
+- сделать README entry-point не только продуктовым тезисом, но и навигацией по реальному первому пользовательскому пути;
+- приблизить DeltaQ к состоянию цельного Linux-first инструмента без длинных устных пояснений.
+
+**Технические изменения:**
+
+- обновлены:
+  - `README.md`
+  - `README_RU.md`
+  - `docs/onboarding/first_run.md`
+  - `docs/onboarding/first_run_ru.md`
+  - `docs/release/README.md`
+  - `docs/plan/strategy_2026/29_linux_release_polish.md`
+  - `docs/plan/strategy_2026/98_strategy_checklist.md`
+- добавлены:
+  - `docs/onboarding/README.md`
+  - `docs/onboarding/README_RU.md`
+  - `resources/examples/README.md`
+  - `resources/examples/README_RU.md`
+  - `docs/release/linux_first_release_checklist.md`
+  - `docs/release/linux_first_release_checklist_ru.md`
+
+**Проверка:**
+
+- sanity-check ссылок и entry-point paths через `rg` по `README`, `docs/` и `resources/examples/`.
+
+**Итог:**
+
+- narrative между `README`, onboarding, examples и release docs теперь собран в единый путь;
+- user-facing Linux artifact checklist закрыт;
+- открытым куском public release surface остаётся уже не базовая навигация, а screenshots / visual proof.

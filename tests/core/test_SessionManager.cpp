@@ -2,6 +2,9 @@
 #include <QtTest>
 #include "SessionManager.h"
 
+#include <QFileInfo>
+#include <QTemporaryDir>
+
 using namespace DeltaQ;
 
 class TestSessionManager : public QObject {
@@ -75,6 +78,44 @@ private slots:
         QCOMPARE(recent.first(), "/proj/14");
         // Очистка
         mgr.clearRecentProjects();
+    }
+
+    void defaultWritablePathsFollowDeltaQHomeOverride()
+    {
+        QTemporaryDir tempDir;
+        QVERIFY(tempDir.isValid());
+
+        qputenv("DELTAQ_HOME", tempDir.path().toUtf8());
+        SessionManager mgr;
+        mgr.ensureGlobalDirs();
+
+        QCOMPARE(SessionManager::deltaQHomeDir(), tempDir.path());
+        QCOMPARE(SessionManager::configDirPath(), tempDir.path() + "/config");
+        QCOMPARE(SessionManager::settingsFilePath(), tempDir.path() + "/config/settings.ini");
+        QCOMPARE(SessionManager::globalModulesDirPath(), tempDir.path() + "/modules");
+        QCOMPARE(SessionManager::coreModulesDirPath(), tempDir.path() + "/modules/core");
+
+        QVERIFY(QFileInfo::exists(SessionManager::configDirPath()));
+        QVERIFY(QFileInfo::exists(SessionManager::coreModulesDirPath()));
+
+        qunsetenv("DELTAQ_HOME");
+    }
+
+    void storedLanguageReadsIniFromDeltaQHome()
+    {
+        QTemporaryDir tempDir;
+        QVERIFY(tempDir.isValid());
+
+        qputenv("DELTAQ_HOME", tempDir.path().toUtf8());
+        QDir().mkpath(SessionManager::configDirPath());
+
+        QSettings settings(SessionManager::settingsFilePath(), QSettings::IniFormat);
+        settings.setValue("app/language", "ru");
+        settings.sync();
+
+        QCOMPARE(SessionManager::storedLanguage(), QString("ru"));
+
+        qunsetenv("DELTAQ_HOME");
     }
 };
 

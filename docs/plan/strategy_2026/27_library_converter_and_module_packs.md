@@ -30,6 +30,12 @@
 - локальные и составные модули проекта;
 - codegen/build pipeline, в который модульные pack-ы могут быть встроены.
 
+После imported-pack showcase cycle в репозитории уже есть не один, а два checked-in
+reference case:
+
+- `mini_sensor_sdk` как hardware-like/runtime fixture;
+- `mini_checksum_sdk` как algorithmic/text-processing fixture.
+
 Но пока ещё не зафиксирована продуктовая модель:
 
 - чем `core` отличается от imported pack;
@@ -64,7 +70,7 @@ DeltaQ должен поддерживать три слоя модульной 
 - curated grouping по категориям и ролям;
 - при необходимости hand-written adapter-модули поверх raw wrappers.
 
-Это и есть главный источник разнообразия DeltaQ.
+Это и есть главный источник разнообразия DeltaQ вне curated `core`.
 
 ### 3. Project Modules
 

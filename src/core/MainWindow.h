@@ -13,6 +13,7 @@
 #include <memory>
 
 class QPlainTextEdit;
+class QProcess;
 class QTreeWidget;
 class QTreeWidgetItem;
 
@@ -52,6 +53,12 @@ public:
     ModuleRegistry *moduleRegistry() const { return m_moduleRegistry; }
     ProjectManager *projectManager() const { return m_projectManager; }
     ActionManager *actionManager() const { return m_actionManager; }
+    void startStartupAutomation(const QString &projectFilePath,
+                                bool buildProject,
+                                bool runProject,
+                                bool quitWhenDone,
+                                const QString &runStdin = {},
+                                const QString &expectedRunOutput = {});
 
 protected:
     void closeEvent(QCloseEvent *event) override;
@@ -104,6 +111,21 @@ private:
     void updateGeneratedOriginAction();
     QString normalizeBuildErrorPath(const QString &filePath) const;
     void openTextFileAtLocation(const QString &path, int line, int column);
+    bool openProjectPath(const QString &path, QString *errorMessage = nullptr);
+    bool startProjectRun(const QString &stdinText = {}, QString *errorMessage = nullptr);
+    QString resolveProjectExecutable() const;
+    void finishStartupAutomation(bool success, const QString &message);
+
+    struct StartupAutomationState {
+        bool active = false;
+        bool buildProject = false;
+        bool runProject = false;
+        bool quitWhenDone = false;
+        bool awaitingBuild = false;
+        bool awaitingRun = false;
+        QString stdinText;
+        QString expectedRunOutput;
+    };
 
     // Core services
     CommandBus *m_commandBus = nullptr;
@@ -153,6 +175,10 @@ private:
     QTreeWidget *m_buildDiagnostics = nullptr;
     QTextEdit *m_appOutput = nullptr;
     QTextEdit *m_debugConsole = nullptr;
+    QPointer<QProcess> m_runProcess;
+    QString m_lastRunStdout;
+    QString m_lastRunStderr;
+    StartupAutomationState m_startupAutomation;
 
     // Debug panels
     QDockWidget *m_variablesDock = nullptr;

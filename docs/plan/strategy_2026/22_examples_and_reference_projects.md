@@ -20,11 +20,25 @@ DeltaQ нельзя убедительно объяснить только ар�
 
 - показать базовый путь `module -> graph -> code -> build -> run`.
 
+Текущий эталонный проект:
+
+- `resources/examples/minimal_console_flow`
+- показывает минимальный reproducible сценарий без подмодулей и без внешних пакетов;
+- подходит как первый walkthrough для нового пользователя;
+- позволяет сразу сопоставить `graphs/main.dqgraph` и generated `src/main.c`.
+
 #### 2. Desktop/UI flow
 
 Цель:
 
 - показать связку модулей, графа, generated UI/code и runtime.
+
+Текущий эталонный проект:
+
+- `resources/examples/desktop_ui_flow`
+- показывает отдельный desktop showcase на SDL2 backend;
+- связывает `graphs/main.dqgraph`, `ui/window1.dqui` и generated runtime-файлы в `src/ui/`;
+- использует живой `window1_events.c`, чтобы пример оставался не только layout-демо, но и runtime walkthrough.
 
 #### 3. Reusable composition example
 
@@ -58,14 +72,20 @@ DeltaQ нельзя убедительно объяснить только ар�
 
 - `28_imported_pack_showcase_and_curation.md`
 
-Текущий checked-in showcase:
+Текущие checked-in showcase:
 
 - `resources/examples/imported_pack_sensor_console`
-- использует curated imported pack `mini_sensor_sdk_curated`;
-- содержит локальный `vendor/mini_sensor_sdk`, curated `.dqmod` и корневой граф;
-- проходит `pre-build -> build -> run` как self-contained example;
-- сопровождается walkthrough:
-  - `docs/library/imported_packs/mini_sensor_sdk.md`
+  - использует curated imported pack `mini_sensor_sdk_curated`;
+  - содержит локальный `vendor/mini_sensor_sdk`, curated `.dqmod` и корневой граф;
+  - проходит `pre-build -> build -> run` как self-contained example;
+  - сопровождается walkthrough:
+    - `docs/library/imported_packs/mini_sensor_sdk.md`
+- `resources/examples/imported_pack_checksum_console`
+  - использует curated imported pack `mini_checksum_sdk_curated`;
+  - содержит локальный `vendor/mini_checksum_sdk`, curated `.dqmod` и корневой граф;
+  - проходит `pre-build -> build -> run` как self-contained example;
+  - сопровождается walkthrough:
+    - `docs/library/imported_packs/mini_checksum_sdk.md`
 
 ### Example requirements
 
@@ -89,5 +109,6 @@ DeltaQ нельзя убедительно объяснить только ар�
 
 - Есть минимум 3 примера, через которые можно показать смысл DeltaQ.
 - Есть отдельный imported pack showcase, объясняющий идею converter/wrapping.
+- Есть минимум два imported-pack reference case из разных доменных зон.
 - Примеры покрывают основной workflow и reuse.
 - Новый пользователь понимает не только "что умеет IDE", но и "зачем её подход полезен".

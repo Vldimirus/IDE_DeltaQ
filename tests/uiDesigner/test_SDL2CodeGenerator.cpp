@@ -33,6 +33,104 @@ private:
         return layout;
     }
 
+    UILayout createExtendedWidgetLayout()
+    {
+        UILayout layout = UILayout::create("ExtendedWidgets");
+        layout.window.geometry = QRectF(0, 0, 800, 600);
+
+        UIWidget group = UIWidget::create("GroupBox", "groupMain");
+        group.geometry = QRectF(20, 20, 320, 180);
+        group.properties["text"] = "Main Group";
+
+        UIWidget combo = UIWidget::create("ComboBox", "comboStatus");
+        combo.geometry = QRectF(30, 50, 180, 30);
+        combo.properties["items"] = "Ready, Busy, Offline";
+        combo.properties["selected"] = 1;
+        combo.events["onSelectionChanged"] = "on_combo_changed";
+        group.children.append(combo);
+
+        UIWidget image = UIWidget::create("Image", "heroImage");
+        image.geometry = QRectF(30, 95, 120, 70);
+        image.properties["path"] = "assets/logo.png";
+        group.children.append(image);
+
+        layout.window.children.append(group);
+        return layout;
+    }
+
+    UILayout createRemainingWidgetLayout()
+    {
+        UILayout layout = UILayout::create("RemainingWidgets");
+        layout.window.geometry = QRectF(0, 0, 900, 700);
+
+        UIWidget scroll = UIWidget::create("ScrollPanel", "scrollHost");
+        scroll.geometry = QRectF(20, 20, 260, 180);
+        layout.window.children.append(scroll);
+
+        UIWidget tabs = UIWidget::create("TabPanel", "tabsMain");
+        tabs.geometry = QRectF(320, 20, 260, 180);
+
+        UIWidget radioPrimary = UIWidget::create("RadioButton", "radioPrimary");
+        radioPrimary.geometry = QRectF(30, 40, 180, 28);
+        radioPrimary.properties["text"] = "Primary";
+        radioPrimary.properties["selected"] = true;
+        radioPrimary.events["onToggled"] = "on_primary_toggled";
+        tabs.children.append(radioPrimary);
+
+        UIWidget radioSecondary = UIWidget::create("RadioButton", "radioSecondary");
+        radioSecondary.geometry = QRectF(30, 78, 180, 28);
+        radioSecondary.properties["text"] = "Secondary";
+        radioSecondary.properties["selected"] = false;
+        tabs.children.append(radioSecondary);
+
+        layout.window.children.append(tabs);
+        return layout;
+    }
+
+    UILayout createFinalContractWidgetLayout()
+    {
+        UILayout layout = UILayout::create("FinalContractWidgets");
+        layout.window.geometry = QRectF(0, 0, 1000, 720);
+
+        UIWidget menuBar = UIWidget::create("MenuBar", "menuMain");
+        menuBar.geometry = QRectF(0, 0, 1000, 28);
+        layout.window.children.append(menuBar);
+
+        UIWidget toolBar = UIWidget::create("ToolBar", "toolsMain");
+        toolBar.geometry = QRectF(0, 34, 1000, 32);
+        layout.window.children.append(toolBar);
+
+        UIWidget spin = UIWidget::create("SpinBox", "spinCount");
+        spin.geometry = QRectF(20, 90, 120, 30);
+        spin.properties["min"] = 0;
+        spin.properties["max"] = 10;
+        spin.properties["value"] = 3;
+        spin.events["onValueChanged"] = "on_spin_changed";
+        layout.window.children.append(spin);
+
+        UIWidget canvas = UIWidget::create("Canvas", "canvasMain");
+        canvas.geometry = QRectF(20, 140, 220, 150);
+        layout.window.children.append(canvas);
+
+        UIWidget table = UIWidget::create("Table", "tableMain");
+        table.geometry = QRectF(270, 90, 240, 150);
+        layout.window.children.append(table);
+
+        UIWidget listView = UIWidget::create("ListView", "listMain");
+        listView.geometry = QRectF(540, 90, 180, 150);
+        layout.window.children.append(listView);
+
+        UIWidget treeView = UIWidget::create("TreeView", "treeMain");
+        treeView.geometry = QRectF(750, 90, 200, 170);
+        layout.window.children.append(treeView);
+
+        UIWidget statusBar = UIWidget::create("StatusBar", "statusMain");
+        statusBar.geometry = QRectF(0, 688, 1000, 24);
+        layout.window.children.append(statusBar);
+
+        return layout;
+    }
+
 private slots:
     void testGenerateProduces5Files()
     {
@@ -163,6 +261,118 @@ private slots:
         QVERIFY(code.eventsSource.contains("File role: event implementation (ui_events.c)."));
         QVERIFY(code.eventsSource.contains("on_ok_click"));
         QVERIFY(code.eventsSource.contains("TODO"));
+    }
+
+    void testExtendedContractWidgetsUseExplicitRuntimeBranches()
+    {
+        UILayout layout = createExtendedWidgetLayout();
+        GeneratedCode code = SDL2CodeGenerator::generate(layout);
+
+        QVERIFY(code.uiHeader.contains("DQ_GroupBox"));
+        QVERIFY(code.uiHeader.contains("DQ_ComboBox"));
+        QVERIFY(code.uiHeader.contains("DQ_Image"));
+        QVERIFY(code.uiHeader.contains("const char *items;"));
+        QVERIFY(code.uiHeader.contains("char display_text[128];"));
+        QVERIFY(code.uiHeader.contains("const char *path;"));
+
+        QVERIFY(code.uiSource.contains("static bool dq_ui_runtime_widget_is_combo_box(DQ_UIWidgetId widget_id)"));
+        QVERIFY(code.uiSource.contains("static int dq_ui_runtime_csv_item_count(const char *items)"));
+        QVERIFY(code.uiSource.contains("static void dq_ui_runtime_cycle_combo_box(UIState *ui, DQ_UIWidgetId widget_id)"));
+        QVERIFY(code.uiSource.contains("ui->groupMain.text = \"Main Group\";"));
+        QVERIFY(code.uiSource.contains("ui->comboStatus.items = \"Ready, Busy, Offline\";"));
+        QVERIFY(code.uiSource.contains("ui->comboStatus.selected = 1;"));
+        QVERIFY(code.uiSource.contains("dq_ui_runtime_cycle_combo_box(ui, DQ_UIWidget_comboStatus);"));
+        QVERIFY(code.uiSource.contains("on_combo_changed(ui);"));
+        QVERIFY(code.uiSource.contains("ui->heroImage.path = \"assets/logo.png\";"));
+        QVERIFY(code.uiSource.contains("render_groupbox"));
+        QVERIFY(code.uiSource.contains("render_combobox"));
+        QVERIFY(code.uiSource.contains("render_image"));
+        QVERIFY(!code.uiHeader.contains("TODO: GroupBox fields"));
+        QVERIFY(!code.uiHeader.contains("TODO: ComboBox fields"));
+        QVERIFY(!code.uiHeader.contains("TODO: Image fields"));
+        QVERIFY(!code.uiSource.contains("TODO: implement GroupBox rendering"));
+        QVERIFY(!code.uiSource.contains("TODO: implement ComboBox rendering"));
+        QVERIFY(!code.uiSource.contains("TODO: implement Image rendering"));
+    }
+
+    void testRemainingContractWidgetsUseExplicitRuntimeBranches()
+    {
+        UILayout layout = createRemainingWidgetLayout();
+        GeneratedCode code = SDL2CodeGenerator::generate(layout);
+
+        QVERIFY(code.uiHeader.contains("DQ_ScrollPanel"));
+        QVERIFY(code.uiHeader.contains("DQ_TabPanel"));
+        QVERIFY(code.uiHeader.contains("DQ_RadioButton"));
+        QVERIFY(code.uiHeader.contains("int scroll_y;"));
+        QVERIFY(code.uiHeader.contains("int active_tab;"));
+        QVERIFY(code.uiHeader.contains("bool selected;"));
+
+        QVERIFY(code.uiSource.contains("static bool dq_ui_runtime_widget_is_radio_button(DQ_UIWidgetId widget_id)"));
+        QVERIFY(code.uiSource.contains("static void dq_ui_runtime_dispatch_toggle(UIState *ui, DQ_UIWidgetId widget_id)"));
+        QVERIFY(code.uiSource.contains("static void dq_ui_runtime_select_radio_button(UIState *ui, DQ_UIWidgetId widget_id)"));
+        QVERIFY(code.uiSource.contains("ui->scrollHost.scroll_y = 0;"));
+        QVERIFY(code.uiSource.contains("ui->tabsMain.active_tab = 0;"));
+        QVERIFY(code.uiSource.contains("ui->radioPrimary.selected = true;"));
+        QVERIFY(code.uiSource.contains("ui->radioSecondary.selected = false;"));
+        QVERIFY(code.uiSource.contains("ui->radioPrimary.text = \"Primary\";"));
+        QVERIFY(code.uiSource.contains("render_scrollpanel"));
+        QVERIFY(code.uiSource.contains("render_tabpanel"));
+        QVERIFY(code.uiSource.contains("render_radiobutton"));
+        QVERIFY(code.uiSource.contains("on_primary_toggled(ui);"));
+        QVERIFY(!code.uiHeader.contains("TODO: ScrollPanel fields"));
+        QVERIFY(!code.uiHeader.contains("TODO: TabPanel fields"));
+        QVERIFY(!code.uiHeader.contains("TODO: RadioButton fields"));
+        QVERIFY(!code.uiSource.contains("TODO: implement ScrollPanel rendering"));
+        QVERIFY(!code.uiSource.contains("TODO: implement TabPanel rendering"));
+        QVERIFY(!code.uiSource.contains("TODO: implement RadioButton rendering"));
+    }
+
+    void testFinalContractWidgetsUseExplicitRuntimeBranches()
+    {
+        UILayout layout = createFinalContractWidgetLayout();
+        GeneratedCode code = SDL2CodeGenerator::generate(layout);
+
+        QVERIFY(code.uiHeader.contains("DQ_SpinBox"));
+        QVERIFY(code.uiHeader.contains("DQ_Canvas"));
+        QVERIFY(code.uiHeader.contains("DQ_Table"));
+        QVERIFY(code.uiHeader.contains("DQ_ListView"));
+        QVERIFY(code.uiHeader.contains("DQ_TreeView"));
+        QVERIFY(code.uiHeader.contains("DQ_MenuBar"));
+        QVERIFY(code.uiHeader.contains("DQ_ToolBar"));
+        QVERIFY(code.uiHeader.contains("DQ_StatusBar"));
+        QVERIFY(code.uiHeader.contains("int min_val, max_val, value;"));
+
+        QVERIFY(code.uiSource.contains("static bool dq_ui_runtime_widget_is_spin_box(DQ_UIWidgetId widget_id)"));
+        QVERIFY(code.uiSource.contains("static void dq_ui_runtime_dispatch_value_changed(UIState *ui, DQ_UIWidgetId widget_id)"));
+        QVERIFY(code.uiSource.contains("static void dq_ui_runtime_step_spin_box(UIState *ui, DQ_UIWidgetId widget_id, int mouse_x)"));
+        QVERIFY(code.uiSource.contains("ui->spinCount.min_val = 0;"));
+        QVERIFY(code.uiSource.contains("ui->spinCount.max_val = 10;"));
+        QVERIFY(code.uiSource.contains("ui->spinCount.value = 3;"));
+        QVERIFY(code.uiSource.contains("on_spin_changed(ui);"));
+        QVERIFY(code.uiSource.contains("render_spinbox"));
+        QVERIFY(code.uiSource.contains("render_canvas"));
+        QVERIFY(code.uiSource.contains("render_table"));
+        QVERIFY(code.uiSource.contains("render_listview"));
+        QVERIFY(code.uiSource.contains("render_treeview"));
+        QVERIFY(code.uiSource.contains("render_menubar"));
+        QVERIFY(code.uiSource.contains("render_toolbar"));
+        QVERIFY(code.uiSource.contains("render_statusbar"));
+        QVERIFY(!code.uiHeader.contains("TODO: SpinBox fields"));
+        QVERIFY(!code.uiHeader.contains("TODO: Canvas fields"));
+        QVERIFY(!code.uiHeader.contains("TODO: Table fields"));
+        QVERIFY(!code.uiHeader.contains("TODO: ListView fields"));
+        QVERIFY(!code.uiHeader.contains("TODO: TreeView fields"));
+        QVERIFY(!code.uiHeader.contains("TODO: MenuBar fields"));
+        QVERIFY(!code.uiHeader.contains("TODO: ToolBar fields"));
+        QVERIFY(!code.uiHeader.contains("TODO: StatusBar fields"));
+        QVERIFY(!code.uiSource.contains("TODO: implement SpinBox rendering"));
+        QVERIFY(!code.uiSource.contains("TODO: implement Canvas rendering"));
+        QVERIFY(!code.uiSource.contains("TODO: implement Table rendering"));
+        QVERIFY(!code.uiSource.contains("TODO: implement ListView rendering"));
+        QVERIFY(!code.uiSource.contains("TODO: implement TreeView rendering"));
+        QVERIFY(!code.uiSource.contains("TODO: implement MenuBar rendering"));
+        QVERIFY(!code.uiSource.contains("TODO: implement ToolBar rendering"));
+        QVERIFY(!code.uiSource.contains("TODO: implement StatusBar rendering"));
     }
 };
 

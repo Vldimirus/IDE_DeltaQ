@@ -12,6 +12,8 @@
 # Результат: build/release/DeltaQ/
 #   ├── deltaq              — исполняемый файл
 #   ├── modules/            — библиотека модулей
+#   ├── templates/          — файловые шаблоны проектов
+#   ├── examples/           — reference examples
 #   └── config/             — создаётся при первом запуске
 # ============================================================
 
@@ -66,6 +68,7 @@ echo -e "${YELLOW}[1/6] Проверка зависимостей...${NC}"
 
 MISSING=""
 command -v cmake  >/dev/null 2>&1 || MISSING="$MISSING cmake"
+command -v cpack  >/dev/null 2>&1 || MISSING="$MISSING cpack"
 command -v g++    >/dev/null 2>&1 || MISSING="$MISSING g++"
 
 if [ -n "$MISSING" ]; then
@@ -131,6 +134,10 @@ echo -e "${GREEN}  Компиляция OK${NC}"
 if [ "$DO_TESTS" -eq 1 ]; then
     echo -e "${YELLOW}[5/6] Запуск тестов...${NC}"
     cd "$BUILD_DIR"
+    if [ -z "${DISPLAY:-}" ] && [ -z "${WAYLAND_DISPLAY:-}" ] && [ -z "${QT_QPA_PLATFORM:-}" ]; then
+        export QT_QPA_PLATFORM=offscreen
+        echo -e "${CYAN}  Headless-режим: QT_QPA_PLATFORM=offscreen${NC}"
+    fi
     if ctest --output-on-failure; then
         TOTAL=$(ctest -N 2>/dev/null | tail -1 | grep -oP '\d+' || echo "?")
         echo -e "${GREEN}  Все тесты пройдены ($TOTAL)${NC}"
@@ -149,12 +156,7 @@ echo -e "${YELLOW}[6/6] Формирование релиза...${NC}"
 
 rm -rf "$RELEASE_DIR"
 mkdir -p "$RELEASE_DIR"
-
-# Копируем исполняемый файл
-cp "$BUILD_DIR/src/deltaq" "$RELEASE_DIR/"
-
-# Копируем библиотеку модулей
-cp -r "$PROJECT_DIR/modules" "$RELEASE_DIR/modules"
+cmake --install "$BUILD_DIR" --prefix "$RELEASE_DIR"
 
 # Информация о версии
 VERSION=$(grep -A1 'project(DeltaQ' "$PROJECT_DIR/CMakeLists.txt" | grep -oP 'VERSION \K[0-9.]+')
@@ -167,18 +169,38 @@ Compiler: $(g++ --version | head -1)
 Qt: $(pkg-config --modversion Qt6Core 2>/dev/null || echo "unknown")
 EOF
 
+"$PROJECT_DIR/scripts/verify_release_bundle.sh" "$RELEASE_DIR" --expect-version-file
+echo -e "${CYAN}  First-run smoke: isolated DELTAQ_HOME${NC}"
+"$PROJECT_DIR/scripts/smoke_linux_first_run.sh" "$RELEASE_DIR" >/dev/null
+echo -e "${GREEN}  First-run smoke OK${NC}"
+echo -e "${CYAN}  Example smoke: open -> build -> run${NC}"
+"$PROJECT_DIR/scripts/smoke_linux_example_build_run.sh" "$RELEASE_DIR" >/dev/null
+echo -e "${GREEN}  Example smoke OK${NC}"
+
 echo -e "${GREEN}  Релиз собран: $RELEASE_DIR${NC}"
 
 # ----------------------------------------------------------
 # Упаковка в архив (если запрошена)
 # ----------------------------------------------------------
 if [ "$DO_PACKAGE" -eq 1 ]; then
-    ARCHIVE="$BUILD_DIR/DeltaQ-${VERSION}-linux-$(uname -m).tar.gz"
+    PACKAGE_DIR="$BUILD_DIR/package"
     echo -e "${YELLOW}Упаковка в архив...${NC}"
-    cd "$BUILD_DIR/release"
-    tar czf "$ARCHIVE" DeltaQ/
+    rm -rf "$PACKAGE_DIR"
+    mkdir -p "$PACKAGE_DIR"
+    cpack --config "$BUILD_DIR/CPackConfig.cmake" -B "$PACKAGE_DIR"
+    ARCHIVE=$(find "$PACKAGE_DIR" -maxdepth 1 -type f -name "*.tar.gz" | head -1)
+    if [ -z "$ARCHIVE" ]; then
+        echo -e "${RED}  Архив не был создан${NC}"
+        exit 1
+    fi
+    (
+        cd "$PACKAGE_DIR"
+        sha256sum "$(basename "$ARCHIVE")" > SHA256SUMS
+    )
+    "$PROJECT_DIR/scripts/verify_package_archive.sh" "$ARCHIVE" "$PACKAGE_DIR/SHA256SUMS"
     SIZE=$(du -h "$ARCHIVE" | cut -f1)
     echo -e "${GREEN}  Архив: $ARCHIVE ($SIZE)${NC}"
+    echo -e "${GREEN}  SHA256: $PACKAGE_DIR/SHA256SUMS${NC}"
 fi
 
 # ----------------------------------------------------------
@@ -193,5 +215,6 @@ echo "  Релиз:   $RELEASE_DIR"
 echo "  Запуск:  $RELEASE_DIR/deltaq"
 if [ "$DO_PACKAGE" -eq 1 ]; then
     echo "  Архив:   $ARCHIVE"
+    echo "  SHA256:  $PACKAGE_DIR/SHA256SUMS"
 fi
 echo ""

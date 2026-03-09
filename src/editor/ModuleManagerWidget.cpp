@@ -25,6 +25,7 @@
 #include <QJsonObject>
 #include <QGraphicsScene>
 #include <QGraphicsView>
+#include <QSignalBlocker>
 #include <QTabWidget>
 #include <functional>
 
@@ -37,6 +38,12 @@ struct ModuleStateSummary {
     QString badgeStyle;
     QString detailText;
     QString iconStatus;
+};
+
+struct ModuleEcosystemSummary {
+    QString layerText;
+    QString roleText;
+    QString qualityText;
 };
 
 // Человекочитаемое название роли imported-модуля внутри v1 curation flow.
@@ -244,6 +251,132 @@ ModuleStateSummary buildModuleStateSummary(const ModuleRegistry *registry, const
     return summary;
 }
 
+// Явная сводка по слою экосистемы и quality bar, чтобы пользователю не приходилось
+// вычитывать origin/capability только из tooltip и стратегии.
+ModuleEcosystemSummary buildModuleEcosystemSummary(const ModuleRegistry *registry,
+                                                   const Module &module)
+{
+    const bool contractValid = registry ? registry->validateModule(module) : module.isValid();
+    const bool hasImplementation = registry
+        ? registry->moduleHasImplementation(module)
+        : (!module.sourceCode.trimmed().isEmpty()
+           || !module.graphId.trimmed().isEmpty()
+           || !module.sourcePath.trimmed().isEmpty());
+    QString admissionReason;
+    const bool admitted = registry
+        ? registry->isModuleAdmittedForComposition(module, &admissionReason)
+        : (contractValid && hasImplementation);
+
+    ModuleEcosystemSummary summary;
+
+    if (module.origin == "core" || module.id.startsWith("core.")) {
+        const StandardLibraryCurationInfo curation = StandardLibrary::curationForModule(module);
+        summary.layerText = QObject::tr("Стандартная библиотека");
+        summary.roleText = curation.isKnown()
+            ? QObject::tr("%1 (%2)").arg(curation.title, curation.tier)
+            : QObject::tr("core без explicit curation review");
+        summary.qualityText = curation.isKnown()
+            ? QObject::tr("Quality bar: explicit curation review для checked-in core.")
+            : QObject::tr("Quality bar: checked-in core ещё не прошёл explicit curation review.");
+        return summary;
+    }
+
+    if (module.origin == "ui") {
+        summary.layerText = QObject::tr("UI contract");
+        summary.roleText = QObject::tr("backend-agnostic contract");
+        summary.qualityText = QObject::tr(
+            "Quality bar: read-only UI contract layer, runtime приходит из backend codegen.");
+        return summary;
+    }
+
+    if (module.isImportedPackModule()) {
+        summary.layerText = QObject::tr("Imported pack");
+        summary.roleText = QObject::tr("%1 | pack: %2")
+            .arg(importedCurationRoleTitle(module), module.importedPackName());
+        summary.qualityText = QObject::tr("Symbol: %1 | compile: %2 | test: %3")
+            .arg(module.importedOriginalSymbol(),
+                 moduleCompileStatusText(module.compileStatus),
+                 moduleTestStatusText(module.testStatus));
+        return summary;
+    }
+
+    if (module.origin == "graph") {
+        summary.layerText = QObject::tr("Проектный модуль");
+        summary.roleText = QObject::tr("составной reusable module");
+        summary.qualityText = QObject::tr("Quality bar: inner graph admission внутри текущего проекта.");
+        return summary;
+    }
+
+    if (module.origin == "local") {
+        summary.layerText = QObject::tr("Проектный модуль");
+        summary.roleText = QObject::tr("локальный атомарный модуль");
+        summary.qualityText = QObject::tr("Quality bar: staged verification внутри текущего проекта.");
+        return summary;
+    }
+
+    summary.layerText = QObject::tr("Расширение");
+    summary.roleText = QObject::tr("внешний модуль");
+    summary.qualityText = QObject::tr("Контракт: %1 | Реализация: %2 | Допуск: %3")
+        .arg(contractValid ? QObject::tr("корректен") : QObject::tr("ошибка"))
+        .arg(hasImplementation ? QObject::tr("есть") : QObject::tr("отсутствует"))
+        .arg(admitted ? QObject::tr("есть") : QObject::tr("нет"));
+    return summary;
+}
+
+// Сводка imported pack-а в дереве менеджера модулей.
+QString importedPackTreeTooltip(const QString &packName, const QVector<const Module *> &modules)
+{
+    int rawCount = 0;
+    int curatedCount = 0;
+    int adapterCount = 0;
+    int hiddenCount = 0;
+
+    for (const auto *module : modules) {
+        const QString role = module->importedCurationRole();
+        if (role == "raw_wrapper")
+            ++rawCount;
+        else if (role == "adapter")
+            ++adapterCount;
+        else if (role == "hidden")
+            ++hiddenCount;
+        else
+            ++curatedCount;
+    }
+
+    return QObject::tr("Imported pack: %1\nCurated: %2 | Raw: %3 | Adapter: %4 | Hidden: %5")
+        .arg(packName)
+        .arg(curatedCount)
+        .arg(rawCount)
+        .arg(adapterCount)
+        .arg(hiddenCount);
+}
+
+// Рекурсивный фильтр дерева поддерживает arbitrary depth, включая imported pack groups.
+bool filterTreeItemRecursive(QTreeWidgetItem *item, const QString &text, bool ancestorMatched = false)
+{
+    if (!item)
+        return false;
+
+    const bool selfMatch = ancestorMatched
+        || text.isEmpty()
+        || item->text(0).contains(text, Qt::CaseInsensitive);
+
+    if (item->childCount() == 0) {
+        item->setHidden(!selfMatch);
+        return selfMatch;
+    }
+
+    bool childVisible = false;
+    for (int i = 0; i < item->childCount(); ++i) {
+        if (filterTreeItemRecursive(item->child(i), text, selfMatch))
+            childVisible = true;
+    }
+
+    const bool visible = selfMatch || childVisible;
+    item->setHidden(!visible);
+    return visible;
+}
+
 } // namespace
 
 ModuleManagerWidget::ModuleManagerWidget(ModuleRegistry *registry, QWidget *parent)
@@ -269,6 +402,7 @@ ModuleManagerWidget::ModuleManagerWidget(ModuleRegistry *registry, QWidget *pare
                     mod->testStatus = "modified";
                 updateVerificationPanel(*mod);
                 updateModuleStateSummary(*mod);
+                updateModuleEcosystemSummary(*mod);
                 updateModuleTreeItemState(m_tree->currentItem(), *mod);
             }
         }
@@ -293,6 +427,7 @@ ModuleManagerWidget::ModuleManagerWidget(ModuleRegistry *registry, QWidget *pare
                 updateVerificationPanel(*mod);
                 updateModuleTreeItemState(m_tree->currentItem(), *mod);
                 updateModuleStateSummary(*mod);
+                updateModuleEcosystemSummary(*mod);
             }
         }
 
@@ -350,6 +485,16 @@ void ModuleManagerWidget::setupUI()
     m_langFilter->addItems({"Все", "C", "C++"});
     filterLayout->addWidget(m_langFilter);
     leftLayout->addLayout(filterLayout);
+
+    m_showSpecializedCheck = new QCheckBox(tr("Показывать specialized"), this);
+    m_showSpecializedCheck->setObjectName("moduleManagerShowSpecializedCheck");
+    m_showSpecializedCheck->setChecked(false);
+    leftLayout->addWidget(m_showSpecializedCheck);
+
+    m_showLegacyCheck = new QCheckBox(tr("Показывать legacy"), this);
+    m_showLegacyCheck->setObjectName("moduleManagerShowLegacyCheck");
+    m_showLegacyCheck->setChecked(false);
+    leftLayout->addWidget(m_showLegacyCheck);
 
     // Дерево модулей
     m_tree = new QTreeWidget(this);
@@ -503,6 +648,32 @@ void ModuleManagerWidget::setupUI()
 
     rightLayout->addLayout(stateBar);
 
+    auto *ecosystemGroup = new QGroupBox(tr("Экосистема"), this);
+    auto *ecosystemLayout = new QGridLayout(ecosystemGroup);
+    ecosystemLayout->setContentsMargins(4, 4, 4, 4);
+    ecosystemLayout->setSpacing(4);
+
+    m_moduleLayerLabel = new QLabel(tr("—"), this);
+    m_moduleLayerLabel->setObjectName("moduleEcosystemLayerLabel");
+    m_moduleLayerLabel->setWordWrap(true);
+    ecosystemLayout->addWidget(new QLabel(tr("Слой:"), this), 0, 0);
+    ecosystemLayout->addWidget(m_moduleLayerLabel, 0, 1);
+
+    m_moduleRoleLabel = new QLabel(tr("—"), this);
+    m_moduleRoleLabel->setObjectName("moduleEcosystemRoleLabel");
+    m_moduleRoleLabel->setWordWrap(true);
+    ecosystemLayout->addWidget(new QLabel(tr("Роль:"), this), 1, 0);
+    ecosystemLayout->addWidget(m_moduleRoleLabel, 1, 1);
+
+    m_moduleQualityLabel = new QLabel(tr("—"), this);
+    m_moduleQualityLabel->setObjectName("moduleEcosystemQualityLabel");
+    m_moduleQualityLabel->setWordWrap(true);
+    m_moduleQualityLabel->setStyleSheet("QLabel { color:#bdbdbd; }");
+    ecosystemLayout->addWidget(new QLabel(tr("Quality:"), this), 2, 0);
+    ecosystemLayout->addWidget(m_moduleQualityLabel, 2, 1);
+
+    rightLayout->addWidget(ecosystemGroup);
+
     // Явный documentation block делает модуль читаемым без открытия исходного кода.
     auto *docGroup = new QGroupBox(tr("Документация"), this);
     auto *docLayout = new QGridLayout(docGroup);
@@ -632,39 +803,20 @@ void ModuleManagerWidget::setupUI()
     });
 
     connect(m_searchEdit, &QLineEdit::textChanged, this, [this](const QString &text) {
-        // Рекурсивная фильтрация 3-уровневого дерева
+        // Поддерживает и обычные категории, и pack-группировку imported module-ов.
         for (int i = 0; i < m_tree->topLevelItemCount(); ++i) {
-            auto *sectionItem = m_tree->topLevelItem(i);
-            bool sectionVisible = false;
-
-            for (int j = 0; j < sectionItem->childCount(); ++j) {
-                auto *child = sectionItem->child(j);
-                if (child->childCount() > 0) {
-                    // Подкатегория — фильтруем детей
-                    bool catVisible = false;
-                    for (int k = 0; k < child->childCount(); ++k) {
-                        auto *modItem = child->child(k);
-                        bool match = text.isEmpty() ||
-                                     modItem->text(0).contains(text, Qt::CaseInsensitive);
-                        modItem->setHidden(!match);
-                        if (match) catVisible = true;
-                    }
-                    child->setHidden(!catVisible);
-                    if (catVisible) sectionVisible = true;
-                } else {
-                    // Модуль напрямую в секции
-                    bool match = text.isEmpty() ||
-                                 child->text(0).contains(text, Qt::CaseInsensitive);
-                    child->setHidden(!match);
-                    if (match) sectionVisible = true;
-                }
-            }
-            sectionItem->setHidden(!sectionVisible);
+            filterTreeItemRecursive(m_tree->topLevelItem(i), text);
         }
     });
 
     connect(m_langFilter, &QComboBox::currentTextChanged, this, [this](const QString &lang) {
         setLanguageFilter(lang);
+    });
+    connect(m_showSpecializedCheck, &QCheckBox::toggled, this, [this] {
+        buildTree();
+    });
+    connect(m_showLegacyCheck, &QCheckBox::toggled, this, [this] {
+        buildTree();
     });
 }
 
@@ -692,6 +844,24 @@ void ModuleManagerWidget::buildTree()
     }
 
     auto allModules = m_registry->allModules();
+    const bool showSpecializedModules = m_showSpecializedCheck && m_showSpecializedCheck->isChecked();
+    const bool showLegacyModules = m_showLegacyCheck && m_showLegacyCheck->isChecked();
+    auto languageCompatible = [&](const Module *mod) {
+        if (langFilter.isEmpty())
+            return true;
+        return (mod->language == langFilter)
+            || (langFilter == "c" && mod->language == "cpp")
+            || (langFilter == "cpp" && mod->language == "c")
+            || mod->language.isEmpty();
+    };
+    auto addManagerModuleItem = [&](QTreeWidgetItem *parent, const Module *mod) {
+        if (!languageCompatible(mod))
+            return false;
+        auto *item = new QTreeWidgetItem(parent, {moduleDisplayLabel(*mod, false)});
+        item->setData(0, Qt::UserRole, mod->id);
+        updateModuleTreeItemState(item, *mod);
+        return true;
+    };
 
     QFont boldFont = m_tree->font();
     boldFont.setBold(true);
@@ -724,16 +894,13 @@ void ModuleManagerWidget::buildTree()
         const QVector<const Module *> orderedModules =
             StandardLibrary::orderModulesForDisplay(coreByCategory[cat]);
         for (const auto *mod : orderedModules) {
-            if (!langFilter.isEmpty()) {
-                bool compat = (mod->language == langFilter) ||
-                    (langFilter == "c" && mod->language == "cpp") ||
-                    (langFilter == "cpp" && mod->language == "c");
-                if (!compat) continue;
-            }
-            auto *item = new QTreeWidgetItem(catItem, {moduleDisplayLabel(*mod, false)});
-            item->setData(0, Qt::UserRole, mod->id);
-            updateModuleTreeItemState(item, *mod);
-            catHasChildren = true;
+            const StandardLibraryCurationInfo curation = StandardLibrary::curationForModule(*mod);
+            if (curation.tier == "specialized" && !showSpecializedModules)
+                continue;
+            if (curation.tier == "legacy" && !showLegacyModules)
+                continue;
+            if (addManagerModuleItem(catItem, mod))
+                catHasChildren = true;
         }
         catItem->setHidden(!catHasChildren);
         if (catHasChildren) coreHasChildren = true;
@@ -752,21 +919,67 @@ void ModuleManagerWidget::buildTree()
     bool uiHasChildren = false;
     for (const auto *mod : allModules) {
         if (mod->origin == "ui") {
-            QString label = mod->metadataString("deltaq.ui.display_name", mod->name);
-            const QString contractType = mod->metadataString("deltaq.ui.widget_type");
-            if (!contractType.isEmpty())
-                label += QString(" [%1]").arg(contractType);
-            auto *item = new QTreeWidgetItem(uiRoot, {label});
-            item->setData(0, Qt::UserRole, mod->id);
-            updateModuleTreeItemState(item, *mod);
-            item->setToolTip(0, mod->description);
-            uiHasChildren = true;
+            if (addManagerModuleItem(uiRoot, mod))
+                uiHasChildren = true;
         }
     }
     uiRoot->setHidden(!uiHasChildren);
     uiRoot->setExpanded(true);
 
-    // === Секция 3: Расширения ===
+    // === Секция 3: Imported pack-и ===
+    auto *importedRoot = new QTreeWidgetItem(m_tree, {tr("Импортированные пакеты")});
+    importedRoot->setFont(0, boldFont);
+    {
+        QPixmap px(12, 12); px.fill(QColor(90, 170, 170));
+        importedRoot->setIcon(0, QIcon(px));
+    }
+
+    QMap<QString, QVector<const Module *>> importedByPack;
+    for (const auto *mod : allModules) {
+        if (mod->isImportedPackModule())
+            importedByPack[mod->importedPackName()].append(mod);
+    }
+
+    bool importedHasChildren = false;
+    QStringList packNames = importedByPack.keys();
+    packNames.sort();
+
+    for (const auto &packName : packNames) {
+        auto *packItem = new QTreeWidgetItem(importedRoot, {packName});
+        packItem->setToolTip(0, importedPackTreeTooltip(packName, importedByPack[packName]));
+
+        QMap<QString, QVector<const Module *>> packByCategory;
+        for (const auto *mod : importedByPack[packName]) {
+            const QString category = mod->category.isEmpty() ? QString("custom") : mod->category;
+            packByCategory[category].append(mod);
+        }
+
+        bool packHasChildren = false;
+        QStringList packCats = packByCategory.keys();
+        packCats.sort();
+        for (const auto &cat : packCats) {
+            auto *catItem = new QTreeWidgetItem(packItem, {cat});
+            QPixmap px(12, 12); px.fill(managerCategoryColor(cat));
+            catItem->setIcon(0, QIcon(px));
+
+            bool catHasChildren = false;
+            for (const auto *mod : packByCategory[cat]) {
+                if (addManagerModuleItem(catItem, mod))
+                    catHasChildren = true;
+            }
+            catItem->setHidden(!catHasChildren);
+            if (catHasChildren)
+                packHasChildren = true;
+        }
+        packItem->setHidden(!packHasChildren);
+        packItem->setExpanded(true);
+        if (packHasChildren)
+            importedHasChildren = true;
+    }
+    importedRoot->setHidden(!importedHasChildren);
+    importedRoot->setExpanded(true);
+
+    // === Секция 4: Расширения ===
     auto *extRoot = new QTreeWidgetItem(m_tree, {tr("Расширения")});
     extRoot->setFont(0, boldFont);
     {
@@ -778,7 +991,8 @@ void ModuleManagerWidget::buildTree()
     QMap<QString, QVector<const Module *>> extByCategory;
     for (const auto *mod : allModules) {
         if (mod->origin != "core" && mod->origin != "ui"
-            && mod->origin != "local" && mod->origin != "graph") {
+            && mod->origin != "local" && mod->origin != "graph"
+            && !mod->isImportedPackModule()) {
             QString cat = mod->category.isEmpty() ? "custom" : mod->category;
             extByCategory[cat].append(mod);
         }
@@ -795,16 +1009,8 @@ void ModuleManagerWidget::buildTree()
 
         bool catHasChildren = false;
         for (const auto *mod : extByCategory[cat]) {
-            if (!langFilter.isEmpty()) {
-                bool compat = (mod->language == langFilter) ||
-                    (langFilter == "c" && mod->language == "cpp") ||
-                    (langFilter == "cpp" && mod->language == "c");
-                if (!compat) continue;
-            }
-            auto *item = new QTreeWidgetItem(catItem, {moduleDisplayLabel(*mod, false)});
-            item->setData(0, Qt::UserRole, mod->id);
-            updateModuleTreeItemState(item, *mod);
-            catHasChildren = true;
+            if (addManagerModuleItem(catItem, mod))
+                catHasChildren = true;
         }
         catItem->setHidden(!catHasChildren);
         if (catHasChildren) extHasChildren = true;
@@ -823,16 +1029,8 @@ void ModuleManagerWidget::buildTree()
     bool localHasChildren = false;
     for (const auto *mod : allModules) {
         if (mod->origin == "local" || mod->origin == "graph") {
-            if (!langFilter.isEmpty()) {
-                bool compat = (mod->language == langFilter) ||
-                    (langFilter == "c" && mod->language == "cpp") ||
-                    (langFilter == "cpp" && mod->language == "c");
-                if (!compat && !mod->language.isEmpty()) continue;
-            }
-            auto *item = new QTreeWidgetItem(localRoot, {moduleDisplayLabel(*mod, false)});
-            item->setData(0, Qt::UserRole, mod->id);
-            updateModuleTreeItemState(item, *mod);
-            localHasChildren = true;
+            if (addManagerModuleItem(localRoot, mod))
+                localHasChildren = true;
         }
     }
     localRoot->setHidden(!localHasChildren);
@@ -1019,6 +1217,7 @@ void ModuleManagerWidget::loadModuleToEditor(const Module &module)
     }
 
     updateVerificationPanel(module);
+    updateModuleEcosystemSummary(module);
 
     // Core и UI модули: только просмотр, блокируем редактирование
     m_nameEdit->setReadOnly(isReadOnly);
@@ -1080,6 +1279,9 @@ void ModuleManagerWidget::clearEditor()
         "QLabel { background:#4a4a4a; color:#f0f0f0; border-radius:10px; "
         "padding:3px 10px; font-weight:bold; }");
     m_moduleStateDetails->setText(tr("Выберите модуль, чтобы увидеть его состояние."));
+    m_moduleLayerLabel->setText(tr("—"));
+    m_moduleRoleLabel->setText(tr("—"));
+    m_moduleQualityLabel->setText(tr("Выберите модуль, чтобы увидеть его роль в экосистеме."));
     m_loadingModule = false;
 }
 
@@ -1291,10 +1493,15 @@ void ModuleManagerWidget::onSaveModule()
 
     m_modified = false;
     updateModuleStateSummary(*mod);
+    updateModuleEcosystemSummary(*mod);
     updateModuleTreeItemState(m_tree->currentItem(), *mod);
 
     emit moduleChanged(m_currentModuleId);
-    buildTree();
+    {
+        const QSignalBlocker blocker(m_tree);
+        buildTree();
+    }
+    openModule(m_currentModuleId);
 }
 
 void ModuleManagerWidget::onCompileModule()
@@ -1354,6 +1561,7 @@ void ModuleManagerWidget::onCodeChanged()
 
     updateVerificationPanel(*mod);
     updateModuleStateSummary(*mod);
+    updateModuleEcosystemSummary(*mod);
     updateModuleTreeItemState(m_tree->currentItem(), *mod);
 }
 
@@ -1490,6 +1698,17 @@ void ModuleManagerWidget::updateModuleStateSummary(const Module &module)
     m_moduleStateBadge->setText(summary.badgeText);
     m_moduleStateBadge->setStyleSheet(summary.badgeStyle);
     m_moduleStateDetails->setText(summary.detailText);
+}
+
+void ModuleManagerWidget::updateModuleEcosystemSummary(const Module &module)
+{
+    if (!m_moduleLayerLabel || !m_moduleRoleLabel || !m_moduleQualityLabel)
+        return;
+
+    const ModuleEcosystemSummary summary = buildModuleEcosystemSummary(m_registry, module);
+    m_moduleLayerLabel->setText(summary.layerText);
+    m_moduleRoleLabel->setText(summary.roleText);
+    m_moduleQualityLabel->setText(summary.qualityText);
 }
 
 void ModuleManagerWidget::updateModuleTreeItemState(QTreeWidgetItem *item, const Module &module)

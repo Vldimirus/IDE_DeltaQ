@@ -1,0 +1,53 @@
+{
+    "id": "ext.mini_checksum_sdk_curated.mini_checksum_init",
+    "name": "mini_checksum_init",
+    "version": "1.0.0",
+    "language": "c",
+    "description": "Hidden raw wrapper: creates checksum context",
+    "category": "checksum_raw",
+    "origin": "extension",
+    "ports": {
+        "input": [
+            {
+                "name": "seed",
+                "type": "int"
+            }
+        ],
+        "output": [
+            {
+                "name": "result",
+                "type": "pointer"
+            }
+        ]
+    },
+    "source": "",
+    "header": "",
+    "dependencies": [],
+    "includes": [
+        "<mini_checksum_sdk.h>"
+    ],
+    "source_code": "void * dq_mini_checksum_init(int seed) {\n    return mini_checksum_init(seed);\n}",
+    "metadata": {
+        "deltaq.import.kind": "library_pack_module",
+        "deltaq.import.pack_name": "mini_checksum_sdk_curated",
+        "deltaq.import.pack_title": "Mini Checksum SDK Curated",
+        "deltaq.import.language": "c",
+        "deltaq.import.standard": "c17",
+        "deltaq.import.original_symbol": "mini_checksum_init",
+        "deltaq.import.display_name": "mini_checksum_init",
+        "deltaq.import.curation_role": "hidden",
+        "deltaq.import.header_paths": [
+            "mini_checksum_sdk.h"
+        ],
+        "deltaq.import.include_paths": [
+            "${CMAKE_SOURCE_DIR}/vendor/mini_checksum_sdk/include"
+        ]
+    },
+    "verification": {
+        "compile_status": "passed",
+        "test_status": "passed"
+    },
+    "testing": {
+        "status": "passed"
+    }
+}

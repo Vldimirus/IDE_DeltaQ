@@ -12,6 +12,7 @@
 #include <QFile>
 #include <QJsonArray>
 #include <QMap>
+#include <QRegularExpression>
 #include <QSet>
 #include <QTextStream>
 #include <QProcess>
@@ -52,6 +53,18 @@ QString formatCMakeValue(const QString &value)
     if (escaped.contains(' ') || escaped.contains(';'))
         return QString("\"%1\"").arg(escaped);
     return escaped;
+}
+
+// Нормализует project-facing dialect label (`c17`, `gnu17`, `c++20`) к числу,
+// которое ожидает CMake в `CMAKE_<LANG>_STANDARD`.
+QString normalizeCMakeStandardValue(const QString &value)
+{
+    const QString trimmed = value.trimmed();
+    static const QRegularExpression digitsRe("(\\d+)");
+    const auto match = digitsRe.match(trimmed);
+    if (match.hasMatch())
+        return match.captured(1);
+    return trimmed;
 }
 
 } // namespace
@@ -194,15 +207,18 @@ QString CMakeGenerator::generateContent(const QString &projectName,
                                          const QString &projectType,
                                          const QVector<ImportedPackRequirement> &importedPackRequirements) const
 {
+    const QString normalizedCStandard = normalizeCMakeStandardValue(cStandard);
+    const QString normalizedCxxStandard = normalizeCMakeStandardValue(cxxStandard);
+
     QString cmake;
     cmake += "# Автоматически сгенерировано DeltaQ IDE\n";
     cmake += "cmake_minimum_required(VERSION 3.20)\n\n";
     cmake += QString("project(%1 LANGUAGES C CXX)\n\n").arg(projectName);
 
     // Стандарты
-    cmake += QString("set(CMAKE_C_STANDARD %1)\n").arg(cStandard);
+    cmake += QString("set(CMAKE_C_STANDARD %1)\n").arg(normalizedCStandard);
     cmake += "set(CMAKE_C_STANDARD_REQUIRED ON)\n";
-    cmake += QString("set(CMAKE_CXX_STANDARD %1)\n").arg(cxxStandard);
+    cmake += QString("set(CMAKE_CXX_STANDARD %1)\n").arg(normalizedCxxStandard);
     cmake += "set(CMAKE_CXX_STANDARD_REQUIRED ON)\n\n";
 
     // Исходные файлы

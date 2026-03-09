@@ -217,15 +217,10 @@ void BlockEditorWidget::zoomOut()
 
 void BlockEditorWidget::zoomFit()
 {
-    QRectF rect = m_scene->itemsBoundingRect().adjusted(-50, -50, 50, 50);
-    m_view->fitInView(rect, Qt::KeepAspectRatio);
-    m_currentZoom = m_view->transform().m11();
-    // Ограничиваем зум — узлы не должны быть огромными
-    if (m_currentZoom > 1.5) {
-        m_view->resetTransform();
-        m_currentZoom = 1.0;
-        m_view->centerOn(rect.center());
-    }
+    const QRectF rect = fitTargetRect();
+    if (!rect.isValid() || rect.isEmpty())
+        return;
+    applyAutoFitTransform(rect);
 }
 
 bool BlockEditorWidget::eventFilter(QObject *obj, QEvent *event)
@@ -375,13 +370,41 @@ void BlockEditorWidget::showEvent(QShowEvent *event)
     if (m_firstShow && !m_scene->items().isEmpty()) {
         m_firstShow = false;
         zoomFit();
-        // Ограничиваем максимальный зум, чтобы узлы не были огромными
-        if (m_currentZoom > 1.5) {
-            m_view->resetTransform();
-            m_view->scale(1.0, 1.0);
-            m_currentZoom = 1.0;
-            m_view->centerOn(m_scene->itemsBoundingRect().center());
-        }
+    }
+}
+
+QRectF BlockEditorWidget::fitTargetRect() const
+{
+    const QRectF itemsRect = m_scene->itemsBoundingRect();
+    if (!itemsRect.isValid() || itemsRect.isEmpty())
+        return {};
+
+    QRectF targetRect = itemsRect.adjusted(-50, -50, 50, 50);
+
+    const QSize viewportSize = m_view->viewport()->size();
+    if (viewportSize.width() > 0 && targetRect.width() < viewportSize.width()) {
+        const qreal grow = (viewportSize.width() - targetRect.width()) * 0.5;
+        targetRect.adjust(-grow, 0.0, grow, 0.0);
+    }
+    if (viewportSize.height() > 0 && targetRect.height() < viewportSize.height()) {
+        const qreal grow = (viewportSize.height() - targetRect.height()) * 0.5;
+        targetRect.adjust(0.0, -grow, 0.0, grow);
+    }
+
+    return targetRect;
+}
+
+void BlockEditorWidget::applyAutoFitTransform(const QRectF &targetRect)
+{
+    m_view->fitInView(targetRect, Qt::KeepAspectRatio);
+    m_currentZoom = m_view->transform().m11();
+
+    // Fit не должен искусственно "раздувать" маленький граф. Авто-fit уменьшает, но не увеличивает
+    // граф выше естественного масштаба 1:1.
+    if (m_currentZoom > AutoFitMaxZoom) {
+        m_view->resetTransform();
+        m_currentZoom = AutoFitMaxZoom;
+        m_view->centerOn(targetRect.center());
     }
 }
 

@@ -84,6 +84,60 @@ void appendDocumentationTooltip(QString &tip, const Module &module)
     }
 }
 
+// Сводка imported pack-а в дереве, чтобы pack boundary читался без открытия docs.
+QString importedPackTooltip(const QString &packName, const QVector<const Module *> &modules)
+{
+    int rawCount = 0;
+    int curatedCount = 0;
+    int adapterCount = 0;
+    int hiddenCount = 0;
+
+    for (const auto *module : modules) {
+        const QString role = module->importedCurationRole();
+        if (role == "raw_wrapper")
+            ++rawCount;
+        else if (role == "adapter")
+            ++adapterCount;
+        else if (role == "hidden")
+            ++hiddenCount;
+        else
+            ++curatedCount;
+    }
+
+    return QObject::tr("Imported pack: %1\nCurated: %2 | Raw: %3 | Adapter: %4 | Hidden: %5")
+        .arg(packName)
+        .arg(curatedCount)
+        .arg(rawCount)
+        .arg(adapterCount)
+        .arg(hiddenCount);
+}
+
+// Рекурсивный фильтр дерева: поддерживает произвольную глубину (section -> pack -> category -> module).
+bool filterTreeItemRecursive(QTreeWidgetItem *item, const QString &text, bool ancestorMatched = false)
+{
+    if (!item)
+        return false;
+
+    const bool selfMatch = ancestorMatched
+        || text.isEmpty()
+        || item->text(0).contains(text, Qt::CaseInsensitive);
+
+    if (item->childCount() == 0) {
+        item->setHidden(!selfMatch);
+        return selfMatch;
+    }
+
+    bool childVisible = false;
+    for (int i = 0; i < item->childCount(); ++i) {
+        if (filterTreeItemRecursive(item->child(i), text, selfMatch))
+            childVisible = true;
+    }
+
+    const bool visible = selfMatch || childVisible;
+    item->setHidden(!visible);
+    return visible;
+}
+
 } // namespace
 
 ModulePalette::ModulePalette(ModuleRegistry *registry, QWidget *parent)
@@ -331,7 +385,65 @@ void ModulePalette::buildTree()
     uiRoot->setHidden(!uiHasChildren);
     uiRoot->setExpanded(true);
 
-    // === Секция 3: Расширения (extension) ===
+    // === Секция 3: Imported pack-и ===
+    auto *importedRoot = new QTreeWidgetItem(m_tree, {tr("Импортированные пакеты")});
+    importedRoot->setFlags(importedRoot->flags() & ~Qt::ItemIsDragEnabled);
+    importedRoot->setFont(0, boldFont);
+    {
+        QPixmap px(12, 12); px.fill(QColor(90, 170, 170));
+        importedRoot->setIcon(0, QIcon(px));
+    }
+
+    QMap<QString, QVector<const Module *>> importedByPack;
+    for (const auto *mod : allModules) {
+        if (mod->isImportedPackModule())
+            importedByPack[mod->importedPackName()].append(mod);
+    }
+
+    bool importedHasChildren = false;
+    QStringList packNames = importedByPack.keys();
+    packNames.sort();
+    for (const auto &packName : packNames) {
+        auto *packItem = new QTreeWidgetItem(importedRoot, {packName});
+        packItem->setFlags(packItem->flags() & ~Qt::ItemIsDragEnabled);
+        packItem->setToolTip(0, importedPackTooltip(packName, importedByPack[packName]));
+
+        QMap<QString, QVector<const Module *>> packByCategory;
+        for (const auto *mod : importedByPack[packName]) {
+            const QString category = mod->category.isEmpty() ? QString("custom") : mod->category;
+            packByCategory[category].append(mod);
+        }
+
+        bool packHasChildren = false;
+        QStringList packCats = packByCategory.keys();
+        packCats.sort();
+        for (const auto &cat : packCats) {
+            auto *catItem = new QTreeWidgetItem(packItem, {cat});
+            catItem->setFlags(catItem->flags() & ~Qt::ItemIsDragEnabled);
+            QPixmap px(12, 12); px.fill(categoryColor(cat));
+            catItem->setIcon(0, QIcon(px));
+
+            bool catHasChildren = false;
+            for (const auto *mod : packByCategory[cat]) {
+                if (addModuleItem(catItem, mod, m_languageFilter, m_registry,
+                                  true, showLegacyModules)) {
+                    catHasChildren = true;
+                }
+            }
+            catItem->setHidden(!catHasChildren);
+            if (catHasChildren)
+                packHasChildren = true;
+        }
+
+        packItem->setHidden(!packHasChildren);
+        packItem->setExpanded(true);
+        if (packHasChildren)
+            importedHasChildren = true;
+    }
+    importedRoot->setHidden(!importedHasChildren);
+    importedRoot->setExpanded(true);
+
+    // === Секция 4: Расширения (extension) ===
     auto *extRoot = new QTreeWidgetItem(m_tree, {tr("Расширения")});
     extRoot->setFlags(extRoot->flags() & ~Qt::ItemIsDragEnabled);
     extRoot->setFont(0, boldFont);
@@ -340,11 +452,12 @@ void ModulePalette::buildTree()
         extRoot->setIcon(0, QIcon(px));
     }
 
-    // Собираем extension-модули по категориям
     QMap<QString, QVector<const Module *>> extByCategory;
     for (const auto *mod : allModules) {
-        if (mod->origin == "extension")
-            extByCategory[mod->category].append(mod);
+        if (mod->origin == "extension" && !mod->isImportedPackModule()) {
+            const QString category = mod->category.isEmpty() ? QString("custom") : mod->category;
+            extByCategory[category].append(mod);
+        }
     }
 
     bool extHasChildren = false;
@@ -362,43 +475,48 @@ void ModulePalette::buildTree()
                 catHasChildren = true;
         }
         catItem->setHidden(!catHasChildren);
-        if (catHasChildren) extHasChildren = true;
+        if (catHasChildren)
+            extHasChildren = true;
     }
 
-    // Также показываем модули без категории (user/library/graph)
+    // Также показываем обычные внешние модули без pack metadata.
     for (const auto *mod : allModules) {
-        if (mod->origin != "core" && mod->origin != "ui" && mod->origin != "extension") {
-            if (!mod->category.isEmpty()) {
-                // Ищем существующую подкатегорию или создаём
-                bool found = false;
-                for (int i = 0; i < extRoot->childCount(); ++i) {
-                    if (extRoot->child(i)->text(0) == mod->category) {
-                        if (addModuleItem(extRoot->child(i), mod, m_languageFilter, m_registry,
-                                          true, showLegacyModules))
-                            extHasChildren = true;
-                        found = true;
-                        break;
-                    }
-                }
-                if (!found) {
-                    auto *catItem = new QTreeWidgetItem(extRoot, {mod->category});
-                    catItem->setFlags(catItem->flags() & ~Qt::ItemIsDragEnabled);
-                    QPixmap px(12, 12); px.fill(categoryColor(mod->category));
-                    catItem->setIcon(0, QIcon(px));
-                    if (addModuleItem(catItem, mod, m_languageFilter, m_registry, true, showLegacyModules))
+        if (mod->origin == "core" || mod->origin == "ui" || mod->origin == "extension"
+            || mod->origin == "local" || mod->origin == "graph"
+            || mod->isImportedPackModule()) {
+            continue;
+        }
+
+        if (!mod->category.isEmpty()) {
+            bool found = false;
+            for (int i = 0; i < extRoot->childCount(); ++i) {
+                if (extRoot->child(i)->text(0) == mod->category) {
+                    if (addModuleItem(extRoot->child(i), mod, m_languageFilter, m_registry,
+                                      true, showLegacyModules)) {
                         extHasChildren = true;
+                    }
+                    found = true;
+                    break;
                 }
-            } else {
-                if (addModuleItem(extRoot, mod, m_languageFilter, m_registry, true, showLegacyModules))
+            }
+            if (!found) {
+                auto *catItem = new QTreeWidgetItem(extRoot, {mod->category});
+                catItem->setFlags(catItem->flags() & ~Qt::ItemIsDragEnabled);
+                QPixmap px(12, 12); px.fill(categoryColor(mod->category));
+                catItem->setIcon(0, QIcon(px));
+                if (addModuleItem(catItem, mod, m_languageFilter, m_registry, true, showLegacyModules))
                     extHasChildren = true;
             }
+        } else {
+            if (addModuleItem(extRoot, mod, m_languageFilter, m_registry, true, showLegacyModules))
+                extHasChildren = true;
         }
     }
 
     extRoot->setHidden(!extHasChildren);
     extRoot->setExpanded(true);
 
-    // === Секция 4: Проектные модули (local) ===
+    // === Секция 5: Проектные модули (local) ===
     auto *localRoot = new QTreeWidgetItem(m_tree, {tr("Проектные модули")});
     localRoot->setFlags(localRoot->flags() & ~Qt::ItemIsDragEnabled);
     localRoot->setFont(0, boldFont);
@@ -420,36 +538,9 @@ void ModulePalette::buildTree()
 
 void ModulePalette::filterTree(const QString &text)
 {
-    // Рекурсивно фильтруем 3-уровневое дерево (секция → категория → модуль)
+    // Рекурсивный фильтр поддерживает и старую структуру, и новую pack-группировку.
     for (int i = 0; i < m_tree->topLevelItemCount(); ++i) {
-        auto *sectionItem = m_tree->topLevelItem(i);
-        bool sectionVisible = false;
-
-        for (int j = 0; j < sectionItem->childCount(); ++j) {
-            auto *child = sectionItem->child(j);
-
-            if (child->childCount() > 0) {
-                // Это подкатегория — фильтруем её детей
-                bool catVisible = false;
-                for (int k = 0; k < child->childCount(); ++k) {
-                    auto *modItem = child->child(k);
-                    bool match = text.isEmpty() ||
-                                 modItem->text(0).contains(text, Qt::CaseInsensitive);
-                    modItem->setHidden(!match);
-                    if (match) catVisible = true;
-                }
-                child->setHidden(!catVisible);
-                if (catVisible) sectionVisible = true;
-            } else {
-                // Это модуль напрямую в секции
-                bool match = text.isEmpty() ||
-                             child->text(0).contains(text, Qt::CaseInsensitive);
-                child->setHidden(!match);
-                if (match) sectionVisible = true;
-            }
-        }
-
-        sectionItem->setHidden(!sectionVisible);
+        filterTreeItemRecursive(m_tree->topLevelItem(i), text);
     }
 }
 

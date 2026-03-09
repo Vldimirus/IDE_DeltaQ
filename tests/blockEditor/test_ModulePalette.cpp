@@ -50,6 +50,18 @@ private:
         return nullptr;
     }
 
+    static QTreeWidgetItem *findItemByText(QTreeWidget *tree, const QString &text)
+    {
+        QTreeWidgetItemIterator it(tree);
+        while (*it) {
+            auto *item = *it;
+            if (item->text(0) == text)
+                return item;
+            ++it;
+        }
+        return nullptr;
+    }
+
 private slots:
     void init()
     {
@@ -339,6 +351,51 @@ private slots:
         QVERIFY(item->toolTip(0).contains(QString::fromUtf8("Назначение: Curated imported entry for sensor scale report")));
         QVERIFY(item->toolTip(0).contains(QString::fromUtf8("Когда использовать: Когда нужен готовый success-path imported SDK без raw wrapper-ов.")));
         QVERIFY(item->toolTip(0).contains(QString::fromUtf8("Ограничения: Печатает runtime report и рассчитан на fixture mini_sensor_sdk.")));
+    }
+
+    void paletteGroupsImportedModulesByPack()
+    {
+        Module imported = Module::create("mini_sensor_read", "c");
+        imported.id = "ext.mini_sensor_sdk_raw.mini_sensor_read";
+        imported.origin = "extension";
+        imported.category = "sensor_raw";
+        imported.sourceCode = "int dq_mini_sensor_read(void *ctx) { return mini_sensor_read(ctx); }\n";
+        imported.compileStatus = "passed";
+        imported.testStatus = "passed";
+        imported.metadata["deltaq.import.kind"] = "library_pack_module";
+        imported.metadata["deltaq.import.pack_name"] = "mini_sensor_sdk_raw";
+        imported.metadata["deltaq.import.original_symbol"] = "mini_sensor_read";
+        imported.metadata["deltaq.import.display_name"] = "Read Sensor";
+        imported.metadata["deltaq.import.curation_role"] = "raw_wrapper";
+        QVERIFY(m_registry->registerModule(imported));
+
+        Module extension = Module::create("fft_window", "c");
+        extension.id = "ext.signal_tools.fft_window";
+        extension.origin = "extension";
+        extension.category = "signal";
+        extension.sourceCode = "int dq_fft_window(int value) { return value; }\n";
+        extension.compileStatus = "passed";
+        extension.testStatus = "passed";
+        QVERIFY(m_registry->registerModule(extension));
+
+        ModulePalette palette(m_registry);
+        auto *tree = palette.findChild<QTreeWidget *>("modulePaletteTree");
+        QVERIFY(tree != nullptr);
+
+        auto *importedItem = findModuleItem(tree, imported.id);
+        auto *extensionItem = findModuleItem(tree, extension.id);
+        auto *packItem = findItemByText(tree, "mini_sensor_sdk_raw");
+        QVERIFY(importedItem != nullptr);
+        QVERIFY(extensionItem != nullptr);
+        QVERIFY(packItem != nullptr);
+
+        QCOMPARE(importedItem->parent()->text(0), QString("sensor_raw"));
+        QCOMPARE(importedItem->parent()->parent()->text(0), QString("mini_sensor_sdk_raw"));
+        QCOMPARE(importedItem->parent()->parent()->parent()->text(0), QString::fromUtf8("Импортированные пакеты"));
+        QCOMPARE(extensionItem->parent()->text(0), QString("signal"));
+        QCOMPARE(extensionItem->parent()->parent()->text(0), QString::fromUtf8("Расширения"));
+        QVERIFY(packItem->toolTip(0).contains(QString("Imported pack: mini_sensor_sdk_raw")));
+        QVERIFY(packItem->toolTip(0).contains(QString("Raw: 1")));
     }
 };
 

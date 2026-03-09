@@ -13,6 +13,7 @@
 #include <algorithm>
 #include <QDir>
 #include <QFile>
+#include <QFileInfo>
 
 namespace DeltaQ {
 
@@ -184,6 +185,19 @@ void PreBuildProcessor::processUILayouts(const QString &projectDir, PreBuildResu
         // Общий путь записи для всех generated-файлов UI с сохранением их происхождения.
         auto writeFile = [&](const QString &path, const QString &content,
                              PreBuildArtifactKind kind) -> bool {
+            if (kind == PreBuildArtifactKind::UIEventsSource && QFile::exists(path)) {
+                // Пользовательский код обработчиков не должен теряться при повторном pre-build.
+                appendArtifact(result, this, PreBuildArtifact{
+                    path,
+                    kind,
+                    layout->name,
+                    layout->id
+                });
+                emit progressMessage(tr("Сохранён пользовательский файл обработчиков: %1")
+                                     .arg(QFileInfo(path).fileName()));
+                return true;
+            }
+
             QFile f(path);
             if (f.open(QIODevice::WriteOnly | QIODevice::Text)) {
                 f.write(content.toUtf8());

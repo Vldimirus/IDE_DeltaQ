@@ -31,6 +31,14 @@ Three product principles define the repository today:
 - **Strongest built-in scenarios:** console flow, desktop/UI flow, reusable composition, and imported-pack integration.
 - **Current boundary:** Windows and macOS are roadmap items, not current release claims.
 
+## Start Here
+
+If you want DeltaQ to read like one coherent Linux-first product rather than a set of subsystems, use these entry points:
+
+- [docs/onboarding/README.md](docs/onboarding/README.md) — the newcomer path from first run to stronger showcase examples.
+- [resources/examples/README.md](resources/examples/README.md) — the example catalog, recommended order, and what each checked-in project proves.
+- [docs/release/linux_first_release_checklist.md](docs/release/linux_first_release_checklist.md) — the manual acceptance path for Linux tarball and AppImage artifacts.
+
 ---
 
 ## Features
@@ -170,6 +178,15 @@ The detailed walkthrough is in:
 
 - `docs/onboarding/first_run.md`
 
+If you want the full newcomer path rather than a single walkthrough, continue with:
+
+- [docs/onboarding/README.md](docs/onboarding/README.md)
+- [resources/examples/README.md](resources/examples/README.md)
+
+If you are validating a packaged Linux artifact rather than a source checkout, use:
+
+- [docs/release/linux_first_release_checklist.md](docs/release/linux_first_release_checklist.md)
+
 ## Project Templates And Examples
 
 DeltaQ now loads project templates directly from files in `resources/templates/` rather than generating starter source code inside the IDE.
@@ -181,12 +198,30 @@ DeltaQ now loads project templates directly from files in `resources/templates/`
 - **Desktop Text Editor** — simple SDL2 text editor with a top menu bar
 - **Desktop Multi Window Workspace** — desktop workspace with child windows inside the main frame
 
-The repository currently includes 4 checked-in example projects in `resources/examples/`:
+The repository currently includes 5 checked-in example projects in `resources/examples/`:
 
 - `minimal_console_flow` — shortest onboarding path for `module -> graph -> generated C code -> build -> run`
 - `desktop_ui_flow` — desktop/UI showcase with generated SDL2 runtime and live event handlers
 - `reusable_composition_console` — composite submodules and repeated reuse in one root graph
 - `imported_pack_sensor_console` — curated imported pack flow from external library to working graph runtime
+- `imported_pack_checksum_console` — second curated imported-pack flow for algorithmic/text-processing extension
+
+The full catalog, suggested order, and the distinction between user-facing demos and fixture SDK trees are documented in:
+
+- [resources/examples/README.md](resources/examples/README.md)
+
+## Why The Standard Library Matters
+
+The checked-in `core` library is not meant to win by module count. It is meant to remove repetitive glue in the first useful scenarios.
+
+- `minimal_console_flow` proves that `core.io.string_constant`, `core.io.read_line`, and `core.io.println` are enough to build a real interactive console flow without creating custom starter modules first.
+- `reusable_composition_console` proves that `core.string.str_concat`, `core.string.str_length`, `core.conversion.int_to_string`, and `core.io.println` are strong enough to build reusable composite modules instead of one-off helper code.
+- `desktop_ui_flow` proves that `core.desktop.*` already captures the SDL2 lifecycle as graphable building blocks, so the graph stays focused on app flow rather than handwritten init/event-loop/teardown boilerplate.
+
+The detailed scenario-based breakdown is documented in:
+
+- `docs/library/value_proof.md`
+- `docs/library/README.md`
 
 ---
 

@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>org.deltaq.deltaq.desktop</id>
+  <name>DeltaQ IDE</name>
+  <summary>Modular IDE for code, graph, and UI composition</summary>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-only</project_license>
+  <launchable type="desktop-id">org.deltaq.deltaq.desktop</launchable>
+  <url type="homepage">https://github.com/Vldimirus/IDE_DeltaQ</url>
+  <developer id="org.deltaq">
+    <name>Vladimir Kononenko</name>
+  </developer>
+  <description>
+    <p>
+      DeltaQ is a modular IDE that combines text editing, graph composition,
+      reusable modules, code generation, and UI design in one workflow.
+    </p>
+  </description>
+  <categories>
+    <category>Development</category>
+    <category>IDE</category>
+  </categories>
+</component>

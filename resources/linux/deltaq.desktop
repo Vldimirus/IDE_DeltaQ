@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=DeltaQ IDE
+Comment=Modular IDE for code, graph, and UI composition
+Exec=deltaq
+Icon=deltaq
+Categories=Development;IDE;Qt;
+Terminal=false
+StartupNotify=true

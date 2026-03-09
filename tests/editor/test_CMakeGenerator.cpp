@@ -74,6 +74,29 @@ private slots:
         QVERIFY(content.contains("src/helper.c"));
     }
 
+    void testGenerateNormalizesDialectLabels()
+    {
+        QTemporaryDir tmpDir;
+        QVERIFY(tmpDir.isValid());
+
+        QFile mainFile(tmpDir.path() + "/main.c");
+        QVERIFY(mainFile.open(QIODevice::WriteOnly));
+        mainFile.write("int main(void) { return 0; }\n");
+        mainFile.close();
+
+        CMakeGenerator gen;
+        gen.generate(tmpDir.path(), "DialectTest", "c17", "c++20");
+
+        QFile cmake(tmpDir.path() + "/CMakeLists.txt");
+        QVERIFY(cmake.open(QIODevice::ReadOnly));
+        const QString content = cmake.readAll();
+
+        QVERIFY(content.contains("CMAKE_C_STANDARD 17"));
+        QVERIFY(content.contains("CMAKE_CXX_STANDARD 20"));
+        QVERIFY(!content.contains("CMAKE_C_STANDARD c17"));
+        QVERIFY(!content.contains("CMAKE_CXX_STANDARD c++20"));
+    }
+
     void testSkipBuildDir()
     {
         QTemporaryDir tmpDir;

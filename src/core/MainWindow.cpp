@@ -7,6 +7,7 @@
 #include "SessionManager.h"
 #include "ActionManager.h"
 #include "UndoManager.h"
+#include "StandardLibrary.h"
 #include "NewProjectWizard.h"
 #include "NewFileDialog.h"
 #include "SettingsDialog.h"
@@ -33,7 +34,7 @@
 #include "../codegen/CompilerDetector.h"
 #include "../uiDesigner/UIDesignerWidget.h"
 #include "../uiDesigner/UIModuleFactory.h"
-// StandardLibrary модули загружаются из <app_dir>/modules/ (копируются CMake при сборке)
+// Bundled core pack используется как source-of-truth и копируется в writable global root.
 #include "../uiDesigner/DesignScene.h"
 #include "../uiDesigner/WidgetItem.h"
 #include "../uiDesigner/UICommands.h"
@@ -55,8 +56,11 @@
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QPlainTextEdit>
+#include <QProcess>
 #include <QPushButton>
+#include <QTextStream>
 #include <QTextEdit>
+#include <QTimer>
 #include <QVBoxLayout>
 #include <QLabel>
 #include <QActionGroup>
@@ -175,10 +179,13 @@ void MainWindow::setupCoreServices()
     // 1. Убедиться, что директория модулей существует
     m_sessionManager->ensureGlobalDirs();
 
-    // 2. Регистрация UI-модулей (фиксированные виджеты)
+    // 2. Синхронизировать bundled core pack в writable global root.
+    StandardLibrary::install(m_sessionManager->coreModulesDir());
+
+    // 3. Регистрация UI-модулей (фиксированные виджеты)
     UIModuleFactory::registerAll(m_moduleRegistry);
 
-    // 3. Загрузка модулей из <app_dir>/modules/ (core + расширения)
+    // 4. Загрузка модулей из writable global root (core + расширения)
     m_moduleRegistry->loadGlobalModules(m_sessionManager->globalModulesDir());
 }
 
@@ -494,6 +501,28 @@ void MainWindow::setupConnections()
         else
             statusBar()->showMessage(tr("Build failed: %1 error(s), %2 warning(s)")
                 .arg(errors).arg(warnings), 5000);
+    });
+    connect(m_buildPipeline, &BuildPipeline::pipelineFinished, this, [this](bool success) {
+        if (!m_startupAutomation.active || !m_startupAutomation.awaitingBuild)
+            return;
+
+        m_startupAutomation.awaitingBuild = false;
+        if (!success) {
+            finishStartupAutomation(false, tr("Automation build failed"));
+            return;
+        }
+
+        if (m_startupAutomation.runProject) {
+            QString errorMessage;
+            if (!startProjectRun(m_startupAutomation.stdinText, &errorMessage)) {
+                finishStartupAutomation(false, errorMessage);
+                return;
+            }
+            m_startupAutomation.awaitingRun = true;
+            return;
+        }
+
+        finishStartupAutomation(true, tr("Automation build succeeded"));
     });
     connect(m_buildDiagnostics, &QTreeWidget::itemDoubleClicked,
             this, &MainWindow::onBuildDiagnosticActivated);
@@ -910,15 +939,12 @@ void MainWindow::onNewProject()
     }
 
     const QString projectFilePath = dir + "/" + name + ".dqproj";
-    if (!m_projectManager->openProject(projectFilePath)) {
+    QString openError;
+    if (!openProjectPath(projectFilePath, &openError)) {
         QMessageBox::warning(this, tr("Error"), tr("Failed to open created project"));
         return;
     }
-
-    m_projectTree->setRootPath(dir);
-    m_sessionManager->addRecentProject(m_projectManager->currentProject().projectFilePath);
     m_sessionManager->setDefaultProjectDir(wizard.projectDir());
-    updateRecentProjectsMenu();
     statusBar()->showMessage(tr("Project '%1' created").arg(name), 3000);
 
     const QString mainPath = dir + "/src/main.c";
@@ -933,13 +959,13 @@ void MainWindow::onOpenProject()
     if (path.isEmpty())
         return;
 
-    if (m_projectManager->openProject(path)) {
-        m_projectTree->setRootPath(m_projectManager->projectDir());
-        m_sessionManager->addRecentProject(path);
-        updateRecentProjectsMenu();
+    QString errorMessage;
+    if (openProjectPath(path, &errorMessage)) {
         statusBar()->showMessage(tr("Project opened"), 3000);
     } else {
-        QMessageBox::warning(this, tr("Error"), tr("Failed to open project"));
+        QMessageBox::warning(this, tr("Error"),
+                             errorMessage.isEmpty() ? tr("Failed to open project")
+                                                    : errorMessage);
     }
 }
 
@@ -981,20 +1007,21 @@ void MainWindow::onBuild()
     m_outputDock->show();
 
     // Подключаем вывод pipeline к buildOutput (однократно через lambda)
-    auto conn = connect(m_buildPipeline, &BuildPipeline::pipelineOutput,
+    const auto outputConn = std::make_shared<QMetaObject::Connection>();
+    *outputConn = connect(m_buildPipeline, &BuildPipeline::pipelineOutput,
                         this, [this](const QString &text) {
         appendBuildOutputChunk(text);
     });
 
     // По завершению pipeline отключаем соединение
     connect(m_buildPipeline, &BuildPipeline::pipelineFinished,
-            this, [this, conn](bool success) {
-        disconnect(conn);
+            this, [this, outputConn](bool success) {
+        disconnect(*outputConn);
         if (success)
             statusBar()->showMessage(tr("Build completed"), 3000);
         else
             statusBar()->showMessage(tr("Build failed"), 3000);
-    });
+    }, Qt::SingleShotConnection);
 
     // Запускаем двухфазную сборку
     m_buildPipeline->run(m_projectManager->projectDir(),
@@ -1020,49 +1047,13 @@ void MainWindow::onRun()
         return;
     }
 
-    // Ищем исполняемый файл в build/
-    QString buildDir = m_projectManager->projectDir() + "/build";
-    QString projectName = m_projectManager->currentProject().name;
-
-    // Пробуем найти бинарник с именем проекта
-    QStringList candidates = {
-        buildDir + "/" + projectName,
-        buildDir + "/src/" + projectName,
-        buildDir + "/" + projectName.toLower(),
-    };
-
-    QString executable;
-    for (const auto &path : candidates) {
-        if (QFile::exists(path)) {
-            executable = path;
-            break;
-        }
+    QString errorMessage;
+    if (!startProjectRun({}, &errorMessage)) {
+        statusBar()->showMessage(errorMessage.isEmpty()
+                                     ? tr("Executable not found — build first")
+                                     : errorMessage,
+                                 3000);
     }
-
-    if (executable.isEmpty()) {
-        statusBar()->showMessage(tr("Executable not found — build first"), 3000);
-        return;
-    }
-
-    m_appOutput->clear();
-    m_outputTabs->setCurrentWidget(m_appOutput);
-    m_outputDock->show();
-
-    auto *process = new QProcess(this);
-    process->setWorkingDirectory(m_projectManager->projectDir());
-    connect(process, &QProcess::readyReadStandardOutput, this, [this, process]() {
-        m_appOutput->append(process->readAllStandardOutput());
-    });
-    connect(process, &QProcess::readyReadStandardError, this, [this, process]() {
-        m_appOutput->append(process->readAllStandardError());
-    });
-    connect(process, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
-            this, [this, process](int exitCode, QProcess::ExitStatus) {
-        m_appOutput->append(tr("\n=== Process exited (code: %1) ===").arg(exitCode));
-        process->deleteLater();
-    });
-    process->start(executable, {});
-    statusBar()->showMessage(tr("Running %1").arg(projectName), 3000);
 }
 
 void MainWindow::onDebugStart()
@@ -1758,13 +1749,14 @@ void MainWindow::updateRecentProjectsMenu()
         action->setToolTip(path);
         action->setData(path);
         connect(action, &QAction::triggered, this, [this, path]() {
-            if (m_projectManager->openProject(path)) {
-                m_projectTree->setRootPath(m_projectManager->projectDir());
-                m_sessionManager->addRecentProject(path);
-                updateRecentProjectsMenu();
+            QString errorMessage;
+            if (openProjectPath(path, &errorMessage)) {
                 statusBar()->showMessage(tr("Project opened"), 3000);
             } else {
-                QMessageBox::warning(this, tr("Error"), tr("Failed to open project: %1").arg(path));
+                QMessageBox::warning(this, tr("Error"),
+                                     errorMessage.isEmpty()
+                                         ? tr("Failed to open project: %1").arg(path)
+                                         : errorMessage);
             }
         });
     }
@@ -1787,6 +1779,218 @@ void MainWindow::restoreSession()
         restoreState(state);
 
     // Пустой запуск — проект и вкладки не восстанавливаются
+}
+
+void MainWindow::startStartupAutomation(const QString &projectFilePath,
+                                        bool buildProject,
+                                        bool runProject,
+                                        bool quitWhenDone,
+                                        const QString &runStdin,
+                                        const QString &expectedRunOutput)
+{
+    if (m_startupAutomation.active)
+        return;
+
+    m_startupAutomation.active = true;
+    m_startupAutomation.buildProject = buildProject;
+    m_startupAutomation.runProject = runProject;
+    m_startupAutomation.quitWhenDone = quitWhenDone;
+    m_startupAutomation.awaitingBuild = buildProject;
+    m_startupAutomation.awaitingRun = false;
+    m_startupAutomation.stdinText = runStdin;
+    m_startupAutomation.expectedRunOutput = expectedRunOutput;
+
+    QTimer::singleShot(0, this, [this, projectFilePath]() {
+        QString errorMessage;
+        if (!openProjectPath(projectFilePath, &errorMessage)) {
+            finishStartupAutomation(false, errorMessage);
+            return;
+        }
+
+        if (m_startupAutomation.buildProject) {
+            onBuild();
+            return;
+        }
+
+        if (m_startupAutomation.runProject) {
+            if (!startProjectRun(m_startupAutomation.stdinText, &errorMessage)) {
+                finishStartupAutomation(false, errorMessage);
+                return;
+            }
+            m_startupAutomation.awaitingRun = true;
+            return;
+        }
+
+        finishStartupAutomation(true, tr("Automation completed"));
+    });
+}
+
+bool MainWindow::openProjectPath(const QString &path, QString *errorMessage)
+{
+    if (!m_projectManager->openProject(path)) {
+        if (errorMessage)
+            *errorMessage = tr("Failed to open project: %1").arg(path);
+        return false;
+    }
+
+    if (m_projectTree)
+        m_projectTree->setRootPath(m_projectManager->projectDir());
+    m_sessionManager->addRecentProject(path);
+    updateRecentProjectsMenu();
+
+    if (errorMessage)
+        errorMessage->clear();
+    return true;
+}
+
+QString MainWindow::resolveProjectExecutable() const
+{
+    if (!m_projectManager->isProjectOpen())
+        return {};
+
+    const QString buildDir = m_projectManager->projectDir() + "/build";
+    const QString projectName = m_projectManager->currentProject().name;
+    const QStringList candidates = {
+        buildDir + "/" + projectName,
+        buildDir + "/src/" + projectName,
+        buildDir + "/" + projectName.toLower(),
+    };
+
+    for (const auto &path : candidates) {
+        if (QFile::exists(path))
+            return path;
+    }
+
+    return {};
+}
+
+bool MainWindow::startProjectRun(const QString &stdinText, QString *errorMessage)
+{
+    if (!m_projectManager->isProjectOpen()) {
+        if (errorMessage)
+            *errorMessage = tr("No project open");
+        return false;
+    }
+
+    if (m_runProcess && m_runProcess->state() != QProcess::NotRunning) {
+        if (errorMessage)
+            *errorMessage = tr("Project is already running");
+        return false;
+    }
+
+    const QString executable = resolveProjectExecutable();
+    if (executable.isEmpty()) {
+        if (errorMessage)
+            *errorMessage = tr("Executable not found — build first");
+        return false;
+    }
+
+    m_lastRunStdout.clear();
+    m_lastRunStderr.clear();
+    m_appOutput->clear();
+    m_outputTabs->setCurrentWidget(m_appOutput);
+    m_outputDock->show();
+
+    auto *process = new QProcess(this);
+    m_runProcess = process;
+    process->setWorkingDirectory(m_projectManager->projectDir());
+
+    connect(process, &QProcess::started, this, [process, stdinText]() {
+        if (stdinText.isEmpty())
+            return;
+        process->write(stdinText.toUtf8());
+        process->closeWriteChannel();
+    });
+    connect(process, &QProcess::readyReadStandardOutput, this, [this, process]() {
+        const QString chunk = QString::fromLocal8Bit(process->readAllStandardOutput());
+        m_lastRunStdout += chunk;
+        m_appOutput->append(chunk);
+    });
+    connect(process, &QProcess::readyReadStandardError, this, [this, process]() {
+        const QString chunk = QString::fromLocal8Bit(process->readAllStandardError());
+        m_lastRunStderr += chunk;
+        m_appOutput->append(chunk);
+    });
+    connect(process, &QProcess::errorOccurred, this, [this, process](QProcess::ProcessError) {
+        if (!m_startupAutomation.active || !m_startupAutomation.awaitingRun
+            || process != m_runProcess) {
+            return;
+        }
+
+        finishStartupAutomation(false, tr("Automation run failed to start"));
+    });
+    connect(process, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
+            this, [this, process](int exitCode, QProcess::ExitStatus status) {
+        m_appOutput->append(tr("\n=== Process exited (code: %1) ===").arg(exitCode));
+
+        const bool automationRun = m_startupAutomation.active
+            && m_startupAutomation.awaitingRun
+            && process == m_runProcess;
+        const bool success = (status == QProcess::NormalExit && exitCode == 0);
+        const QString expectedOutput = m_startupAutomation.expectedRunOutput;
+
+        process->deleteLater();
+        m_runProcess = nullptr;
+
+        if (!automationRun)
+            return;
+
+        m_startupAutomation.awaitingRun = false;
+
+        if (!success) {
+            finishStartupAutomation(false, tr("Automation run failed with exit code %1")
+                                               .arg(exitCode));
+            return;
+        }
+
+        if (!expectedOutput.isEmpty() && !m_lastRunStdout.contains(expectedOutput)) {
+            finishStartupAutomation(false,
+                                    tr("Automation run output did not match expected text"));
+            return;
+        }
+
+        finishStartupAutomation(true, tr("Automation build/run completed"));
+    });
+
+    process->start(executable, {});
+    statusBar()->showMessage(tr("Running %1").arg(m_projectManager->currentProject().name), 3000);
+
+    if (errorMessage)
+        errorMessage->clear();
+    return true;
+}
+
+void MainWindow::finishStartupAutomation(bool success, const QString &message)
+{
+    if (!m_startupAutomation.active)
+        return;
+
+    const bool quitWhenDone = m_startupAutomation.quitWhenDone;
+    QTextStream stream(success ? stdout : stderr);
+    stream << "DeltaQ automation: "
+           << (success ? "OK" : "FAILED")
+           << ": "
+           << message
+           << Qt::endl;
+
+    if (!success && m_buildOutput) {
+        const QStringList lines = m_buildOutput->toPlainText().split('\n');
+        if (!lines.isEmpty()) {
+            const qsizetype tailStart = std::max<qsizetype>(0, lines.size() - 20);
+            stream << "Automation build log tail:" << Qt::endl;
+            for (qsizetype i = tailStart; i < lines.size(); ++i)
+                stream << lines.at(i) << Qt::endl;
+        }
+    }
+
+    m_startupAutomation = {};
+
+    if (!quitWhenDone)
+        return;
+
+    QTimer::singleShot(0, qApp, [success]() {
+        QCoreApplication::exit(success ? 0 : 1);
+    });
 }
 
 void MainWindow::saveSession()

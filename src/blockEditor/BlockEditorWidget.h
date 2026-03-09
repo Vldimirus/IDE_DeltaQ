@@ -61,6 +61,8 @@ private slots:
     void onNodeDoubleClicked(const QString &nodeId);
 
 private:
+    QRectF fitTargetRect() const;
+    void applyAutoFitTransform(const QRectF &targetRect);
     void setupToolBar();
     void deleteSelected();
 
@@ -91,6 +93,7 @@ private:
     static constexpr qreal MinZoom = 0.1;
     static constexpr qreal MaxZoom = 5.0;
     static constexpr qreal ZoomStep = 1.15;
+    static constexpr qreal AutoFitMaxZoom = 1.0;
 };
 
 } // namespace DeltaQ

@@ -31,6 +31,14 @@ DeltaQ IDE построена вокруг одного прозрачного w
 - **Самые сильные встроенные сценарии:** console flow, desktop/UI flow, reusable composition и imported-pack integration.
 - **Граница текущего релиза:** Windows и macOS находятся в roadmap и не должны восприниматься как уже закрытый delivery scope.
 
+## С чего начать
+
+Если нужно, чтобы DeltaQ читалась как один цельный Linux-first продукт, а не набор отдельных подсистем, используйте такие точки входа:
+
+- [docs/onboarding/README_RU.md](docs/onboarding/README_RU.md) — путь нового пользователя от first run к более сильным showcase-примерам.
+- [resources/examples/README_RU.md](resources/examples/README_RU.md) — каталог examples, рекомендуемый порядок и пояснение, что доказывает каждый checked-in проект.
+- [docs/release/linux_first_release_checklist_ru.md](docs/release/linux_first_release_checklist_ru.md) — ручной путь приёмки Linux tarball/AppImage artifacts.
+
 ---
 
 ## Возможности
@@ -170,6 +178,15 @@ cmake .. -DCMAKE_BUILD_TYPE=Release -DDQ_BUILD_TESTS=OFF
 
 - `docs/onboarding/first_run_ru.md`
 
+Если нужен не один walkthrough, а полный путь нового пользователя, переходите дальше:
+
+- [docs/onboarding/README_RU.md](docs/onboarding/README_RU.md)
+- [resources/examples/README_RU.md](resources/examples/README_RU.md)
+
+Если вы проверяете не source checkout, а packaged Linux artifact, используйте:
+
+- [docs/release/linux_first_release_checklist_ru.md](docs/release/linux_first_release_checklist_ru.md)
+
 ## Шаблоны проектов и примеры
 
 Теперь DeltaQ загружает шаблоны проектов напрямую из файлов в `resources/templates/`, а не генерирует стартовые исходники внутри IDE.
@@ -181,12 +198,30 @@ cmake .. -DCMAKE_BUILD_TYPE=Release -DDQ_BUILD_TESTS=OFF
 - **Desktop Text Editor** — простой SDL2 текстовый редактор с верхним меню
 - **Desktop Multi Window Workspace** — рабочая область с дочерними окнами внутри главного окна
 
-Сейчас в репозитории есть 4 готовых проекта-примера в `resources/examples/`:
+Сейчас в репозитории есть 5 готовых проектов-примеров в `resources/examples/`:
 
 - `minimal_console_flow` — самый короткий onboarding-путь для `модуль -> граф -> generated C code -> build -> run`
 - `desktop_ui_flow` — desktop/UI showcase с generated SDL2 runtime и живыми event handlers
 - `reusable_composition_console` — подмодули и повторное использование в одном корневом графе
 - `imported_pack_sensor_console` — curated imported pack путь от внешней библиотеки до рабочего graph/runtime
+- `imported_pack_checksum_console` — второй curated imported-pack путь для algorithmic/text-processing расширения
+
+Полный каталог, рекомендуемый порядок и различие между user-facing examples и fixture SDK trees зафиксированы в:
+
+- [resources/examples/README_RU.md](resources/examples/README_RU.md)
+
+## Почему стандартная библиотека важна
+
+Checked-in библиотека `core` нужна не для того, чтобы выиграть количеством модулей. Её задача — убрать повторяющийся glue-code в первых полезных сценариях.
+
+- `minimal_console_flow` показывает, что `core.io.string_constant`, `core.io.read_line` и `core.io.println` уже достаточно, чтобы собрать реальный интерактивный console flow без написания стартовых пользовательских модулей.
+- `reusable_composition_console` показывает, что `core.string.str_concat`, `core.string.str_length`, `core.conversion.int_to_string` и `core.io.println` уже позволяют собирать переиспользуемые составные модули вместо одноразового helper-кода.
+- `desktop_ui_flow` показывает, что `core.desktop.*` уже выражает SDL2 lifecycle как graphable building blocks, поэтому граф остаётся на уровне логики приложения, а не ручного init/event-loop/teardown boilerplate.
+
+Подробная раскладка по сценариям зафиксирована в:
+
+- `docs/library/value_proof.md`
+- `docs/library/README.md`
 
 ---
 

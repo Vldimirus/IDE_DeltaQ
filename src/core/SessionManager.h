@@ -15,6 +15,14 @@ public:
     // Тестовый конструктор — изолированные QSettings
     SessionManager(const QString &org, const QString &app, QObject *parent = nullptr);
 
+    // Общий writable-root DeltaQ. Можно переопределить через DELTAQ_HOME.
+    static QString deltaQHomeDir();
+    static QString configDirPath();
+    static QString settingsFilePath();
+    static QString globalModulesDirPath();
+    static QString coreModulesDirPath();
+    static QString storedLanguage();
+
     QStringList recentProjects() const;
     void addRecentProject(const QString &path);
     void clearRecentProjects();
@@ -41,9 +49,9 @@ public:
     QString defaultProjectDir() const;
     void setDefaultProjectDir(const QString &path);
 
-    // Папка модулей (рядом с исполняемым файлом)
-    QString globalModulesDir() const;   // <app_dir>/modules/
-    QString coreModulesDir() const;     // <app_dir>/modules/core/
+    // Глобальная writable-папка модулей (~/.deltaq/modules по умолчанию)
+    QString globalModulesDir() const;
+    QString coreModulesDir() const;
     void ensureGlobalDirs() const;
 
     // Editor settings

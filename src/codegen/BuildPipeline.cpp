@@ -68,6 +68,12 @@ BuildPipeline::BuildPipeline(PreBuildProcessor *preBuild, BuildManager *buildMan
     // Пробрасываем сообщения от pre-build процессора
     connect(m_preBuild, &PreBuildProcessor::progressMessage,
             this, &BuildPipeline::pipelineOutput);
+
+    // Pipeline считается завершённым только после фактического окончания compile phase.
+    connect(m_buildManager, &BuildManager::buildFinished,
+            this, [this](bool success, int, int) {
+        emit pipelineFinished(success);
+    });
 }
 
 void BuildPipeline::run(const QString &projectDir, const QString &projectName,

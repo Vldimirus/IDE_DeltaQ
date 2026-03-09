@@ -37,6 +37,10 @@ target_link_libraries(deltaq PRIVATE
     Qt6::Widgets
 )
 
+target_compile_definitions(deltaq PRIVATE
+    DQ_APP_VERSION="${PROJECT_VERSION}"
+)
+
 # Копирование библиотеки модулей рядом с исполняемым файлом
 add_custom_command(TARGET deltaq POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory
@@ -61,9 +65,26 @@ add_custom_command(TARGET deltaq POST_BUILD
     COMMENT "Copying reference examples to build output..."
 )
 
+install(TARGETS deltaq
+    RUNTIME DESTINATION .
+)
+
+install(DIRECTORY ${CMAKE_SOURCE_DIR}/modules/
+    DESTINATION modules
+)
+
+install(DIRECTORY ${CMAKE_SOURCE_DIR}/resources/templates/
+    DESTINATION templates
+)
+
+install(DIRECTORY ${CMAKE_SOURCE_DIR}/resources/examples/
+    DESTINATION examples
+)
+
 # Цели для генерации переводов
 set(TS_FILE "${CMAKE_SOURCE_DIR}/resources/translations/deltaq_ru.ts")
 set(QM_OUTPUT_DIR "${CMAKE_CURRENT_BINARY_DIR}/translations")
+set(QM_FILE "${QM_OUTPUT_DIR}/deltaq_ru.qm")
 
 if(LUPDATE_EXECUTABLE AND LRELEASE_EXECUTABLE)
     # lupdate: извлечение строк из исходников в .ts
@@ -75,11 +96,28 @@ if(LUPDATE_EXECUTABLE AND LRELEASE_EXECUTABLE)
         COMMENT "Extracting translatable strings with lupdate..."
     )
 
-    # lrelease: компиляция .ts → .qm + копирование рядом с исполняемым файлом
-    add_custom_target(translations
+    # lrelease: компиляция .ts → .qm рядом с исполняемым файлом
+    add_custom_command(
+        OUTPUT ${QM_FILE}
         COMMAND ${CMAKE_COMMAND} -E make_directory ${QM_OUTPUT_DIR}
         COMMAND ${LRELEASE_EXECUTABLE} ${TS_FILE}
-            -qm ${QM_OUTPUT_DIR}/deltaq_ru.qm
+            -qm ${QM_FILE}
+        DEPENDS ${TS_FILE}
         COMMENT "Compiling translations with lrelease..."
+    )
+
+    add_custom_target(translations
+        DEPENDS ${QM_FILE}
+    )
+
+    add_dependencies(deltaq translations)
+
+    install(FILES ${QM_FILE}
+        DESTINATION translations
+    )
+else()
+    install(DIRECTORY ${CMAKE_SOURCE_DIR}/resources/translations/
+        DESTINATION translations
+        FILES_MATCHING PATTERN "*.ts"
     )
 endif()

@@ -6,6 +6,7 @@
 #include <QTreeWidget>
 #include <QLineEdit>
 #include <QComboBox>
+#include <QCheckBox>
 #include <QTextEdit>
 #include <QPushButton>
 #include <QLabel>
@@ -67,6 +68,7 @@ private:
     void updatePortTable(const Module &module);
     void updatePreview(const Module &module);
     void updateModuleStateSummary(const Module &module);
+    void updateModuleEcosystemSummary(const Module &module);
     void updateModuleTreeItemState(QTreeWidgetItem *item, const Module &module);
     void updateVerificationPanel(const Module &module);
     void invalidateVerificationStatus(Module &module);
@@ -83,6 +85,8 @@ private:
     QTreeWidget *m_tree = nullptr;
     QLineEdit *m_searchEdit = nullptr;
     QComboBox *m_langFilter = nullptr;
+    QCheckBox *m_showSpecializedCheck = nullptr;
+    QCheckBox *m_showLegacyCheck = nullptr;
     QPushButton *m_newBtn = nullptr;
     QPushButton *m_newPackBtn = nullptr;
     QPushButton *m_deleteBtn = nullptr;
@@ -99,6 +103,9 @@ private:
     QTextEdit *m_docLimitationsEdit = nullptr;
     QLabel *m_moduleStateBadge = nullptr;
     QLabel *m_moduleStateDetails = nullptr;
+    QLabel *m_moduleLayerLabel = nullptr;
+    QLabel *m_moduleRoleLabel = nullptr;
+    QLabel *m_moduleQualityLabel = nullptr;
 
     // Зависимости (#include)
     QTextEdit *m_includesEdit = nullptr;

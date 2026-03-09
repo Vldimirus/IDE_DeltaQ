@@ -1,6 +1,7 @@
 // Генератор SDL2 C-кода — реализация
 #include "SDL2CodeGenerator.h"
 #include <deltaq/UILayout.h>
+#include <QStringList>
 #include <QTextStream>
 #include <QVector>
 
@@ -32,6 +33,17 @@ QString widgetContractType(const UIWidget &widget)
 {
     const QString contractType = widget.contractType();
     return contractType.isEmpty() ? canonicalUIContractType(widget.type) : contractType;
+}
+
+QString cStringLiteral(const QString &value)
+{
+    QString escaped = value;
+    escaped.replace("\\", "\\\\");
+    escaped.replace("\"", "\\\"");
+    escaped.replace("\n", "\\n");
+    escaped.replace("\r", "\\r");
+    escaped.replace("\t", "\\t");
+    return "\"" + escaped + "\"";
 }
 
 // Сравнение по contract type, чтобы generated UI не зависел от legacy-имён `.dqui`.
@@ -115,7 +127,7 @@ QString SDL2CodeGenerator::generateMainFile(const UILayout &layout, const QStrin
     int h = static_cast<int>(layout.window.geometry.height());
 
     out << "    DQ_UIBackendContext backend;\n";
-    out << "    if (!dq_ui_backend_init(&backend, \"" << layout.name << "\", " << w << ", " << h << ")) {\n";
+    out << "    if (!dq_ui_backend_init(&backend, " << cStringLiteral(layout.name) << ", " << w << ", " << h << ")) {\n";
     out << "        return 1;\n";
     out << "    }\n\n";
 
@@ -290,6 +302,24 @@ QString SDL2CodeGenerator::generateUIHeader(const UILayout &layout, const QStrin
             out << "    bool hovered;\n";
             out << "    bool pressed;\n";
             out << "} " << sn << ";\n\n";
+        } else if (contractType == "scroll_panel") {
+            out << "typedef struct {\n";
+            out << "    SDL_Rect rect;\n";
+            out << "    SDL_Rect base_rect;\n";
+            out << "    int scroll_y;\n";
+            out << "} " << sn << ";\n\n";
+        } else if (contractType == "tab_panel") {
+            out << "typedef struct {\n";
+            out << "    SDL_Rect rect;\n";
+            out << "    SDL_Rect base_rect;\n";
+            out << "    int active_tab;\n";
+            out << "} " << sn << ";\n\n";
+        } else if (contractType == "group_box") {
+            out << "typedef struct {\n";
+            out << "    SDL_Rect rect;\n";
+            out << "    SDL_Rect base_rect;\n";
+            out << "    const char *text;\n";
+            out << "} " << sn << ";\n\n";
         } else if (contractType == "label") {
             out << "typedef struct {\n";
             out << "    SDL_Rect rect;\n";
@@ -319,6 +349,31 @@ QString SDL2CodeGenerator::generateUIHeader(const UILayout &layout, const QStrin
             out << "    const char *text;\n";
             out << "    bool checked;\n";
             out << "} " << sn << ";\n\n";
+        } else if (contractType == "radio_button") {
+            out << "typedef struct {\n";
+            out << "    SDL_Rect rect;\n";
+            out << "    SDL_Rect base_rect;\n";
+            out << "    const char *text;\n";
+            out << "    bool selected;\n";
+            out << "} " << sn << ";\n\n";
+        } else if (contractType == "combo_box") {
+            out << "typedef struct {\n";
+            out << "    SDL_Rect rect;\n";
+            out << "    SDL_Rect base_rect;\n";
+            out << "    const char *items;\n";
+            out << "    int selected;\n";
+            out << "    bool hovered;\n";
+            out << "    bool pressed;\n";
+            out << "    char display_text[128];\n";
+            out << "} " << sn << ";\n\n";
+        } else if (contractType == "spin_box") {
+            out << "typedef struct {\n";
+            out << "    SDL_Rect rect;\n";
+            out << "    SDL_Rect base_rect;\n";
+            out << "    int min_val, max_val, value;\n";
+            out << "    bool hovered;\n";
+            out << "    bool pressed;\n";
+            out << "} " << sn << ";\n\n";
         } else if (contractType == "slider") {
             out << "typedef struct {\n";
             out << "    SDL_Rect rect;\n";
@@ -333,10 +388,51 @@ QString SDL2CodeGenerator::generateUIHeader(const UILayout &layout, const QStrin
             out << "    int min_val, max_val, value;\n";
             out << "    bool show_text;\n";
             out << "} " << sn << ";\n\n";
+        } else if (contractType == "canvas") {
+            out << "typedef struct {\n";
+            out << "    SDL_Rect rect;\n";
+            out << "    SDL_Rect base_rect;\n";
+            out << "} " << sn << ";\n\n";
+        } else if (contractType == "table") {
+            out << "typedef struct {\n";
+            out << "    SDL_Rect rect;\n";
+            out << "    SDL_Rect base_rect;\n";
+            out << "} " << sn << ";\n\n";
+        } else if (contractType == "list_view") {
+            out << "typedef struct {\n";
+            out << "    SDL_Rect rect;\n";
+            out << "    SDL_Rect base_rect;\n";
+            out << "} " << sn << ";\n\n";
+        } else if (contractType == "tree_view") {
+            out << "typedef struct {\n";
+            out << "    SDL_Rect rect;\n";
+            out << "    SDL_Rect base_rect;\n";
+            out << "} " << sn << ";\n\n";
         } else if (contractType == "panel") {
             out << "typedef struct {\n";
             out << "    SDL_Rect rect;\n";
             out << "    SDL_Rect base_rect;\n";
+            out << "} " << sn << ";\n\n";
+        } else if (contractType == "menu_bar") {
+            out << "typedef struct {\n";
+            out << "    SDL_Rect rect;\n";
+            out << "    SDL_Rect base_rect;\n";
+            out << "} " << sn << ";\n\n";
+        } else if (contractType == "tool_bar") {
+            out << "typedef struct {\n";
+            out << "    SDL_Rect rect;\n";
+            out << "    SDL_Rect base_rect;\n";
+            out << "} " << sn << ";\n\n";
+        } else if (contractType == "status_bar") {
+            out << "typedef struct {\n";
+            out << "    SDL_Rect rect;\n";
+            out << "    SDL_Rect base_rect;\n";
+            out << "} " << sn << ";\n\n";
+        } else if (contractType == "image") {
+            out << "typedef struct {\n";
+            out << "    SDL_Rect rect;\n";
+            out << "    SDL_Rect base_rect;\n";
+            out << "    const char *path;\n";
             out << "} " << sn << ";\n\n";
         } else {
             // Общая заглушка
@@ -390,6 +486,30 @@ QString SDL2CodeGenerator::generateUISource(const UILayout &layout, const QStrin
         return "DQ_UIRuntimeLayout_None";
     };
 
+    auto radioSiblingNames = [&](const QString &targetName, const UIWidget &parent,
+                                 const auto &radioSiblingNamesRef) -> QStringList {
+        QStringList localRadioNames;
+        bool foundDirectChild = false;
+
+        for (const auto &child : parent.children) {
+            if (widgetMatchesContract(child, "radio_button"))
+                localRadioNames.append(sanitizeName(child.name));
+            if (sanitizeName(child.name) == targetName)
+                foundDirectChild = true;
+        }
+
+        if (foundDirectChild)
+            return localRadioNames;
+
+        for (const auto &child : parent.children) {
+            const QStringList nested = radioSiblingNamesRef(targetName, child, radioSiblingNamesRef);
+            if (!nested.isEmpty())
+                return nested;
+        }
+
+        return {};
+    };
+
     out << makeGeneratedLayoutBanner(layout, "UI implementation", baseName + ".c");
     out << "#include \"" << baseName << ".h\"\n";
     out << "#include \"" << baseName << "_events.h\"\n";
@@ -422,12 +542,17 @@ QString SDL2CodeGenerator::generateUISource(const UILayout &layout, const QStrin
     out << "    backend->renderer = SDL_CreateRenderer(backend->window, -1,\n";
     out << "        SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);\n";
     out << "    if (!backend->renderer) {\n";
-    out << "        SDL_Log(\"CreateRenderer failed: %s\", SDL_GetError());\n";
-    out << "        SDL_DestroyWindow(backend->window);\n";
-    out << "        backend->window = NULL;\n";
-    out << "        TTF_Quit();\n";
-    out << "        SDL_Quit();\n";
-    out << "        return false;\n";
+    out << "        SDL_Log(\"CreateRenderer accelerated path failed: %s\", SDL_GetError());\n";
+    out << "        backend->renderer = SDL_CreateRenderer(backend->window, -1,\n";
+    out << "            SDL_RENDERER_SOFTWARE);\n";
+    out << "        if (!backend->renderer) {\n";
+    out << "            SDL_Log(\"CreateRenderer software fallback failed: %s\", SDL_GetError());\n";
+    out << "            SDL_DestroyWindow(backend->window);\n";
+    out << "            backend->window = NULL;\n";
+    out << "            TTF_Quit();\n";
+    out << "            SDL_Quit();\n";
+    out << "            return false;\n";
+    out << "        }\n";
     out << "    }\n";
     out << "    return true;\n";
     out << "}\n\n";
@@ -760,6 +885,19 @@ QString SDL2CodeGenerator::generateUISource(const UILayout &layout, const QStrin
     out << "    }\n";
     out << "}\n\n";
 
+    out << "static bool dq_ui_runtime_widget_is_radio_button(DQ_UIWidgetId widget_id) {\n";
+    out << "    switch (widget_id) {\n";
+    for (const auto *w : widgets) {
+        if (widgetMatchesContract(*w, "radio_button")) {
+            out << "    case DQ_UIWidget_" << sanitizeName(w->name) << ":\n";
+            out << "        return true;\n";
+        }
+    }
+    out << "    default:\n";
+    out << "        return false;\n";
+    out << "    }\n";
+    out << "}\n\n";
+
     out << "static bool dq_ui_runtime_widget_is_text_field(DQ_UIWidgetId widget_id) {\n";
     out << "    switch (widget_id) {\n";
     for (const auto *w : widgets) {
@@ -799,14 +937,82 @@ QString SDL2CodeGenerator::generateUISource(const UILayout &layout, const QStrin
     out << "    }\n";
     out << "}\n\n";
 
+    out << "static bool dq_ui_runtime_widget_is_combo_box(DQ_UIWidgetId widget_id) {\n";
+    out << "    switch (widget_id) {\n";
+    for (const auto *w : widgets) {
+        if (widgetMatchesContract(*w, "combo_box")) {
+            out << "    case DQ_UIWidget_" << sanitizeName(w->name) << ":\n";
+            out << "        return true;\n";
+        }
+    }
+    out << "    default:\n";
+    out << "        return false;\n";
+    out << "    }\n";
+    out << "}\n\n";
+
+    out << "static bool dq_ui_runtime_widget_is_spin_box(DQ_UIWidgetId widget_id) {\n";
+    out << "    switch (widget_id) {\n";
+    for (const auto *w : widgets) {
+        if (widgetMatchesContract(*w, "spin_box")) {
+            out << "    case DQ_UIWidget_" << sanitizeName(w->name) << ":\n";
+            out << "        return true;\n";
+        }
+    }
+    out << "    default:\n";
+    out << "        return false;\n";
+    out << "    }\n";
+    out << "}\n\n";
+
+    out << "static int dq_ui_runtime_csv_item_count(const char *items) {\n";
+    out << "    int count = 0;\n";
+    out << "    const char *p = items;\n";
+    out << "    if (!items) return 0;\n";
+    out << "    while (*p) {\n";
+    out << "        while (*p == ',' || *p == ' ' || *p == '\\t' || *p == '\\n' || *p == '\\r') p++;\n";
+    out << "        if (!*p) break;\n";
+    out << "        count++;\n";
+    out << "        while (*p && *p != ',') p++;\n";
+    out << "        if (*p == ',') p++;\n";
+    out << "    }\n";
+    out << "    return count;\n";
+    out << "}\n\n";
+
+    out << "static void dq_ui_runtime_csv_item_text(const char *items, int selected, char *buffer, int buffer_size) {\n";
+    out << "    int current_index = 0;\n";
+    out << "    const char *p = items;\n";
+    out << "    if (!buffer || buffer_size <= 0) return;\n";
+    out << "    buffer[0] = '\\0';\n";
+    out << "    if (!items) return;\n";
+    out << "    if (selected < 0) selected = 0;\n";
+    out << "    while (*p) {\n";
+    out << "        while (*p == ',' || *p == ' ' || *p == '\\t' || *p == '\\n' || *p == '\\r') p++;\n";
+    out << "        if (!*p) break;\n";
+    out << "        const char *start = p;\n";
+    out << "        while (*p && *p != ',') p++;\n";
+    out << "        const char *end = p;\n";
+    out << "        while (end > start && (end[-1] == ' ' || end[-1] == '\\t' || end[-1] == '\\n' || end[-1] == '\\r')) end--;\n";
+    out << "        if (current_index == selected) {\n";
+    out << "            int len = (int)(end - start);\n";
+    out << "            if (len >= buffer_size) len = buffer_size - 1;\n";
+    out << "            if (len > 0) memcpy(buffer, start, len);\n";
+    out << "            buffer[len] = '\\0';\n";
+    out << "            return;\n";
+    out << "        }\n";
+    out << "        current_index++;\n";
+    out << "        if (*p == ',') p++;\n";
+    out << "    }\n";
+    out << "}\n\n";
+
     out << "static DQ_UIWidgetId dq_ui_runtime_hit_test(const UIState *ui, int x, int y) {\n";
     out << "    if (!ui) return DQ_UIWidget_None;\n";
     for (int i = widgets.size() - 1; i >= 0; --i) {
         const auto *w = widgets.at(i);
         const QString contractType = widgetContractType(*w);
         if (contractType == "button" || contractType == "checkbox" ||
+            contractType == "radio_button" ||
             contractType == "text_field" || contractType == "text_area" ||
-            contractType == "slider") {
+            contractType == "slider" || contractType == "combo_box" ||
+            contractType == "spin_box") {
             out << "    if (dq_ui_runtime_point_in_rect(&ui->" << sanitizeName(w->name)
                 << ".rect, x, y)) return DQ_UIWidget_" << sanitizeName(w->name) << ";\n";
         }
@@ -824,10 +1030,38 @@ QString SDL2CodeGenerator::generateUISource(const UILayout &layout, const QStrin
             out << "    ui->" << varName << ".pressed = ui->runtime.active_widget == DQ_UIWidget_" << varName << ";\n";
         } else if (contractType == "text_field") {
             out << "    ui->" << varName << ".focused = ui->runtime.focused_widget == DQ_UIWidget_" << varName << ";\n";
+        } else if (contractType == "combo_box") {
+            out << "    ui->" << varName << ".hovered = ui->runtime.hovered_widget == DQ_UIWidget_" << varName << ";\n";
+            out << "    ui->" << varName << ".pressed = ui->runtime.active_widget == DQ_UIWidget_" << varName << ";\n";
+        } else if (contractType == "spin_box") {
+            out << "    ui->" << varName << ".hovered = ui->runtime.hovered_widget == DQ_UIWidget_" << varName << ";\n";
+            out << "    ui->" << varName << ".pressed = ui->runtime.active_widget == DQ_UIWidget_" << varName << ";\n";
         } else if (contractType == "slider") {
             out << "    ui->" << varName << ".dragging = ui->runtime.active_widget == DQ_UIWidget_" << varName << ";\n";
         }
     }
+    out << "}\n\n";
+
+    out << "static void dq_ui_runtime_cycle_combo_box(UIState *ui, DQ_UIWidgetId widget_id) {\n";
+    out << "    if (!ui) return;\n";
+    out << "    switch (widget_id) {\n";
+    for (const auto *w : widgets) {
+        if (widgetMatchesContract(*w, "combo_box")) {
+            const QString varName = sanitizeName(w->name);
+            out << "    case DQ_UIWidget_" << varName << ":\n";
+            out << "    {\n";
+            out << "        int item_count = dq_ui_runtime_csv_item_count(ui->" << varName << ".items);\n";
+            out << "        if (item_count > 0) {\n";
+            out << "            ui->" << varName << ".selected = (ui->" << varName << ".selected + 1) % item_count;\n";
+            out << "            dq_ui_runtime_csv_item_text(ui->" << varName << ".items, ui->" << varName << ".selected, ui->" << varName << ".display_text, sizeof(ui->" << varName << ".display_text));\n";
+            out << "        }\n";
+            out << "        break;\n";
+            out << "    }\n";
+        }
+    }
+    out << "    default:\n";
+    out << "        break;\n";
+    out << "    }\n";
     out << "}\n\n";
 
     out << "static void dq_ui_runtime_dispatch_click(UIState *ui, DQ_UIWidgetId widget_id) {\n";
@@ -840,6 +1074,14 @@ QString SDL2CodeGenerator::generateUISource(const UILayout &layout, const QStrin
                 out << "        " << sanitizeName(w->events["onClick"]) << "(ui);\n";
             } else {
                 out << "        /* TODO: onClick handler */\n";
+            }
+            out << "        break;\n";
+        }
+        if (widgetMatchesContract(*w, "combo_box")) {
+            out << "    case DQ_UIWidget_" << sanitizeName(w->name) << ":\n";
+            out << "        dq_ui_runtime_cycle_combo_box(ui, DQ_UIWidget_" << sanitizeName(w->name) << ");\n";
+            if (w->events.contains("onSelectionChanged")) {
+                out << "        " << sanitizeName(w->events["onSelectionChanged"]) << "(ui);\n";
             }
             out << "        break;\n";
         }
@@ -857,6 +1099,48 @@ QString SDL2CodeGenerator::generateUISource(const UILayout &layout, const QStrin
             const QString varName = sanitizeName(w->name);
             out << "    case DQ_UIWidget_" << varName << ":\n";
             out << "        ui->" << varName << ".checked = !ui->" << varName << ".checked;\n";
+            out << "        break;\n";
+        }
+    }
+    out << "    default:\n";
+    out << "        break;\n";
+    out << "    }\n";
+    out << "}\n\n";
+
+    out << "static void dq_ui_runtime_dispatch_toggle(UIState *ui, DQ_UIWidgetId widget_id) {\n";
+    out << "    if (!ui) return;\n";
+    out << "    switch (widget_id) {\n";
+    for (const auto *w : widgets) {
+        if (widgetMatchesContract(*w, "checkbox") && w->events.contains("onToggled")) {
+            out << "    case DQ_UIWidget_" << sanitizeName(w->name) << ":\n";
+            out << "        " << sanitizeName(w->events["onToggled"]) << "(ui);\n";
+            out << "        break;\n";
+        }
+        if (widgetMatchesContract(*w, "radio_button") && w->events.contains("onToggled")) {
+            out << "    case DQ_UIWidget_" << sanitizeName(w->name) << ":\n";
+            out << "        " << sanitizeName(w->events["onToggled"]) << "(ui);\n";
+            out << "        break;\n";
+        }
+    }
+    out << "    default:\n";
+    out << "        break;\n";
+    out << "    }\n";
+    out << "}\n\n";
+
+    out << "static void dq_ui_runtime_select_radio_button(UIState *ui, DQ_UIWidgetId widget_id) {\n";
+    out << "    if (!ui) return;\n";
+    out << "    switch (widget_id) {\n";
+    for (const auto *w : widgets) {
+        if (widgetMatchesContract(*w, "radio_button")) {
+            const QString varName = sanitizeName(w->name);
+            const QStringList siblingNames = radioSiblingNames(varName, layout.window, radioSiblingNames);
+            out << "    case DQ_UIWidget_" << varName << ":\n";
+            for (const QString &siblingName : siblingNames) {
+                out << "        ui->" << siblingName << ".selected = "
+                    << (siblingName == varName ? "true" : "false") << ";\n";
+            }
+            if (siblingNames.isEmpty())
+                out << "        ui->" << varName << ".selected = true;\n";
             out << "        break;\n";
         }
     }
@@ -905,6 +1189,26 @@ QString SDL2CodeGenerator::generateUISource(const UILayout &layout, const QStrin
     out << "    }\n";
     out << "}\n\n";
 
+    out << "static void dq_ui_runtime_dispatch_value_changed(UIState *ui, DQ_UIWidgetId widget_id) {\n";
+    out << "    if (!ui) return;\n";
+    out << "    switch (widget_id) {\n";
+    for (const auto *w : widgets) {
+        if (widgetMatchesContract(*w, "slider") && w->events.contains("onValueChanged")) {
+            out << "    case DQ_UIWidget_" << sanitizeName(w->name) << ":\n";
+            out << "        " << sanitizeName(w->events["onValueChanged"]) << "(ui);\n";
+            out << "        break;\n";
+        }
+        if (widgetMatchesContract(*w, "spin_box") && w->events.contains("onValueChanged")) {
+            out << "    case DQ_UIWidget_" << sanitizeName(w->name) << ":\n";
+            out << "        " << sanitizeName(w->events["onValueChanged"]) << "(ui);\n";
+            out << "        break;\n";
+        }
+    }
+    out << "    default:\n";
+    out << "        break;\n";
+    out << "    }\n";
+    out << "}\n\n";
+
     out << "static void dq_ui_runtime_apply_wheel(UIState *ui, DQ_UIWidgetId widget_id, int wheel_delta_y) {\n";
     out << "    if (!ui) return;\n";
     out << "    switch (widget_id) {\n";
@@ -922,6 +1226,30 @@ QString SDL2CodeGenerator::generateUISource(const UILayout &layout, const QStrin
     out << "    }\n";
     out << "}\n\n";
 
+    out << "static void dq_ui_runtime_step_spin_box(UIState *ui, DQ_UIWidgetId widget_id, int mouse_x) {\n";
+    out << "    if (!ui) return;\n";
+    out << "    switch (widget_id) {\n";
+    for (const auto *w : widgets) {
+        if (widgetMatchesContract(*w, "spin_box")) {
+            const QString varName = sanitizeName(w->name);
+            out << "    case DQ_UIWidget_" << varName << ":\n";
+            out << "    {\n";
+            out << "        int old_value = ui->" << varName << ".value;\n";
+            out << "        int mid_x = ui->" << varName << ".rect.x + ui->" << varName << ".rect.w - 24;\n";
+            out << "        if (mouse_x >= mid_x) ui->" << varName << ".value += 1;\n";
+            out << "        else ui->" << varName << ".value -= 1;\n";
+            out << "        if (ui->" << varName << ".value < ui->" << varName << ".min_val) ui->" << varName << ".value = ui->" << varName << ".min_val;\n";
+            out << "        if (ui->" << varName << ".value > ui->" << varName << ".max_val) ui->" << varName << ".value = ui->" << varName << ".max_val;\n";
+            out << "        if (ui->" << varName << ".value != old_value) dq_ui_runtime_dispatch_value_changed(ui, widget_id);\n";
+            out << "        break;\n";
+            out << "    }\n";
+        }
+    }
+    out << "    default:\n";
+    out << "        break;\n";
+    out << "    }\n";
+    out << "}\n\n";
+
     out << "static void dq_ui_runtime_update_slider(UIState *ui, DQ_UIWidgetId widget_id, int mouse_x) {\n";
     out << "    if (!ui) return;\n";
     out << "    switch (widget_id) {\n";
@@ -930,6 +1258,7 @@ QString SDL2CodeGenerator::generateUISource(const UILayout &layout, const QStrin
             const QString varName = sanitizeName(w->name);
             out << "    case DQ_UIWidget_" << varName << ":\n";
             out << "    {\n";
+            out << "        int old_value = ui->" << varName << ".value;\n";
             out << "        int rel = mouse_x - ui->" << varName << ".rect.x - 8;\n";
             out << "        int range = ui->" << varName << ".rect.w - 16;\n";
             out << "        if (range > 0) {\n";
@@ -937,6 +1266,7 @@ QString SDL2CodeGenerator::generateUISource(const UILayout &layout, const QStrin
             out << "            if (val < ui->" << varName << ".min_val) val = ui->" << varName << ".min_val;\n";
             out << "            if (val > ui->" << varName << ".max_val) val = ui->" << varName << ".max_val;\n";
             out << "            ui->" << varName << ".value = val;\n";
+            out << "            if (ui->" << varName << ".value != old_value) dq_ui_runtime_dispatch_value_changed(ui, widget_id);\n";
             out << "        }\n";
             out << "        break;\n";
             out << "    }\n";
@@ -980,6 +1310,55 @@ QString SDL2CodeGenerator::generateUISource(const UILayout &layout, const QStrin
             out << "    SDL_RenderDrawRect(r, &btn->rect);\n";
             out << "    SDL_Color c = {220, 220, 220, 255};\n";
             out << "    render_text(r, font, btn->text, btn->rect.x + 8, btn->rect.y + 10, c);\n";
+            out << "}\n\n";
+        } else if (contractType == "scroll_panel") {
+            out << "static void " << fn << "(" << sn << " *sp, DQ_UIBackendRenderer *r, DQ_UIBackendFont *font) {\n";
+            out << "    (void)font;\n";
+            out << "    SDL_SetRenderDrawColor(r, 45, 45, 45, 255);\n";
+            out << "    SDL_RenderFillRect(r, &sp->rect);\n";
+            out << "    SDL_SetRenderDrawColor(r, 80, 80, 80, 255);\n";
+            out << "    SDL_RenderDrawRect(r, &sp->rect);\n";
+            out << "    SDL_Rect track = {sp->rect.x + sp->rect.w - 12, sp->rect.y + 4, 8, sp->rect.h - 8};\n";
+            out << "    SDL_SetRenderDrawColor(r, 55, 55, 55, 255);\n";
+            out << "    SDL_RenderFillRect(r, &track);\n";
+            out << "    SDL_Rect thumb = {track.x + 1, track.y + 1, track.w - 2, track.h > 32 ? 32 : track.h - 2};\n";
+            out << "    SDL_SetRenderDrawColor(r, 110, 110, 110, 255);\n";
+            out << "    SDL_RenderFillRect(r, &thumb);\n";
+            out << "}\n\n";
+        } else if (contractType == "tab_panel") {
+            out << "static void " << fn << "(" << sn << " *tp, DQ_UIBackendRenderer *r, DQ_UIBackendFont *font) {\n";
+            out << "    SDL_SetRenderDrawColor(r, 45, 45, 45, 255);\n";
+            out << "    SDL_RenderFillRect(r, &tp->rect);\n";
+            out << "    SDL_SetRenderDrawColor(r, 80, 80, 80, 255);\n";
+            out << "    SDL_RenderDrawRect(r, &tp->rect);\n";
+            out << "    SDL_Rect tab1 = {tp->rect.x + 6, tp->rect.y + 6, 56, 24};\n";
+            out << "    SDL_Rect tab2 = {tp->rect.x + 64, tp->rect.y + 6, 56, 24};\n";
+            out << "    SDL_Rect tab3 = {tp->rect.x + 122, tp->rect.y + 6, 56, 24};\n";
+            out << "    SDL_SetRenderDrawColor(r, tp->active_tab == 0 ? 70 : 52, tp->active_tab == 0 ? 70 : 52, tp->active_tab == 0 ? 70 : 52, 255);\n";
+            out << "    SDL_RenderFillRect(r, &tab1);\n";
+            out << "    SDL_SetRenderDrawColor(r, tp->active_tab == 1 ? 70 : 52, tp->active_tab == 1 ? 70 : 52, tp->active_tab == 1 ? 70 : 52, 255);\n";
+            out << "    SDL_RenderFillRect(r, &tab2);\n";
+            out << "    SDL_SetRenderDrawColor(r, tp->active_tab == 2 ? 70 : 52, tp->active_tab == 2 ? 70 : 52, tp->active_tab == 2 ? 70 : 52, 255);\n";
+            out << "    SDL_RenderFillRect(r, &tab3);\n";
+            out << "    SDL_SetRenderDrawColor(r, 100, 100, 100, 255);\n";
+            out << "    SDL_RenderDrawRect(r, &tab1);\n";
+            out << "    SDL_RenderDrawRect(r, &tab2);\n";
+            out << "    SDL_RenderDrawRect(r, &tab3);\n";
+            out << "    SDL_Color c = {190, 190, 190, 255};\n";
+            out << "    render_text(r, font, \"Tab 1\", tab1.x + 10, tab1.y + 5, c);\n";
+            out << "    render_text(r, font, \"Tab 2\", tab2.x + 10, tab2.y + 5, c);\n";
+            out << "    render_text(r, font, \"Tab 3\", tab3.x + 10, tab3.y + 5, c);\n";
+            out << "    SDL_RenderDrawLine(r, tp->rect.x + 1, tp->rect.y + 34, tp->rect.x + tp->rect.w - 2, tp->rect.y + 34);\n";
+            out << "}\n\n";
+        } else if (contractType == "group_box") {
+            out << "static void " << fn << "(" << sn << " *grp, DQ_UIBackendRenderer *r, DQ_UIBackendFont *font) {\n";
+            out << "    SDL_SetRenderDrawColor(r, 45, 45, 45, 255);\n";
+            out << "    SDL_RenderFillRect(r, &grp->rect);\n";
+            out << "    SDL_SetRenderDrawColor(r, 80, 80, 80, 255);\n";
+            out << "    SDL_RenderDrawRect(r, &grp->rect);\n";
+            out << "    SDL_RenderDrawLine(r, grp->rect.x + 1, grp->rect.y + 20, grp->rect.x + grp->rect.w - 2, grp->rect.y + 20);\n";
+            out << "    SDL_Color c = {180, 180, 180, 255};\n";
+            out << "    render_text(r, font, grp->text, grp->rect.x + 8, grp->rect.y + 2, c);\n";
             out << "}\n\n";
         } else if (contractType == "label") {
             out << "static void " << fn << "(" << sn << " *lbl, DQ_UIBackendRenderer *r, DQ_UIBackendFont *font) {\n";
@@ -1039,6 +1418,62 @@ QString SDL2CodeGenerator::generateUISource(const UILayout &layout, const QStrin
             out << "    SDL_Color c = {200, 200, 200, 255};\n";
             out << "    render_text(r, font, cb->text, cb->rect.x + 22, cb->rect.y + 5, c);\n";
             out << "}\n\n";
+        } else if (contractType == "radio_button") {
+            out << "static void " << fn << "(" << sn << " *rb, DQ_UIBackendRenderer *r, DQ_UIBackendFont *font) {\n";
+            out << "    SDL_Rect circle = {rb->rect.x + 2, rb->rect.y + (rb->rect.h - 16) / 2, 16, 16};\n";
+            out << "    SDL_SetRenderDrawColor(r, 50, 50, 50, 255);\n";
+            out << "    SDL_RenderFillRect(r, &circle);\n";
+            out << "    SDL_SetRenderDrawColor(r, 120, 120, 120, 255);\n";
+            out << "    SDL_RenderDrawRect(r, &circle);\n";
+            out << "    if (rb->selected) {\n";
+            out << "        SDL_Rect dot = {circle.x + 4, circle.y + 4, 8, 8};\n";
+            out << "        SDL_SetRenderDrawColor(r, 0, 150, 220, 255);\n";
+            out << "        SDL_RenderFillRect(r, &dot);\n";
+            out << "    }\n";
+            out << "    SDL_Color c = {200, 200, 200, 255};\n";
+            out << "    render_text(r, font, rb->text, rb->rect.x + 24, rb->rect.y + 5, c);\n";
+            out << "}\n\n";
+        } else if (contractType == "combo_box") {
+            out << "static void " << fn << "(" << sn << " *cb, DQ_UIBackendRenderer *r, DQ_UIBackendFont *font) {\n";
+            out << "    SDL_SetRenderDrawColor(r, cb->pressed ? 60 : (cb->hovered ? 60 : 50),\n";
+            out << "                              cb->pressed ? 60 : (cb->hovered ? 60 : 50),\n";
+            out << "                              cb->pressed ? 60 : (cb->hovered ? 60 : 50), 255);\n";
+            out << "    SDL_RenderFillRect(r, &cb->rect);\n";
+            out << "    SDL_SetRenderDrawColor(r, 100, 100, 100, 255);\n";
+            out << "    SDL_RenderDrawRect(r, &cb->rect);\n";
+            out << "    SDL_RenderDrawLine(r, cb->rect.x + cb->rect.w - 24, cb->rect.y + 4,\n";
+            out << "                         cb->rect.x + cb->rect.w - 24, cb->rect.y + cb->rect.h - 4);\n";
+            out << "    SDL_RenderDrawLine(r, cb->rect.x + cb->rect.w - 17, cb->rect.y + cb->rect.h / 2 + 2,\n";
+            out << "                         cb->rect.x + cb->rect.w - 12, cb->rect.y + cb->rect.h / 2 - 2);\n";
+            out << "    SDL_RenderDrawLine(r, cb->rect.x + cb->rect.w - 12, cb->rect.y + cb->rect.h / 2 - 2,\n";
+            out << "                         cb->rect.x + cb->rect.w - 7, cb->rect.y + cb->rect.h / 2 + 2);\n";
+            out << "    SDL_Color c = {200, 200, 200, 255};\n";
+            out << "    render_text(r, font, cb->display_text[0] ? cb->display_text : \"Select\",\n";
+            out << "                cb->rect.x + 6, cb->rect.y + 7, c);\n";
+            out << "}\n\n";
+        } else if (contractType == "spin_box") {
+            out << "static void " << fn << "(" << sn << " *sb, DQ_UIBackendRenderer *r, DQ_UIBackendFont *font) {\n";
+            out << "    SDL_SetRenderDrawColor(r, sb->pressed ? 60 : (sb->hovered ? 60 : 50),\n";
+            out << "                              sb->pressed ? 60 : (sb->hovered ? 60 : 50),\n";
+            out << "                              sb->pressed ? 60 : (sb->hovered ? 60 : 50), 255);\n";
+            out << "    SDL_RenderFillRect(r, &sb->rect);\n";
+            out << "    SDL_SetRenderDrawColor(r, 100, 100, 100, 255);\n";
+            out << "    SDL_RenderDrawRect(r, &sb->rect);\n";
+            out << "    SDL_RenderDrawLine(r, sb->rect.x + sb->rect.w - 24, sb->rect.y + 1,\n";
+            out << "                         sb->rect.x + sb->rect.w - 24, sb->rect.y + sb->rect.h - 2);\n";
+            out << "    SDL_RenderDrawLine(r, sb->rect.x + sb->rect.w - 24, sb->rect.y + sb->rect.h / 2,\n";
+            out << "                         sb->rect.x + sb->rect.w - 2, sb->rect.y + sb->rect.h / 2);\n";
+            out << "    SDL_RenderDrawLine(r, sb->rect.x + sb->rect.w - 18, sb->rect.y + sb->rect.h / 4,\n";
+            out << "                         sb->rect.x + sb->rect.w - 8, sb->rect.y + sb->rect.h / 4);\n";
+            out << "    SDL_RenderDrawLine(r, sb->rect.x + sb->rect.w - 13, sb->rect.y + sb->rect.h / 4 - 5,\n";
+            out << "                         sb->rect.x + sb->rect.w - 13, sb->rect.y + sb->rect.h / 4 + 5);\n";
+            out << "    SDL_RenderDrawLine(r, sb->rect.x + sb->rect.w - 18, sb->rect.y + (sb->rect.h * 3) / 4,\n";
+            out << "                         sb->rect.x + sb->rect.w - 8, sb->rect.y + (sb->rect.h * 3) / 4);\n";
+            out << "    char value_buf[32];\n";
+            out << "    SDL_snprintf(value_buf, sizeof(value_buf), \"%d\", sb->value);\n";
+            out << "    SDL_Color c = {220, 220, 220, 255};\n";
+            out << "    render_text(r, font, value_buf, sb->rect.x + 6, sb->rect.y + 7, c);\n";
+            out << "}\n\n";
         } else if (contractType == "slider") {
             out << "static void " << fn << "(" << sn << " *sl, DQ_UIBackendRenderer *r, DQ_UIBackendFont *font) {\n";
             out << "    (void)font;\n";
@@ -1069,6 +1504,61 @@ QString SDL2CodeGenerator::generateUISource(const UILayout &layout, const QStrin
             out << "    SDL_SetRenderDrawColor(r, 80, 80, 80, 255);\n";
             out << "    SDL_RenderDrawRect(r, &pb->rect);\n";
             out << "}\n\n";
+        } else if (contractType == "canvas") {
+            out << "static void " << fn << "(" << sn << " *cv, DQ_UIBackendRenderer *r, DQ_UIBackendFont *font) {\n";
+            out << "    (void)font;\n";
+            out << "    SDL_SetRenderDrawColor(r, 36, 36, 36, 255);\n";
+            out << "    SDL_RenderFillRect(r, &cv->rect);\n";
+            out << "    SDL_SetRenderDrawColor(r, 90, 90, 90, 255);\n";
+            out << "    SDL_RenderDrawRect(r, &cv->rect);\n";
+            out << "    SDL_SetRenderDrawColor(r, 55, 55, 55, 255);\n";
+            out << "    SDL_RenderDrawLine(r, cv->rect.x, cv->rect.y + cv->rect.h / 2, cv->rect.x + cv->rect.w, cv->rect.y + cv->rect.h / 2);\n";
+            out << "    SDL_RenderDrawLine(r, cv->rect.x + cv->rect.w / 2, cv->rect.y, cv->rect.x + cv->rect.w / 2, cv->rect.y + cv->rect.h);\n";
+            out << "}\n\n";
+        } else if (contractType == "table") {
+            out << "static void " << fn << "(" << sn << " *tbl, DQ_UIBackendRenderer *r, DQ_UIBackendFont *font) {\n";
+            out << "    (void)font;\n";
+            out << "    SDL_SetRenderDrawColor(r, 42, 42, 42, 255);\n";
+            out << "    SDL_RenderFillRect(r, &tbl->rect);\n";
+            out << "    SDL_SetRenderDrawColor(r, 90, 90, 90, 255);\n";
+            out << "    SDL_RenderDrawRect(r, &tbl->rect);\n";
+            out << "    for (int i = 1; i < 4; ++i) {\n";
+            out << "        int x = tbl->rect.x + i * tbl->rect.w / 4;\n";
+            out << "        SDL_RenderDrawLine(r, x, tbl->rect.y, x, tbl->rect.y + tbl->rect.h);\n";
+            out << "    }\n";
+            out << "    for (int i = 1; i < 5; ++i) {\n";
+            out << "        int y = tbl->rect.y + i * tbl->rect.h / 5;\n";
+            out << "        SDL_RenderDrawLine(r, tbl->rect.x, y, tbl->rect.x + tbl->rect.w, y);\n";
+            out << "    }\n";
+            out << "}\n\n";
+        } else if (contractType == "list_view") {
+            out << "static void " << fn << "(" << sn << " *lv, DQ_UIBackendRenderer *r, DQ_UIBackendFont *font) {\n";
+            out << "    SDL_SetRenderDrawColor(r, 42, 42, 42, 255);\n";
+            out << "    SDL_RenderFillRect(r, &lv->rect);\n";
+            out << "    SDL_SetRenderDrawColor(r, 90, 90, 90, 255);\n";
+            out << "    SDL_RenderDrawRect(r, &lv->rect);\n";
+            out << "    for (int i = 0; i < 4; ++i) {\n";
+            out << "        SDL_Rect row = {lv->rect.x + 4, lv->rect.y + 4 + i * 28, lv->rect.w - 8, 24};\n";
+            out << "        SDL_SetRenderDrawColor(r, i == 1 ? 0 : 55, i == 1 ? 120 : 55, i == 1 ? 215 : 55, 255);\n";
+            out << "        SDL_RenderFillRect(r, &row);\n";
+            out << "        SDL_SetRenderDrawColor(r, 90, 90, 90, 255);\n";
+            out << "        SDL_RenderDrawRect(r, &row);\n";
+            out << "    }\n";
+            out << "    SDL_Color c = {200, 200, 200, 255};\n";
+            out << "    render_text(r, font, \"Item 1\", lv->rect.x + 10, lv->rect.y + 10, c);\n";
+            out << "    render_text(r, font, \"Item 2\", lv->rect.x + 10, lv->rect.y + 38, c);\n";
+            out << "}\n\n";
+        } else if (contractType == "tree_view") {
+            out << "static void " << fn << "(" << sn << " *tv, DQ_UIBackendRenderer *r, DQ_UIBackendFont *font) {\n";
+            out << "    SDL_SetRenderDrawColor(r, 42, 42, 42, 255);\n";
+            out << "    SDL_RenderFillRect(r, &tv->rect);\n";
+            out << "    SDL_SetRenderDrawColor(r, 90, 90, 90, 255);\n";
+            out << "    SDL_RenderDrawRect(r, &tv->rect);\n";
+            out << "    SDL_Color c = {200, 200, 200, 255};\n";
+            out << "    render_text(r, font, \"> Root\", tv->rect.x + 8, tv->rect.y + 8, c);\n";
+            out << "    render_text(r, font, \"  Child A\", tv->rect.x + 8, tv->rect.y + 34, c);\n";
+            out << "    render_text(r, font, \"  Child B\", tv->rect.x + 8, tv->rect.y + 60, c);\n";
+            out << "}\n\n";
         } else if (contractType == "panel") {
             out << "static void " << fn << "(" << sn << " *pnl, DQ_UIBackendRenderer *r, DQ_UIBackendFont *font) {\n";
             out << "    (void)font;\n";
@@ -1076,6 +1566,65 @@ QString SDL2CodeGenerator::generateUISource(const UILayout &layout, const QStrin
             out << "    SDL_RenderFillRect(r, &pnl->rect);\n";
             out << "    SDL_SetRenderDrawColor(r, 80, 80, 80, 255);\n";
             out << "    SDL_RenderDrawRect(r, &pnl->rect);\n";
+            out << "}\n\n";
+        } else if (contractType == "menu_bar") {
+            out << "static void " << fn << "(" << sn << " *mb, DQ_UIBackendRenderer *r, DQ_UIBackendFont *font) {\n";
+            out << "    SDL_SetRenderDrawColor(r, 48, 48, 48, 255);\n";
+            out << "    SDL_RenderFillRect(r, &mb->rect);\n";
+            out << "    SDL_SetRenderDrawColor(r, 80, 80, 80, 255);\n";
+            out << "    SDL_RenderDrawRect(r, &mb->rect);\n";
+            out << "    SDL_Color c = {210, 210, 210, 255};\n";
+            out << "    render_text(r, font, \"File\", mb->rect.x + 10, mb->rect.y + 6, c);\n";
+            out << "    render_text(r, font, \"Edit\", mb->rect.x + 52, mb->rect.y + 6, c);\n";
+            out << "    render_text(r, font, \"View\", mb->rect.x + 96, mb->rect.y + 6, c);\n";
+            out << "}\n\n";
+        } else if (contractType == "tool_bar") {
+            out << "static void " << fn << "(" << sn << " *tb, DQ_UIBackendRenderer *r, DQ_UIBackendFont *font) {\n";
+            out << "    (void)font;\n";
+            out << "    SDL_SetRenderDrawColor(r, 50, 50, 50, 255);\n";
+            out << "    SDL_RenderFillRect(r, &tb->rect);\n";
+            out << "    SDL_SetRenderDrawColor(r, 80, 80, 80, 255);\n";
+            out << "    SDL_RenderDrawRect(r, &tb->rect);\n";
+            out << "    for (int i = 0; i < 5; ++i) {\n";
+            out << "        SDL_Rect button = {tb->rect.x + 6 + i * 30, tb->rect.y + 4, 22, tb->rect.h - 8};\n";
+            out << "        SDL_SetRenderDrawColor(r, 70, 70, 70, 255);\n";
+            out << "        SDL_RenderFillRect(r, &button);\n";
+            out << "        SDL_SetRenderDrawColor(r, 100, 100, 100, 255);\n";
+            out << "        SDL_RenderDrawRect(r, &button);\n";
+            out << "    }\n";
+            out << "}\n\n";
+        } else if (contractType == "status_bar") {
+            out << "static void " << fn << "(" << sn << " *sb, DQ_UIBackendRenderer *r, DQ_UIBackendFont *font) {\n";
+            out << "    SDL_SetRenderDrawColor(r, 48, 48, 48, 255);\n";
+            out << "    SDL_RenderFillRect(r, &sb->rect);\n";
+            out << "    SDL_SetRenderDrawColor(r, 80, 80, 80, 255);\n";
+            out << "    SDL_RenderDrawRect(r, &sb->rect);\n";
+            out << "    SDL_Color c = {180, 180, 180, 255};\n";
+            out << "    render_text(r, font, \"Ready\", sb->rect.x + 8, sb->rect.y + 4, c);\n";
+            out << "}\n\n";
+        } else if (contractType == "image") {
+            out << "static void " << fn << "(" << sn << " *img, DQ_UIBackendRenderer *r, DQ_UIBackendFont *font) {\n";
+            out << "    SDL_SetRenderDrawColor(r, 40, 40, 40, 255);\n";
+            out << "    SDL_RenderFillRect(r, &img->rect);\n";
+            out << "    SDL_SetRenderDrawColor(r, 100, 100, 100, 255);\n";
+            out << "    SDL_RenderDrawRect(r, &img->rect);\n";
+            out << "    int cx = img->rect.x + img->rect.w / 2;\n";
+            out << "    int cy = img->rect.y + img->rect.h / 2;\n";
+            out << "    int sz = (img->rect.w < img->rect.h ? img->rect.w : img->rect.h) * 3 / 10;\n";
+            out << "    SDL_RenderDrawLine(r, cx - sz, cy + sz / 2, cx - sz / 3, cy - sz / 3);\n";
+            out << "    SDL_RenderDrawLine(r, cx - sz / 3, cy - sz / 3, cx + sz / 3, cy + sz / 2);\n";
+            out << "    SDL_RenderDrawLine(r, cx, cy + sz / 10, cx + sz, cy + sz / 2);\n";
+            out << "    SDL_Rect sun = {cx + sz / 2 - 3, cy - sz / 3 - 3, 6, 6};\n";
+            out << "    SDL_RenderDrawRect(r, &sun);\n";
+            out << "    if (img->path && img->path[0]) {\n";
+            out << "        const char *label = img->path;\n";
+            out << "        const char *slash = strrchr(img->path, '/');\n";
+            out << "        const char *backslash = strrchr(img->path, '\\\\');\n";
+            out << "        if (slash && slash[1]) label = slash + 1;\n";
+            out << "        if (backslash && backslash[1] && (!slash || backslash > slash)) label = backslash + 1;\n";
+            out << "        SDL_Color c = {160, 160, 160, 255};\n";
+            out << "        render_text(r, font, label, img->rect.x + 6, img->rect.y + img->rect.h - 18, c);\n";
+            out << "    }\n";
             out << "}\n\n";
         } else {
             out << "static void " << fn << "(" << sn << " *w, DQ_UIBackendRenderer *r, DQ_UIBackendFont *font) {\n";
@@ -1113,22 +1662,55 @@ QString SDL2CodeGenerator::generateUISource(const UILayout &layout, const QStrin
         out << "    ui->" << varName << ".rect = (SDL_Rect){" << x << ", " << y << ", " << ww << ", " << hh << "};\n";
         out << "    ui->" << varName << ".base_rect = ui->" << varName << ".rect;\n";
 
-        if (contractType == "button" || contractType == "checkbox") {
+        if (contractType == "button" || contractType == "checkbox" || contractType == "radio_button") {
             QString text = w->properties.value("text", w->name).toString();
-            out << "    ui->" << varName << ".text = \"" << text << "\";\n";
+            out << "    ui->" << varName << ".text = " << cStringLiteral(text) << ";\n";
+        }
+        if (contractType == "scroll_panel") {
+            out << "    ui->" << varName << ".scroll_y = 0;\n";
+        }
+        if (contractType == "tab_panel") {
+            out << "    ui->" << varName << ".active_tab = 0;\n";
+        }
+        if (contractType == "group_box") {
+            QString text = w->properties.value("text", w->name).toString();
+            out << "    ui->" << varName << ".text = " << cStringLiteral(text) << ";\n";
         }
         if (contractType == "label") {
             QString text = w->properties.value("text", w->name).toString();
-            out << "    strncpy(ui->" << varName << ".text, \"" << text << "\", 63);\n";
+            out << "    strncpy(ui->" << varName << ".text, " << cStringLiteral(text) << ", 63);\n";
             out << "    ui->" << varName << ".text[63] = '\\0';\n";
         }
         if (contractType == "text_field") {
             QString placeholder = w->properties.value("placeholder", "").toString();
-            out << "    ui->" << varName << ".placeholder = \"" << placeholder << "\";\n";
+            out << "    ui->" << varName << ".placeholder = " << cStringLiteral(placeholder) << ";\n";
         }
         if (contractType == "text_area") {
             out << "    memset(ui->" << varName << ".text, 0, sizeof(ui->" << varName << ".text));\n";
             out << "    ui->" << varName << ".scroll_y = 0;\n";
+        }
+        if (contractType == "radio_button") {
+            bool selected = w->properties.value("selected", false).toBool();
+            out << "    ui->" << varName << ".selected = " << (selected ? "true" : "false") << ";\n";
+        }
+        if (contractType == "combo_box") {
+            QString items = w->properties.value("items", "").toString();
+            int selected = w->properties.value("selected", 0).toInt();
+            out << "    ui->" << varName << ".items = " << cStringLiteral(items) << ";\n";
+            out << "    ui->" << varName << ".selected = " << selected << ";\n";
+            out << "    dq_ui_runtime_csv_item_text(ui->" << varName << ".items, ui->" << varName << ".selected, ui->" << varName << ".display_text, sizeof(ui->" << varName << ".display_text));\n";
+            out << "    if (!ui->" << varName << ".display_text[0] && dq_ui_runtime_csv_item_count(ui->" << varName << ".items) > 0) {\n";
+            out << "        ui->" << varName << ".selected = 0;\n";
+            out << "        dq_ui_runtime_csv_item_text(ui->" << varName << ".items, ui->" << varName << ".selected, ui->" << varName << ".display_text, sizeof(ui->" << varName << ".display_text));\n";
+            out << "    }\n";
+        }
+        if (contractType == "spin_box") {
+            int minV = w->properties.value("min", 0).toInt();
+            int maxV = w->properties.value("max", 100).toInt();
+            int val = w->properties.value("value", 0).toInt();
+            out << "    ui->" << varName << ".min_val = " << minV << ";\n";
+            out << "    ui->" << varName << ".max_val = " << maxV << ";\n";
+            out << "    ui->" << varName << ".value = " << val << ";\n";
         }
         if (contractType == "slider") {
             int minV = w->properties.value("min", 0).toInt();
@@ -1147,6 +1729,10 @@ QString SDL2CodeGenerator::generateUISource(const UILayout &layout, const QStrin
             out << "    ui->" << varName << ".max_val = " << maxV << ";\n";
             out << "    ui->" << varName << ".value = " << val << ";\n";
             out << "    ui->" << varName << ".show_text = " << (showText ? "true" : "false") << ";\n";
+        }
+        if (contractType == "image") {
+            QString path = w->properties.value("path", "").toString();
+            out << "    ui->" << varName << ".path = " << cStringLiteral(path) << ";\n";
         }
     }
     out << "    ui_apply_layout(ui, "
@@ -1248,15 +1834,25 @@ QString SDL2CodeGenerator::generateUISource(const UILayout &layout, const QStrin
     out << "        }\n";
     out << "        if (dq_ui_runtime_widget_is_checkbox(ui->runtime.active_widget)) {\n";
     out << "            dq_ui_runtime_toggle_checkbox(ui, ui->runtime.active_widget);\n";
+    out << "            dq_ui_runtime_dispatch_toggle(ui, ui->runtime.active_widget);\n";
+    out << "        }\n";
+    out << "        if (dq_ui_runtime_widget_is_radio_button(ui->runtime.active_widget)) {\n";
+    out << "            dq_ui_runtime_select_radio_button(ui, ui->runtime.active_widget);\n";
+    out << "            dq_ui_runtime_dispatch_toggle(ui, ui->runtime.active_widget);\n";
     out << "        }\n";
     out << "        if (dq_ui_runtime_widget_is_slider(ui->runtime.active_widget)) {\n";
     out << "            dq_ui_runtime_update_slider(ui, ui->runtime.active_widget, event->mouse_x);\n";
     out << "        }\n";
     out << "        break;\n";
     out << "    case DQ_UIRuntimeEvent_MouseUp:\n";
-    out << "        if (dq_ui_runtime_widget_is_button(ui->runtime.active_widget) &&\n";
+    out << "        if ((dq_ui_runtime_widget_is_button(ui->runtime.active_widget) ||\n";
+    out << "             dq_ui_runtime_widget_is_combo_box(ui->runtime.active_widget)) &&\n";
     out << "            ui->runtime.active_widget == ui->runtime.hovered_widget) {\n";
     out << "            dq_ui_runtime_dispatch_click(ui, ui->runtime.active_widget);\n";
+    out << "        }\n";
+    out << "        if (dq_ui_runtime_widget_is_spin_box(ui->runtime.active_widget) &&\n";
+    out << "            ui->runtime.active_widget == ui->runtime.hovered_widget) {\n";
+    out << "            dq_ui_runtime_step_spin_box(ui, ui->runtime.active_widget, event->mouse_x);\n";
     out << "        }\n";
     out << "        ui->runtime.active_widget = DQ_UIWidget_None;\n";
     out << "        break;\n";

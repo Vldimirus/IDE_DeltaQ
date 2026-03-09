@@ -1,16 +1,13 @@
 #include "SessionManager.h"
 #include <QDir>
-#include <QCoreApplication>
 
 namespace DeltaQ {
 
 SessionManager::SessionManager(QObject *parent)
     : QObject(parent)
-    , m_settings(QCoreApplication::applicationDirPath() + "/config/settings.ini",
-                 QSettings::IniFormat)
+    , m_settings(settingsFilePath(), QSettings::IniFormat)
 {
-    // Создаём директорию config/ если не существует
-    QDir().mkpath(QCoreApplication::applicationDirPath() + "/config");
+    QDir().mkpath(configDirPath());
 }
 
 SessionManager::SessionManager(const QString &org, const QString &app, QObject *parent)
@@ -91,17 +88,53 @@ void SessionManager::setWindowState(const QByteArray &state)
 
 QString SessionManager::globalModulesDir() const
 {
-    return QCoreApplication::applicationDirPath() + "/modules";
+    return globalModulesDirPath();
 }
 
 QString SessionManager::coreModulesDir() const
 {
-    return globalModulesDir() + "/core";
+    return coreModulesDirPath();
 }
 
 void SessionManager::ensureGlobalDirs() const
 {
+    QDir().mkpath(configDirPath());
     QDir().mkpath(coreModulesDir());
+}
+
+QString SessionManager::deltaQHomeDir()
+{
+    const QString envRoot = qEnvironmentVariable("DELTAQ_HOME").trimmed();
+    if (!envRoot.isEmpty())
+        return QDir::cleanPath(envRoot);
+
+    return QDir::home().filePath(".deltaq");
+}
+
+QString SessionManager::configDirPath()
+{
+    return QDir(deltaQHomeDir()).filePath("config");
+}
+
+QString SessionManager::settingsFilePath()
+{
+    return QDir(configDirPath()).filePath("settings.ini");
+}
+
+QString SessionManager::globalModulesDirPath()
+{
+    return QDir(deltaQHomeDir()).filePath("modules");
+}
+
+QString SessionManager::coreModulesDirPath()
+{
+    return QDir(globalModulesDirPath()).filePath("core");
+}
+
+QString SessionManager::storedLanguage()
+{
+    QSettings settings(settingsFilePath(), QSettings::IniFormat);
+    return settings.value("app/language", "en").toString();
 }
 
 QString SessionManager::defaultProjectDir() const

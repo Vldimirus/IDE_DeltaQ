@@ -5,6 +5,7 @@
 #include <QDirIterator>
 #include <QJsonArray>
 #include <QProcess>
+#include <QProcessEnvironment>
 #include <QTemporaryDir>
 #include <QTest>
 
@@ -505,6 +506,14 @@ private slots:
         QVERIFY(uiCode.contains("void dq_ui_backend_window_size(DQ_UIBackendContext *backend, int *width, int *height)"));
         QVERIFY(uiCode.contains("void ui_apply_layout(UIState *ui, int window_width, int window_height)"));
         QVERIFY(uiCode.contains("void dq_ui_backend_begin_frame(DQ_UIBackendContext *backend)"));
+
+        QFile uiEventsSource(projectDir + "/src/ui/window1_events.c");
+        QVERIFY(uiEventsSource.open(QIODevice::ReadOnly | QIODevice::Text));
+        const QString eventsCode = QString::fromUtf8(uiEventsSource.readAll());
+        QVERIFY(eventsCode.contains("counter++"));
+        QVERIFY(eventsCode.contains("Counter: %d"));
+        QVERIFY(eventsCode.contains("on_btnCopyToLog_click"));
+        QVERIFY(!eventsCode.contains("TODO: implement"));
     }
 
     void processesConsoleTemplateEndToEnd()
@@ -857,6 +866,151 @@ private slots:
         QVERIFY2(appOutput.contains("DeltaQ"), qPrintable(runtimeLog));
     }
 
+    void minimalConsoleExampleBuildsAndRunsEndToEnd()
+    {
+        QTemporaryDir tmpDir;
+        QVERIFY(tmpDir.isValid());
+
+        const QString repoRoot = repoRootPath();
+        QVERIFY2(!repoRoot.isEmpty(), "Repository root was not found from test binary location");
+
+        const QString projectDir = tmpDir.path() + "/minimal_console_flow";
+        QVERIFY(copyDirectory(repoRoot + "/resources/examples/minimal_console_flow", projectDir));
+
+        ModuleRegistry registry;
+        registry.loadGlobalModules(repoRoot + "/modules");
+
+        GraphStore graphStore;
+        UILayoutStore layoutStore;
+        QVERIFY(graphStore.loadFromDirectory(projectDir));
+        QCOMPARE(graphStore.count(), 1);
+
+        PreBuildProcessor processor(&registry, &graphStore, &layoutStore);
+        const PreBuildResult prebuild = processor.process(projectDir);
+        QVERIFY2(prebuild.success, qPrintable(prebuild.errors.join('\n')));
+        QCOMPARE(prebuild.generatedArtifacts.size(), 1);
+        QCOMPARE(prebuild.generatedArtifacts.first().kind, PreBuildArtifactKind::GraphSource);
+        QVERIFY(prebuild.generatedArtifacts.first().path.endsWith("/src/main.c"));
+
+        QFile mainFile(projectDir + "/src/main.c");
+        QVERIFY(mainFile.open(QIODevice::ReadOnly | QIODevice::Text));
+        const QString mainCode = QString::fromUtf8(mainFile.readAll());
+        QVERIFY(mainCode.contains("Source: graph 'main'"));
+        QVERIFY(mainCode.contains("dq_string_constant"));
+        QVERIFY(mainCode.contains("dq_println"));
+        QVERIFY(mainCode.contains("dq_read_line"));
+        QVERIFY(mainCode.contains("Hello from DeltaQ!"));
+
+        CMakeGenerator generator;
+        const QString targetName = "MinimalConsoleFlow";
+        generator.generate(projectDir, targetName, "17", "20", {}, "console");
+        QVERIFY2(generator.configure(projectDir), "CMake configure failed for minimal console flow");
+
+        QByteArray buildOut;
+        QByteArray buildErr;
+        QVERIFY2(runProcess("cmake", {"--build", "build", "--parallel"}, projectDir,
+                            &buildOut, &buildErr),
+                 qPrintable(QString::fromUtf8(buildOut + buildErr)));
+
+        const QString executablePath = findBuiltExecutable(projectDir + "/build", targetName);
+        QVERIFY2(!executablePath.isEmpty(), "Built minimal console flow executable was not found");
+
+        QProcess app;
+        app.setProgram(executablePath);
+        app.setWorkingDirectory(projectDir + "/build");
+        app.start();
+        QVERIFY2(app.waitForStarted(30000), "Built minimal console flow executable failed to start");
+        app.write("DeltaQ\n");
+        app.closeWriteChannel();
+        QVERIFY2(app.waitForFinished(30000), "Built minimal console flow executable did not finish in time");
+
+        const QString stdoutText = QString::fromUtf8(app.readAllStandardOutput());
+        const QString stderrText = QString::fromUtf8(app.readAllStandardError());
+        const QString runtimeLog = QString("STDOUT:\n%1\nSTDERR:\n%2")
+                                       .arg(stdoutText, stderrText);
+        QVERIFY2(app.exitStatus() == QProcess::NormalExit && app.exitCode() == 0,
+                 qPrintable(runtimeLog));
+
+        QString normalizedStdout = stdoutText;
+        normalizedStdout.replace("\r\n", "\n");
+        const QStringList lines = normalizedStdout.split('\n', Qt::SkipEmptyParts);
+        QCOMPARE(lines.size(), 2);
+        QCOMPARE(lines.at(0), QString("Hello from DeltaQ!"));
+        QCOMPARE(lines.at(1), QString("DeltaQ"));
+    }
+
+    void desktopUiExampleBuildsAndRunsHeadless()
+    {
+        QTemporaryDir tmpDir;
+        QVERIFY(tmpDir.isValid());
+
+        const QString repoRoot = repoRootPath();
+        QVERIFY2(!repoRoot.isEmpty(), "Repository root was not found from test binary location");
+
+        const QString projectDir = tmpDir.path() + "/desktop_ui_flow";
+        QVERIFY(copyDirectory(repoRoot + "/resources/examples/desktop_ui_flow", projectDir));
+
+        ModuleRegistry registry;
+        registry.loadGlobalModules(repoRoot + "/modules");
+
+        GraphStore graphStore;
+        UILayoutStore layoutStore;
+        QVERIFY(graphStore.loadFromDirectory(projectDir));
+        QVERIFY(layoutStore.loadFromDirectory(projectDir));
+        QCOMPARE(graphStore.count(), 1);
+        QCOMPARE(layoutStore.count(), 1);
+
+        PreBuildProcessor processor(&registry, &graphStore, &layoutStore);
+        const PreBuildResult prebuild = processor.process(projectDir);
+        QVERIFY2(prebuild.success, qPrintable(prebuild.errors.join('\n')));
+        QCOMPARE(prebuild.generatedArtifacts.size(), 5);
+
+        QFile uiSource(projectDir + "/src/ui/window1.c");
+        QVERIFY(uiSource.open(QIODevice::ReadOnly | QIODevice::Text));
+        const QString uiCode = QString::fromUtf8(uiSource.readAll());
+        QVERIFY(uiCode.contains("SDL_RENDERER_SOFTWARE"));
+
+        QFile eventsSource(projectDir + "/src/ui/window1_events.c");
+        QVERIFY(eventsSource.open(QIODevice::ReadOnly | QIODevice::Text));
+        const QString eventsCode = QString::fromUtf8(eventsSource.readAll());
+        QVERIFY(eventsCode.contains("DQ_DESKTOP_UI_FLOW_AUTOCLOSE_MS"));
+        QVERIFY(eventsCode.contains("SDL_PushEvent"));
+        QVERIFY(!eventsCode.contains("TODO: implement"));
+
+        CMakeGenerator generator;
+        const QString targetName = "DesktopUIFlow";
+        generator.generate(projectDir, targetName, "17", "20", {}, "desktop");
+        QVERIFY2(generator.configure(projectDir), "CMake configure failed for desktop UI flow");
+
+        QByteArray buildOut;
+        QByteArray buildErr;
+        QVERIFY2(runProcess("cmake", {"--build", "build", "--parallel"}, projectDir,
+                            &buildOut, &buildErr),
+                 qPrintable(QString::fromUtf8(buildOut + buildErr)));
+
+        const QString executablePath = findBuiltExecutable(projectDir + "/build", targetName);
+        QVERIFY2(!executablePath.isEmpty(), "Built desktop UI flow executable was not found");
+
+        QProcess app;
+        QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
+        env.insert("SDL_VIDEODRIVER", "dummy");
+        env.insert("SDL_RENDER_DRIVER", "software");
+        env.insert("DQ_DESKTOP_UI_FLOW_AUTOCLOSE_MS", "1200");
+        app.setProcessEnvironment(env);
+        app.setProgram(executablePath);
+        app.setWorkingDirectory(projectDir + "/build");
+        app.start();
+        QVERIFY2(app.waitForStarted(30000), "Built desktop UI flow executable failed to start");
+        QVERIFY2(app.waitForFinished(10000), "Built desktop UI flow executable did not finish in time");
+
+        const QString stdoutText = QString::fromUtf8(app.readAllStandardOutput());
+        const QString stderrText = QString::fromUtf8(app.readAllStandardError());
+        const QString runtimeLog = QString("STDOUT:\n%1\nSTDERR:\n%2")
+                                       .arg(stdoutText, stderrText);
+        QVERIFY2(app.exitStatus() == QProcess::NormalExit && app.exitCode() == 0,
+                 qPrintable(runtimeLog));
+    }
+
     void importedPackBuildRequirementsReachCMakeAndRuntime()
     {
         QTemporaryDir tmpDir;
@@ -1178,6 +1332,88 @@ private slots:
         QVERIFY2(stdoutText.contains("FAILED_SCALE=-1"), qPrintable(runtimeLog));
         QVERIFY2(stdoutText.contains("LAST_ERROR=scale factor must be positive"),
                  qPrintable(runtimeLog));
+        QCOMPARE(stdoutText.count("SHUTDOWN=done"), 2);
+    }
+
+    void importedPackChecksumConsoleExampleBuildsAndRunsEndToEnd()
+    {
+        QTemporaryDir tmpDir;
+        QVERIFY(tmpDir.isValid());
+
+        const QString repoRoot = repoRootPath();
+        QVERIFY2(!repoRoot.isEmpty(), "Repository root was not found from test binary location");
+
+        const QString projectDir = tmpDir.path() + "/imported_pack_checksum_console";
+        QVERIFY(copyDirectory(repoRoot + "/resources/examples/imported_pack_checksum_console", projectDir));
+
+        ModuleRegistry registry;
+        registry.loadGlobalModules(repoRoot + "/modules");
+
+        GraphStore graphStore;
+        UILayoutStore layoutStore;
+        QVERIFY(graphStore.loadFromDirectory(projectDir));
+        registry.loadLocalModules(projectDir + "/dqmods");
+        registry.setGraphStore(&graphStore);
+
+        QCOMPARE(graphStore.count(), 1);
+        QVERIFY(registry.findModule("ext.mini_checksum_sdk_curated.checksum_report") != nullptr);
+        QVERIFY(registry.findModule("ext.mini_checksum_sdk_curated.checksum_match_report") != nullptr);
+
+        PreBuildProcessor processor(&registry, &graphStore, &layoutStore);
+        const PreBuildResult prebuild = processor.process(projectDir);
+        QVERIFY2(prebuild.success, qPrintable(prebuild.errors.join('\n')));
+        QCOMPARE(prebuild.generatedArtifacts.size(), 1);
+
+        QFile mainFile(projectDir + "/src/main.c");
+        QVERIFY(mainFile.open(QIODevice::ReadOnly | QIODevice::Text));
+        const QString mainCode = QString::fromUtf8(mainFile.readAll());
+        QVERIFY(mainCode.contains("dq_checksum_report"));
+        QVERIFY(mainCode.contains("dq_checksum_match_report"));
+        QVERIFY(mainCode.contains("#include <mini_checksum_sdk.h>"));
+
+        CMakeGenerator generator;
+        generator.setModuleRegistry(&registry);
+        generator.setGraphStore(&graphStore);
+        const QString targetName = "ImportedPackChecksumConsole";
+        generator.generate(projectDir, targetName, "17", "20", {}, "console");
+
+        QFile cmakeFile(projectDir + "/CMakeLists.txt");
+        QVERIFY(cmakeFile.open(QIODevice::ReadOnly | QIODevice::Text));
+        const QString cmakeCode = QString::fromUtf8(cmakeFile.readAll());
+        QVERIFY(cmakeCode.contains("#   - mini_checksum_sdk_curated"));
+        QVERIFY(cmakeCode.contains("${CMAKE_SOURCE_DIR}/vendor/mini_checksum_sdk/include"));
+
+        QVERIFY2(generator.configure(projectDir), "CMake configure failed for imported pack checksum console example");
+
+        QByteArray buildOut;
+        QByteArray buildErr;
+        QVERIFY2(runProcess("cmake", {"--build", "build", "--parallel"}, projectDir,
+                            &buildOut, &buildErr),
+                 qPrintable(QString::fromUtf8(buildOut + buildErr)));
+
+        const QString executablePath = findBuiltExecutable(projectDir + "/build", targetName);
+        QVERIFY2(!executablePath.isEmpty(), "Built imported pack checksum console executable was not found");
+
+        QProcess app;
+        app.setProgram(executablePath);
+        app.setWorkingDirectory(projectDir + "/build");
+        app.start();
+        QVERIFY2(app.waitForStarted(30000), "Built imported pack checksum console executable failed to start");
+        QVERIFY2(app.waitForFinished(30000), "Built imported pack checksum console executable did not finish in time");
+
+        const QString stdoutText = QString::fromUtf8(app.readAllStandardOutput());
+        const QString stderrText = QString::fromUtf8(app.readAllStandardError());
+        const QString runtimeLog = QString("STDOUT:\n%1\nSTDERR:\n%2")
+                                       .arg(stdoutText, stderrText);
+        QVERIFY2(app.exitStatus() == QProcess::NormalExit && app.exitCode() == 0,
+                 qPrintable(runtimeLog));
+
+        QVERIFY2(stdoutText.contains("TEXT=DeltaQ"), qPrintable(runtimeLog));
+        QVERIFY2(stdoutText.contains("CHECKSUM=2115045471"), qPrintable(runtimeLog));
+        QVERIFY2(stdoutText.contains("HEX=7E11085F"), qPrintable(runtimeLog));
+        QVERIFY2(stdoutText.contains("EXPECTED=00000000"), qPrintable(runtimeLog));
+        QVERIFY2(stdoutText.contains("ACTUAL=7E11085F"), qPrintable(runtimeLog));
+        QVERIFY2(stdoutText.contains("MATCH=0"), qPrintable(runtimeLog));
         QCOMPARE(stdoutText.count("SHUTDOWN=done"), 2);
     }
 

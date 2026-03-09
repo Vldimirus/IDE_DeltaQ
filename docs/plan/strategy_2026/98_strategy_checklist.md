@@ -31,6 +31,10 @@
 - `[ ] Phase 2: Module Ecosystem`
 - `[ ] Phase 3: Showcase And Adoption`
 
+## Active Execution Tracks
+
+- `[ ]` Linux-first release polish `(в работе; narrative между README/onboarding/examples/release docs и user-facing Linux checklist уже закрыты, открытым хвостом остаются screenshots / visual proof; детальный execution plan: docs/plan/strategy_2026/29_linux_release_polish.md)`
+
 ## Foundation And Governance
 
 - `[x]` Зафиксирован главный стратегический контур `strategy_2026`
@@ -121,7 +125,7 @@
 - `[x]` Legacy core-модули выведены из default palette flow, но доступны по явному запросу
 - `[x]` `Module Manager` использует тот же baseline-filter для `specialized` и `legacy`, что и `Module Palette`
 - `[ ]` Убраны слабые и дублирующие модули `(частично: в legacy уже переведены core.io.print_int, core.control.if_then, core.control.delay_ms, узкие math int-helper-ы и слабый partial-float slice)`
-- `[ ]` Библиотека даёт заметное ускорение в 2-3 эталонных сценариях
+- `[x]` Библиотека даёт заметное ускорение в 2-3 эталонных сценариях
 
 ### Module Verification
 
@@ -150,7 +154,7 @@
 - `[x]` Есть reproducible raw import baseline для fixture library
 - `[x]` Есть формализованный `v1` flow curation imported pack-а
 - `[x]` Есть curated pack, пригодный для реального использования в графе
-- `[ ]` Импорт библиотек используется как основной supply channel для расширения экосистемы модулей
+- `[x]` Импорт библиотек используется как основной supply channel для расширения экосистемы модулей
 - `[x]` Есть reference scenario `external library -> curated pack -> project graph -> build/run`
 
 ## Examples And Reference Projects
@@ -198,6 +202,7 @@
 
 - `[x]` Обновлён верхнеуровневый README под реальную философию DeltaQ
 - `[x]` Позиционирование проекта очищено от слишком широких обещаний
+- `[x]` README, onboarding, examples и release docs связаны единым user-facing entry path
 
 ### Demo Projects
 
@@ -208,11 +213,12 @@
 
 - `[x]` Есть короткий путь первого знакомства с продуктом
 - `[x]` Новый пользователь быстро понимает роль модуля, графа и generated code
+- `[x]` Есть единый navigation path от first run к examples и Linux artifact handoff
 
 ### External Trust
 
 - `[x]` Внешнему пользователю легко показать прозрачность generated code
-- `[ ]` Внешнему пользователю легко показать ценность стандартной библиотеки
+- `[x]` Внешнему пользователю легко показать ценность стандартной библиотеки
 - `[ ]` Проект выглядит как целостный инструмент, а не набор несвязанных подсистем
 
 ## Acceptance Gates
@@ -251,7 +257,11 @@
 - `[x]` Есть install-layout, совместимый с текущим runtime-ожиданием `applicationDirPath()`
 - `[x]` Release bundle включает не только `deltaq` и `modules`, но и `templates` с `examples`
 - `[x]` CI выполняет install/package smoke для self-contained Linux bundle
+- `[x]` Есть automated first-run smoke для Linux release bundle с isolated `DELTAQ_HOME`
+- `[x]` Есть automated `open example -> build -> run` smoke для Linux release bundle
 - `[x]` CI выполняет AppDir smoke на каждом Linux workflow run
+- `[x]` Есть user-facing Linux checklist для ручной приёмки tarball/AppImage artifacts
+- `[x]` AppDir и extracted AppImage проходят те же runtime-smoke проверки, а не только static layout verification
 - `[x]` Bundle включает translation payload и проходит единый release-layout verification script
 - `[x]` CI публикует Linux package artifact и `SHA256SUMS` для каждого workflow run
 - `[x]` Есть tag-based release workflow, публикующий Linux tarball и checksum как GitHub Release assets

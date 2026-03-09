@@ -1,6 +1,7 @@
 // Мастер импорта библиотеки — реализация
 #include "LibraryImportWizard.h"
 #include "../core/ModuleRegistry.h"
+#include "../core/SessionManager.h"
 
 #include <QCoreApplication>
 #include <QFileInfo>
@@ -403,7 +404,7 @@ void LibraryImportWizard::setupPage5_Generate()
             return;
         }
 
-        const QString modulesRootDir = QCoreApplication::applicationDirPath() + "/modules";
+        const QString modulesRootDir = SessionManager::globalModulesDirPath();
         m_packResult = LibraryPackager::writeImportedPack(modulesRootDir, spec, m_modules, m_wrappers);
         m_progressBar->setValue(m_progressBar->maximum());
 

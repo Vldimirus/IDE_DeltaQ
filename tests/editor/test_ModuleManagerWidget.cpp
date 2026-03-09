@@ -68,6 +68,26 @@ private:
         return nullptr;
     }
 
+    static QTreeWidgetItem *findItemByText(QTreeWidget *tree, const QString &text)
+    {
+        std::function<QTreeWidgetItem *(QTreeWidgetItem *)> findItem;
+        findItem = [&](QTreeWidgetItem *parent) -> QTreeWidgetItem * {
+            if (parent->text(0) == text)
+                return parent;
+            for (int i = 0; i < parent->childCount(); ++i) {
+                if (auto *nested = findItem(parent->child(i)))
+                    return nested;
+            }
+            return nullptr;
+        };
+
+        for (int i = 0; i < tree->topLevelItemCount(); ++i) {
+            if (auto *item = findItem(tree->topLevelItem(i)))
+                return item;
+        }
+        return nullptr;
+    }
+
 private slots:
     void localModuleWithoutImplementationIsMarkedNotReady()
     {
@@ -81,14 +101,23 @@ private slots:
 
         auto *badge = widget.findChild<QLabel *>("moduleStateBadge");
         auto *details = widget.findChild<QLabel *>("moduleStateDetails");
+        auto *layer = widget.findChild<QLabel *>("moduleEcosystemLayerLabel");
+        auto *role = widget.findChild<QLabel *>("moduleEcosystemRoleLabel");
+        auto *quality = widget.findChild<QLabel *>("moduleEcosystemQualityLabel");
         QVERIFY(badge != nullptr);
         QVERIFY(details != nullptr);
+        QVERIFY(layer != nullptr);
+        QVERIFY(role != nullptr);
+        QVERIFY(quality != nullptr);
 
         QCOMPARE(badge->text(), QString("Неготов"));
         QVERIFY(details->text().contains(QString("Контракт: корректен")));
         QVERIFY(details->text().contains(QString("Реализация: отсутствует")));
         QVERIFY(details->text().contains(QString("Компиляция: не запускалась")));
         QVERIFY(details->text().contains(QString("Тест: не запускался")));
+        QCOMPARE(layer->text(), QString("Проектный модуль"));
+        QVERIFY(role->text().contains(QString::fromUtf8("локальный атомарный")));
+        QVERIFY(quality->text().contains(QString("staged verification")));
     }
 
     void coreModuleShowsLibraryState()
@@ -106,11 +135,20 @@ private slots:
 
         auto *badge = widget.findChild<QLabel *>("moduleStateBadge");
         auto *details = widget.findChild<QLabel *>("moduleStateDetails");
+        auto *layer = widget.findChild<QLabel *>("moduleEcosystemLayerLabel");
+        auto *role = widget.findChild<QLabel *>("moduleEcosystemRoleLabel");
+        auto *quality = widget.findChild<QLabel *>("moduleEcosystemQualityLabel");
         QVERIFY(badge != nullptr);
         QVERIFY(details != nullptr);
+        QVERIFY(layer != nullptr);
+        QVERIFY(role != nullptr);
+        QVERIFY(quality != nullptr);
 
         QCOMPARE(badge->text(), QString("Библиотечный"));
         QVERIFY(details->text().contains(QString("Режим: только чтение")));
+        QCOMPARE(layer->text(), QString("Стандартная библиотека"));
+        QVERIFY(role->text().contains(QString::fromUtf8("Опорный модуль v1")));
+        QVERIFY(quality->text().contains(QString("explicit curation review")));
 
         auto *tree = widget.findChild<QTreeWidget *>();
         QVERIFY(tree != nullptr);
@@ -132,13 +170,51 @@ private slots:
         processUi();
 
         auto *tree = widget.findChild<QTreeWidget *>();
+        auto *showLegacy = widget.findChild<QCheckBox *>("moduleManagerShowLegacyCheck");
         QVERIFY(tree != nullptr);
+        QVERIFY(showLegacy != nullptr);
+
+        QVERIFY(findModuleItem(tree, mod.id) == nullptr);
+
+        showLegacy->setChecked(true);
+        processUi();
 
         QTreeWidgetItem *found = findModuleItem(tree, mod.id);
         QVERIFY(found != nullptr);
         QCOMPARE(found->text(0), QString("print_int [legacy]"));
         QVERIFY(found->toolTip(0).contains(QString("Legacy shortcut")));
         QVERIFY(found->toolTip(0).contains(QString("int_to_string")));
+    }
+
+    void specializedCoreModuleStaysOutOfDefaultBaseline()
+    {
+        ModuleRegistry registry;
+
+        Module specialized = makeModule("str_compare", "core",
+            "int dq_str_compare(const char *a, const char *b) {\n    return a == b;\n}\n");
+        specialized.id = "core.string.str_compare";
+        specialized.category = "string";
+        QVERIFY(registry.registerModule(specialized));
+
+        Module essential = makeModule("add", "core",
+            "int dq_add(int a, int b) {\n    return a + b;\n}\n");
+        essential.id = "core.math.add";
+        essential.category = "math";
+        QVERIFY(registry.registerModule(essential));
+
+        ModuleManagerWidget widget(&registry);
+        auto *tree = widget.findChild<QTreeWidget *>();
+        auto *showSpecialized = widget.findChild<QCheckBox *>("moduleManagerShowSpecializedCheck");
+        QVERIFY(tree != nullptr);
+        QVERIFY(showSpecialized != nullptr);
+
+        QVERIFY(findModuleItem(tree, specialized.id) == nullptr);
+        QVERIFY(findModuleItem(tree, essential.id) != nullptr);
+
+        showSpecialized->setChecked(true);
+        processUi();
+
+        QVERIFY(findModuleItem(tree, specialized.id) != nullptr);
     }
 
     void passedModuleStaysPassedOnOpenAndBecomesModifiedAfterEdit()
@@ -339,15 +415,26 @@ private slots:
         auto *roleCombo = widget.findChild<QComboBox *>("importRoleCombo");
         auto *whenToUseEdit = widget.findChild<QTextEdit *>("moduleDocWhenToUseEdit");
         auto *limitationsEdit = widget.findChild<QTextEdit *>("moduleDocLimitationsEdit");
+        auto *layer = widget.findChild<QLabel *>("moduleEcosystemLayerLabel");
+        auto *role = widget.findChild<QLabel *>("moduleEcosystemRoleLabel");
+        auto *quality = widget.findChild<QLabel *>("moduleEcosystemQualityLabel");
         auto *tree = widget.findChild<QTreeWidget *>();
         QVERIFY(displayNameEdit != nullptr);
         QVERIFY(roleCombo != nullptr);
         QVERIFY(whenToUseEdit != nullptr);
         QVERIFY(limitationsEdit != nullptr);
+        QVERIFY(layer != nullptr);
+        QVERIFY(role != nullptr);
+        QVERIFY(quality != nullptr);
         QVERIFY(tree != nullptr);
 
         QCOMPARE(whenToUseEdit->toPlainText(), QString::fromUtf8("Использовать как curated imported module."));
         QCOMPARE(limitationsEdit->toPlainText(), QString::fromUtf8("Зависит от mini_sensor_sdk fixture."));
+        QCOMPARE(layer->text(), QString("Imported pack"));
+        QVERIFY(role->text().contains(QString("raw")));
+        QVERIFY(role->text().contains(QString("mini_sensor_sdk_raw")));
+        QVERIFY(quality->text().contains(QString("mini_sensor_read")));
+        QVERIFY(quality->text().contains(QString("compile")));
 
         displayNameEdit->setText("Sensor Read");
         roleCombo->setCurrentIndex(roleCombo->findData("adapter"));
@@ -385,6 +472,54 @@ private slots:
         QVERIFY(found->toolTip(0).contains(QString::fromUtf8("Роль import/curation: adapter")));
         QVERIFY(found->toolTip(0).contains(QString::fromUtf8("Когда использовать: Когда нужно быстро проверить imported SDK в графе.")));
         QVERIFY(found->toolTip(0).contains(QString::fromUtf8("Ограничения: Показывает low-level imported поведение без дополнительной валидации.")));
+        QVERIFY2(role->text().contains(QString("adapter")), qPrintable(role->text()));
+    }
+
+    void importedModulesAppearUnderDedicatedPackSection()
+    {
+        ModuleRegistry registry;
+
+        Module imported = makeModule("mini_sensor_read", "extension",
+            "int dq_mini_sensor_read(void *ctx) {\n    return mini_sensor_read(ctx);\n}\n",
+            "passed",
+            "passed");
+        imported.id = "ext.mini_sensor_sdk_raw.mini_sensor_read";
+        imported.category = "sensor_raw";
+        imported.metadata["deltaq.import.kind"] = "library_pack_module";
+        imported.metadata["deltaq.import.pack_name"] = "mini_sensor_sdk_raw";
+        imported.metadata["deltaq.import.original_symbol"] = "mini_sensor_read";
+        imported.metadata["deltaq.import.display_name"] = "Read Sensor";
+        imported.metadata["deltaq.import.curation_role"] = "raw_wrapper";
+        QVERIFY(registry.registerModule(imported));
+
+        Module extension = makeModule("fft_window", "extension",
+            "int dq_fft_window(int value) {\n    return value;\n}\n",
+            "passed",
+            "passed");
+        extension.id = "ext.signal_tools.fft_window";
+        extension.category = "signal";
+        QVERIFY(registry.registerModule(extension));
+
+        ModuleManagerWidget widget(&registry);
+        processUi();
+
+        auto *tree = widget.findChild<QTreeWidget *>();
+        QVERIFY(tree != nullptr);
+
+        QTreeWidgetItem *importedItem = findModuleItem(tree, imported.id);
+        QTreeWidgetItem *extensionItem = findModuleItem(tree, extension.id);
+        QTreeWidgetItem *packItem = findItemByText(tree, "mini_sensor_sdk_raw");
+        QVERIFY(importedItem != nullptr);
+        QVERIFY(extensionItem != nullptr);
+        QVERIFY(packItem != nullptr);
+
+        QCOMPARE(importedItem->parent()->text(0), QString("sensor_raw"));
+        QCOMPARE(importedItem->parent()->parent()->text(0), QString("mini_sensor_sdk_raw"));
+        QCOMPARE(importedItem->parent()->parent()->parent()->text(0), QString::fromUtf8("Импортированные пакеты"));
+        QCOMPARE(extensionItem->parent()->text(0), QString("signal"));
+        QCOMPARE(extensionItem->parent()->parent()->text(0), QString::fromUtf8("Расширения"));
+        QVERIFY(packItem->toolTip(0).contains(QString("Imported pack: mini_sensor_sdk_raw")));
+        QVERIFY(packItem->toolTip(0).contains(QString("Raw: 1")));
     }
 };
 

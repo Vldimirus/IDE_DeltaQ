@@ -1,0 +1,90 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  linux-build-test:
+    name: Linux Build And Test
+    runs-on: ubuntu-24.04
+    env:
+      QT_QPA_PLATFORM: offscreen
+      CTEST_OUTPUT_ON_FAILURE: 1
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            cmake \
+            ninja-build \
+            pkg-config \
+            qt6-base-dev \
+            qt6-tools-dev-tools \
+            libqscintilla2-qt6-dev \
+            libclang-dev \
+            libsdl2-dev \
+            libsdl2-ttf-dev
+
+      - name: Configure
+        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DDQ_BUILD_TESTS=ON
+
+      - name: Build
+        run: cmake --build build --parallel
+
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
+
+      - name: Install bundle smoke
+        run: cmake --install build --prefix build/install-smoke
+
+      - name: Verify bundle layout
+        run: ./scripts/verify_release_bundle.sh build/install-smoke
+
+      - name: First-run smoke
+        run: ./scripts/smoke_linux_first_run.sh build/install-smoke
+
+      - name: Example build/run smoke
+        run: ./scripts/smoke_linux_example_build_run.sh build/install-smoke
+
+      - name: Package smoke
+        run: cpack --config build/CPackConfig.cmake -B build/package
+
+      - name: AppDir smoke
+        run: ./scripts/build_appimage.sh --no-tests --appdir-only
+
+      - name: Generate package checksums
+        run: |
+          cd build/package
+          sha256sum *.tar.gz > SHA256SUMS
+
+      - name: Verify package artifact
+        run: |
+          ls -1 build/package/*.tar.gz
+          ./scripts/verify_package_archive.sh build/package/*.tar.gz build/package/SHA256SUMS
+
+      - name: Upload package artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: deltaq-linux-package
+          path: |
+            build/package/*.tar.gz
+            build/package/SHA256SUMS
+
+      - name: Upload failure logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-failure-logs
+          path: |
+            build/Testing/**/*
+            build/CMakeFiles/CMakeOutput.log
+            build/CMakeFiles/CMakeError.log
