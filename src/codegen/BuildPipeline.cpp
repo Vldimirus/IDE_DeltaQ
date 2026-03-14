@@ -1,6 +1,7 @@
 // Двухфазная сборка — реализация
 #include "BuildPipeline.h"
 #include "PreBuildProcessor.h"
+#include <deltaq/BuildTypes.h>
 #include "../editor/BuildManager.h"
 
 #include <QDir>
@@ -76,15 +77,13 @@ BuildPipeline::BuildPipeline(PreBuildProcessor *preBuild, BuildManager *buildMan
     });
 }
 
-void BuildPipeline::run(const QString &projectDir, const QString &projectName,
-                        const QString &cStandard, const QString &cxxStandard,
-                        const QString &projectType)
+void BuildPipeline::run(const ProjectBuildRequest &request)
 {
     emit pipelineStarted();
     emit pipelineOutput(tr("=== Фаза 1: Генерация исходников ==="));
 
     // Фаза 1: Pre-build
-    PreBuildResult result = m_preBuild->process(projectDir);
+    PreBuildResult result = m_preBuild->process(request.projectDir);
 
     if (!result.success) {
         emit pipelineOutput(tr("Pre-build завершился с ошибками:"));
@@ -97,7 +96,7 @@ void BuildPipeline::run(const QString &projectDir, const QString &projectName,
 
     emit pipelineOutput(tr("Сгенерировано файлов: %1").arg(result.generatedArtifacts.size()));
     for (const auto &artifact : result.generatedArtifacts)
-        emit pipelineOutput(formatArtifactLine(projectDir, artifact));
+        emit pipelineOutput(formatArtifactLine(request.projectDir, artifact));
 
     emit preBuildFinished(true);
 
@@ -105,7 +104,7 @@ void BuildPipeline::run(const QString &projectDir, const QString &projectName,
     emit pipelineOutput(tr("\n=== Фаза 2: Компиляция ==="));
     emit buildStarted();
 
-    m_buildManager->build(projectDir, projectName, cStandard, cxxStandard, projectType);
+    m_buildManager->build(request);
 }
 
 void BuildPipeline::runPreBuild(const QString &projectDir)
@@ -125,13 +124,11 @@ void BuildPipeline::runPreBuild(const QString &projectDir)
     emit pipelineFinished(result.success);
 }
 
-void BuildPipeline::runBuild(const QString &projectDir, const QString &projectName,
-                             const QString &cStandard, const QString &cxxStandard,
-                             const QString &projectType)
+void BuildPipeline::runBuild(const ProjectBuildRequest &request)
 {
     emit pipelineOutput(tr("=== Build: Компиляция ==="));
     emit buildStarted();
-    m_buildManager->build(projectDir, projectName, cStandard, cxxStandard, projectType);
+    m_buildManager->build(request);
 }
 
 } // namespace DeltaQ

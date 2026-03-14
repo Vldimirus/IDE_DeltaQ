@@ -48,7 +48,7 @@ Acceptance:
 
 - `[x]` Выстроить единый narrative между `README`, onboarding, examples и release docs
 - `[x]` Добавить user-facing release checklist для Linux artifacts
-- `[ ]` Подготовить screenshots / visual proof для README или release docs
+- `[x]` Подготовить screenshots / visual proof для README или release docs
 
 Acceptance:
 
@@ -80,3 +80,4 @@ Acceptance:
 - `2026-03-09`: `verify_appdir.sh` усилен runtime-smoke-ами; AppDir и extracted `.AppImage` теперь проходят те же `first launch` и `example build/run` проверки, что и обычный release bundle.
 - `2026-03-09`: `build_appimage.sh` исправлен по двум реальным AppImage-papercut-ам: рекурсивный `appstreamcli` wrapper больше не подвешивает `appimagetool`, а в AppImage теперь явно кладётся `libqoffscreen.so`, поэтому freshly built `.AppImage` локально проходит `verify_appimage_file.sh` вместе с post-extract first-run и example smoke.
 - `2026-03-09`: добавлены `docs/onboarding/README*`, `resources/examples/README*` и `docs/release/linux_first_release_checklist*.md`; README, onboarding, examples и release docs теперь связаны единым user-facing entry path, а открытым хвостом public surface остаётся уже только visual proof.
+- `2026-03-14`: screenshots / visual proof добавлены в `README.md`, `README_RU.md` и `docs/release/README.md`; public release surface теперь показывает не только claims, но и реальный IDE/export flow.

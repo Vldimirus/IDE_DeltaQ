@@ -28,6 +28,7 @@ jobs:
             build-essential \
             cmake \
             ninja-build \
+            bubblewrap \
             pkg-config \
             qt6-base-dev \
             qt6-tools-dev-tools \
@@ -50,6 +51,9 @@ jobs:
 
       - name: Example export smoke
         run: ./scripts/smoke_linux_example_export.sh build/release/DeltaQ
+
+      - name: Desktop example export smoke
+        run: ./scripts/smoke_linux_example_export.sh build/release/DeltaQ desktop_ui_flow
 
       - name: Download AppImage tools
         run: |

@@ -86,14 +86,29 @@ private slots:
         // Проверяем ключевые действия
         QVERIFY(mgr.action("file.newProject") != nullptr);
         QVERIFY(mgr.action("file.save") != nullptr);
+        QVERIFY(mgr.action("project.properties") != nullptr);
+        QVERIFY(mgr.action("project.rescanToolchains") != nullptr);
+        QVERIFY(mgr.action("project.openBuildDirectory") != nullptr);
+        QVERIFY(mgr.action("project.openDistDirectory") != nullptr);
         QVERIFY(mgr.action("edit.undo") != nullptr);
         QVERIFY(mgr.action("edit.redo") != nullptr);
         QVERIFY(mgr.action("build.build") != nullptr);
         QVERIFY(mgr.action("build.exportLinuxBundle") != nullptr);
         QVERIFY(mgr.action("view.codeEditor") != nullptr);
+        QVERIFY(mgr.action("view.uiDesigner") != nullptr);
+
+        QVERIFY(!mgr.action("project.properties")->toolTip().isEmpty());
+        QVERIFY(!mgr.action("project.properties")->statusTip().isEmpty());
+        QVERIFY(!mgr.action("project.openBuildDirectory")->toolTip().isEmpty());
+        QVERIFY(!mgr.action("project.openDistDirectory")->statusTip().isEmpty());
+        QVERIFY(!mgr.action("build.build")->toolTip().isEmpty());
+        QVERIFY(!mgr.action("build.build")->statusTip().isEmpty());
+        QVERIFY(!mgr.action("build.build")->icon().isNull());
+        QVERIFY(!mgr.action("view.uiDesigner")->icon().isNull());
 
         // Проверяем группы
         QVERIFY(!mgr.actionsInGroup("file").isEmpty());
+        QVERIFY(!mgr.actionsInGroup("project").isEmpty());
         QVERIFY(!mgr.actionsInGroup("edit").isEmpty());
         QVERIFY(!mgr.actionsInGroup("build").isEmpty());
         QVERIFY(!mgr.actionsInGroup("view").isEmpty());

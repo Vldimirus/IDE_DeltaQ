@@ -40,6 +40,34 @@ DeltaQ IDE построена вокруг одного прозрачного w
 - [docs/release/linux_first_release_checklist_ru.md](docs/release/linux_first_release_checklist_ru.md) — ручной путь приёмки Linux tarball/AppImage artifacts.
 - [docs/release/linux_project_export_checklist_ru.md](docs/release/linux_project_export_checklist_ru.md) — путь handoff-проверки для Linux-приложений, экспортированных из проектов DeltaQ.
 
+## Визуальное proof
+
+Эти скриншоты показывают Linux-first путь DeltaQ как единый продуктовый flow, а не как набор отдельных подсистем.
+
+### Создание проекта и первый вход
+
+![DeltaQ создание проекта](docs/release/screenshots/01_welcome_or_new_project.png)
+
+### Работа с модулями и исходным кодом
+
+![DeltaQ программирование модулей](docs/release/screenshots/02_module_programming.png)
+
+### UI и композиция графов
+
+![DeltaQ UI designer и кодовый workflow](docs/release/screenshots/03_ui_designer_or_code_editor.png)
+
+![DeltaQ модульный конструктор](docs/release/screenshots/05_module_constructor.png)
+
+### Сборка и handoff
+
+![DeltaQ успешная сборка](docs/release/screenshots/04_build_success.png)
+
+![DeltaQ экспортированное приложение запущено](docs/release/screenshots/06_exported_app_running.png)
+
+Полная release-oriented gallery и handoff-контекст вынесены в:
+
+- [docs/release/README.md](docs/release/README.md)
+
 ---
 
 ## Возможности

@@ -42,6 +42,9 @@ class GraphDebugger;
 class PreBuildProcessor;
 class BuildPipeline;
 class CompilerDetector;
+struct ProjectBuildRequest;
+struct ResolvedToolchainConfig;
+struct BuildGuidance;
 
 class MainWindow : public QMainWindow {
     Q_OBJECT
@@ -76,6 +79,10 @@ private slots:
     void onCloseProject();
     void onSaveFile();
     void onSettings();
+    void onProjectProperties();
+    void onRescanToolchains();
+    void onOpenBuildDirectory();
+    void onOpenDistDirectory();
     void onNewFile();
     void onBuild();
     void onExportLinuxBundle();
@@ -119,6 +126,13 @@ private:
     void runBuildPipeline(const QString &successMessage,
                           const QString &failureMessage,
                           std::function<void(bool)> completionHandler = {});
+    QString rescanToolchainsAndDescribe() const;
+    void presentBuildGuidance(const BuildGuidance &guidance);
+    bool openProjectSubdirectory(const QString &relativePath,
+                                 const QString &missingMessage);
+    bool resolveCurrentProjectBuildRequest(ProjectBuildRequest *request,
+                                           QString *errorMessage = nullptr,
+                                           ResolvedToolchainConfig *resolvedToolchain = nullptr);
     bool exportCurrentProjectLinuxBundle(QString *errorMessage = nullptr);
     bool startProjectRun(const QString &stdinText = {}, QString *errorMessage = nullptr);
     QString resolveProjectExecutable() const;

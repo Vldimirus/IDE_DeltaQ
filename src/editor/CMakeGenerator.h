@@ -31,6 +31,13 @@ public:
                      const QStringList &extraFlags = {},
                      const QString &projectType = "console");
 
+    QString generate(const QString &projectDir, const QString &projectName,
+                     const QString &cStandard,
+                     const QString &cxxStandard,
+                     const QStringList &extraCFlags,
+                     const QStringList &extraCxxFlags,
+                     const QString &projectType);
+
     // Привязывает реестр модулей, чтобы CMake мог учитывать реально используемые imported pack-ы.
     void setModuleRegistry(ModuleRegistry *registry) { m_moduleRegistry = registry; }
 
@@ -69,7 +76,8 @@ private:
                             const QStringList &sources,
                             const QString &cStandard,
                             const QString &cxxStandard,
-                            const QStringList &extraFlags,
+                            const QStringList &extraCFlags,
+                            const QStringList &extraCxxFlags,
                             const QString &projectType,
                             const QVector<ImportedPackRequirement> &importedPackRequirements) const;
 

@@ -1,5 +1,6 @@
 # Ядро IDE — базовые сервисы (без MainWindow, он в исполняемом файле)
 add_library(dq_core STATIC
+    BuildGuidanceAnalyzer.cpp
     CommandBus.cpp
     ModuleRegistry.cpp
     GraphStore.cpp
@@ -9,6 +10,7 @@ add_library(dq_core STATIC
     ActionManager.cpp
     UndoManager.cpp
     StandardLibrary.cpp
+    toolbar_icons.qrc
 )
 
 target_include_directories(dq_core PUBLIC

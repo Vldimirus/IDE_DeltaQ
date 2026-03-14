@@ -11,6 +11,8 @@
 #include "NewProjectWizard.h"
 #include "NewFileDialog.h"
 #include "SettingsDialog.h"
+#include "ProjectPropertiesDialog.h"
+#include "BuildGuidanceAnalyzer.h"
 #include "ProjectTemplates.h"
 
 #include "../editor/CodeEditorWidget.h"
@@ -34,6 +36,7 @@
 #include "../codegen/PreBuildProcessor.h"
 #include "../codegen/BuildPipeline.h"
 #include "../codegen/CompilerDetector.h"
+#include "../codegen/ToolchainResolver.h"
 #include "../uiDesigner/UIDesignerWidget.h"
 #include "../uiDesigner/UIModuleFactory.h"
 // Bundled core pack используется как source-of-truth и копируется в writable global root.
@@ -57,6 +60,7 @@
 #include <QMessageBox>
 #include <QDialog>
 #include <QDialogButtonBox>
+#include <QDesktopServices>
 #include <QPlainTextEdit>
 #include <QProcess>
 #include <QPushButton>
@@ -71,6 +75,7 @@
 #include <QTextCursor>
 #include <QTreeWidget>
 #include <QHeaderView>
+#include <QUrl>
 
 namespace DeltaQ {
 
@@ -245,6 +250,13 @@ void MainWindow::setupMenus()
     fileMenu->addAction(m_actionManager->action("file.close"));
     fileMenu->addAction(m_actionManager->action("file.quit"));
 
+    auto *projectMenu = menuBar()->addMenu(tr("&Project"));
+    projectMenu->addAction(m_actionManager->action("project.properties"));
+    projectMenu->addAction(m_actionManager->action("project.rescanToolchains"));
+    projectMenu->addSeparator();
+    projectMenu->addAction(m_actionManager->action("project.openBuildDirectory"));
+    projectMenu->addAction(m_actionManager->action("project.openDistDirectory"));
+
     auto *editMenu = menuBar()->addMenu(tr("&Edit"));
     editMenu->addAction(m_actionManager->undoAction());
     editMenu->addAction(m_actionManager->redoAction());
@@ -313,16 +325,19 @@ void MainWindow::setupToolBar()
 {
     m_mainToolBar = addToolBar(tr("Main"));
     m_mainToolBar->setObjectName("mainToolBar");
+    m_mainToolBar->setToolButtonStyle(Qt::ToolButtonIconOnly);
 
     m_mainToolBar->addAction(m_actionManager->newProjectAction());
     m_mainToolBar->addAction(m_actionManager->openProjectAction());
     m_mainToolBar->addAction(m_actionManager->saveAction());
+    m_mainToolBar->addAction(m_actionManager->action("project.properties"));
     m_mainToolBar->addSeparator();
     m_mainToolBar->addAction(m_actionManager->undoAction());
     m_mainToolBar->addAction(m_actionManager->redoAction());
     m_mainToolBar->addSeparator();
     m_mainToolBar->addAction(m_actionManager->buildAction());
     m_mainToolBar->addAction(m_actionManager->runAction());
+    m_mainToolBar->addAction(m_actionManager->action("build.exportLinuxBundle"));
     m_mainToolBar->addSeparator();
 
     // Module switch buttons
@@ -424,6 +439,14 @@ void MainWindow::setupConnections()
     connect(am->saveAction(), &QAction::triggered, this, &MainWindow::onSaveFile);
     connect(am->action("file.close"), &QAction::triggered, this, &MainWindow::onCloseProject);
     connect(am->action("file.quit"), &QAction::triggered, qApp, &QApplication::quit);
+    connect(am->action("project.properties"), &QAction::triggered,
+            this, &MainWindow::onProjectProperties);
+    connect(am->action("project.rescanToolchains"), &QAction::triggered,
+            this, &MainWindow::onRescanToolchains);
+    connect(am->action("project.openBuildDirectory"), &QAction::triggered,
+            this, &MainWindow::onOpenBuildDirectory);
+    connect(am->action("project.openDistDirectory"), &QAction::triggered,
+            this, &MainWindow::onOpenDistDirectory);
 
     // Undo/redo: если фокус в редакторе кода — делегируем QPlainTextEdit, иначе — UndoManager
     connect(am->undoAction(), &QAction::triggered, this, [this]() {
@@ -1651,6 +1674,55 @@ void MainWindow::onSettings()
     dlg.exec();
 }
 
+void MainWindow::onProjectProperties()
+{
+    if (!m_projectManager->isProjectOpen()) {
+        statusBar()->showMessage(tr("No project open"), 3000);
+        return;
+    }
+
+    m_compilerDetector->detect();
+
+    ProjectPropertiesDialog dlg(m_projectManager->currentProject(),
+                                m_projectManager->currentLocalSettings(),
+                                this);
+    dlg.setToolchainInventory(ToolchainResolver::inventoryFromDetector(*m_compilerDetector));
+    connect(&dlg, &ProjectPropertiesDialog::rescanRequested, this, [this, &dlg]() {
+        const QString summary = rescanToolchainsAndDescribe();
+        dlg.setToolchainInventory(ToolchainResolver::inventoryFromDetector(*m_compilerDetector));
+        statusBar()->showMessage(summary, 5000);
+    });
+
+    if (dlg.exec() != QDialog::Accepted)
+        return;
+
+    m_projectManager->currentProject() = dlg.project();
+    m_projectManager->currentLocalSettings() = dlg.localSettings();
+    if (!m_projectManager->saveProjectMetadataOnly()) {
+        QMessageBox::warning(this,
+                             tr("Error"),
+                             tr("Failed to save project properties"));
+        return;
+    }
+
+    statusBar()->showMessage(tr("Project properties saved"), 5000);
+}
+
+void MainWindow::onRescanToolchains()
+{
+    statusBar()->showMessage(rescanToolchainsAndDescribe(), 5000);
+}
+
+void MainWindow::onOpenBuildDirectory()
+{
+    openProjectSubdirectory("build", tr("Build directory is not available yet"));
+}
+
+void MainWindow::onOpenDistDirectory()
+{
+    openProjectSubdirectory("dist", tr("Dist directory is not available yet"));
+}
+
 void MainWindow::onNewFile()
 {
     if (!m_projectManager->isProjectOpen()) {
@@ -1877,6 +1949,20 @@ void MainWindow::runBuildPipeline(const QString &successMessage,
     m_buildDiagnostics->clear();
     m_outputTabs->setCurrentWidget(m_buildOutput);
     m_outputDock->show();
+
+    ProjectBuildRequest buildRequest;
+    QString buildRequestError;
+    ResolvedToolchainConfig resolvedToolchain;
+    if (!resolveCurrentProjectBuildRequest(&buildRequest, &buildRequestError, &resolvedToolchain)) {
+        appendBuildOutputChunk(tr("=== Build configuration error ===\n"));
+        appendBuildOutputChunk(buildRequestError + "\n");
+        presentBuildGuidance(BuildGuidanceAnalyzer::forToolchainIssues(
+            resolvedToolchain.issues,
+            m_projectManager->currentProject().projectType));
+        statusBar()->showMessage(buildRequestError, 5000);
+        return;
+    }
+
     setBuildActionsEnabled(false);
 
     const auto outputConn = std::make_shared<QMetaObject::Connection>();
@@ -1889,21 +1975,147 @@ void MainWindow::runBuildPipeline(const QString &successMessage,
     connect(m_buildPipeline, &BuildPipeline::pipelineFinished,
             this,
             [this, outputConn, successMessage, failureMessage,
+             resolvedFingerprint = buildRequest.toolchain.fingerprint,
+             buildRequest,
              completionHandler = std::move(completionHandler)](bool success) mutable {
         disconnect(*outputConn);
         setBuildActionsEnabled(true);
         statusBar()->showMessage(success ? successMessage : failureMessage, 3000);
+
+        if (!success)
+            presentBuildGuidance(BuildGuidanceAnalyzer::fromBuildOutput(buildRequest,
+                                                                        m_buildOutput->toPlainText()));
+
+        if (success && m_projectManager->isProjectOpen()
+            && m_projectManager->currentLocalSettings().lastResolvedFingerprint != resolvedFingerprint) {
+            m_projectManager->currentLocalSettings().lastResolvedFingerprint = resolvedFingerprint;
+            m_projectManager->saveProjectMetadataOnly();
+        }
 
         if (completionHandler)
             completionHandler(success);
     },
             Qt::SingleShotConnection);
 
-    m_buildPipeline->run(m_projectManager->projectDir(),
-                         m_projectManager->currentProject().name,
-                         m_projectManager->currentProject().build.standard,
-                         "20",
-                         m_projectManager->currentProject().projectType);
+    m_buildPipeline->run(buildRequest);
+}
+
+bool MainWindow::resolveCurrentProjectBuildRequest(ProjectBuildRequest *request,
+                                                   QString *errorMessage,
+                                                   ResolvedToolchainConfig *resolvedToolchain)
+{
+    if (!request) {
+        if (errorMessage)
+            *errorMessage = tr("Internal error: build request is null");
+        return false;
+    }
+
+    if (!m_projectManager->isProjectOpen()) {
+        if (errorMessage)
+            *errorMessage = tr("No project open");
+        return false;
+    }
+
+    m_compilerDetector->detect();
+
+    const auto &project = m_projectManager->currentProject();
+    const auto &localSettings = m_projectManager->currentLocalSettings();
+    const ToolchainInventory inventory = ToolchainResolver::inventoryFromDetector(*m_compilerDetector);
+    const ResolvedToolchainConfig resolvedConfig =
+        ToolchainResolver::resolve(project.build, localSettings, inventory);
+    if (resolvedToolchain)
+        *resolvedToolchain = resolvedConfig;
+
+    if (!resolvedConfig.valid) {
+        if (errorMessage)
+            *errorMessage = tr("Missing or invalid build tools: %1")
+                                .arg(resolvedConfig.issues.join(", "));
+        return false;
+    }
+
+    request->projectDir = m_projectManager->projectDir();
+    request->projectName = project.name;
+    request->projectType = project.projectType;
+    request->cStandard = project.build.cStandard;
+    request->cxxStandard = project.build.cxxStandard;
+    request->extraCFlags = project.build.extraCFlags;
+    request->extraCxxFlags = project.build.extraCxxFlags;
+    request->toolchain = resolvedConfig;
+
+    if (errorMessage)
+        errorMessage->clear();
+    return true;
+}
+
+void MainWindow::presentBuildGuidance(const BuildGuidance &guidance)
+{
+    if (!guidance.hasGuidance)
+        return;
+
+    appendBuildOutputChunk(tr("\n=== Build guidance ===\n"));
+    appendBuildOutputChunk(guidance.summary + "\n");
+    if (!guidance.details.isEmpty())
+        appendBuildOutputChunk(guidance.details + "\n");
+    for (const QString &step : guidance.nextSteps)
+        appendBuildOutputChunk(tr("  - %1\n").arg(step));
+
+    QString text = guidance.summary;
+    if (!guidance.details.isEmpty())
+        text += "\n\n" + guidance.details;
+    if (!guidance.nextSteps.isEmpty())
+        text += "\n\n" + guidance.nextSteps.join("\n");
+
+    QMessageBox::warning(this, guidance.title, text);
+}
+
+QString MainWindow::rescanToolchainsAndDescribe() const
+{
+    m_compilerDetector->detect();
+    const ToolchainInventory inventory = ToolchainResolver::inventoryFromDetector(*m_compilerDetector);
+    const QVector<DetectedToolchainKit> kits = ToolchainResolver::detectKits(inventory);
+
+    int readyCount = 0;
+    int partialCount = 0;
+    int missingCount = 0;
+    for (const auto &kit : kits) {
+        if (kit.status == "ready")
+            ++readyCount;
+        else if (kit.status == "partial")
+            ++partialCount;
+        else
+            ++missingCount;
+    }
+
+    return tr("Toolchain scan completed: %1 ready, %2 partial, %3 missing")
+        .arg(readyCount)
+        .arg(partialCount)
+        .arg(missingCount);
+}
+
+bool MainWindow::openProjectSubdirectory(const QString &relativePath,
+                                         const QString &missingMessage)
+{
+    if (!m_projectManager->isProjectOpen()) {
+        statusBar()->showMessage(tr("No project open"), 3000);
+        return false;
+    }
+
+    const QString absolutePath = QDir(m_projectManager->projectDir()).filePath(relativePath);
+    const QFileInfo info(absolutePath);
+    if (!info.exists() || !info.isDir()) {
+        statusBar()->showMessage(missingMessage, 5000);
+        return false;
+    }
+
+    if (!QDesktopServices::openUrl(QUrl::fromLocalFile(info.absoluteFilePath()))) {
+        QMessageBox::warning(this,
+                             tr("Error"),
+                             tr("Failed to open directory: %1").arg(info.absoluteFilePath()));
+        return false;
+    }
+
+    statusBar()->showMessage(tr("Opening %1").arg(info.absoluteFilePath()), 3000);
+    return true;
 }
 
 bool MainWindow::exportCurrentProjectLinuxBundle(QString *errorMessage)

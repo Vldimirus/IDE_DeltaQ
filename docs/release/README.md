@@ -22,6 +22,34 @@ If you are validating DeltaQ as a Linux user or reviewer rather than changing pa
 - `resources/examples/README.md`
 - `docs/release/linux_first_release_checklist.md`
 
+## Visual Proof
+
+The screenshots below are the current Linux-first public-facing proof set.
+
+### 1. Create Or Open A Project
+
+![DeltaQ welcome or new project](screenshots/01_welcome_or_new_project.png)
+
+### 2. Program Modules In The IDE
+
+![DeltaQ module programming](screenshots/02_module_programming.png)
+
+### 3. Move Between Code And UI Work
+
+![DeltaQ UI designer or code editor](screenshots/03_ui_designer_or_code_editor.png)
+
+### 4. Build Feedback Stays Inside The IDE
+
+![DeltaQ build success](screenshots/04_build_success.png)
+
+### 5. Compose Logic Visually
+
+![DeltaQ module constructor](screenshots/05_module_constructor.png)
+
+### 6. Run The Exported Result
+
+![DeltaQ exported app running](screenshots/06_exported_app_running.png)
+
 ## Local Release Bundle
 
 For a local Linux release build, use:

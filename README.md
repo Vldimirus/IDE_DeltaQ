@@ -40,6 +40,34 @@ If you want DeltaQ to read like one coherent Linux-first product rather than a s
 - [docs/release/linux_first_release_checklist.md](docs/release/linux_first_release_checklist.md) — the manual acceptance path for Linux tarball and AppImage artifacts.
 - [docs/release/linux_project_export_checklist.md](docs/release/linux_project_export_checklist.md) — the handoff path for Linux applications exported from DeltaQ projects.
 
+## Visual Proof
+
+These screenshots show the Linux-first path as a single product flow rather than isolated subsystems.
+
+### Project Creation And First Entry
+
+![DeltaQ new project workflow](docs/release/screenshots/01_welcome_or_new_project.png)
+
+### Module Work And Source Editing
+
+![DeltaQ module programming](docs/release/screenshots/02_module_programming.png)
+
+### UI And Graph Composition
+
+![DeltaQ UI designer and code workflow](docs/release/screenshots/03_ui_designer_or_code_editor.png)
+
+![DeltaQ module constructor](docs/release/screenshots/05_module_constructor.png)
+
+### Build And Handoff
+
+![DeltaQ build success](docs/release/screenshots/04_build_success.png)
+
+![DeltaQ exported app running](docs/release/screenshots/06_exported_app_running.png)
+
+The full Linux release-facing gallery and handoff context are documented in:
+
+- [docs/release/README.md](docs/release/README.md)
+
 ---
 
 ## Features

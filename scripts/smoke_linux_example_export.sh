@@ -83,6 +83,7 @@ EXPORT_ARCHIVE_PATH="$PROJECT_DIR/dist/$PROJECT_NAME.tar.gz"
 
 "$SCRIPT_DIR/verify_project_export_bundle.sh" "$EXPORT_BUNDLE_DIR" >/dev/null
 "$SCRIPT_DIR/verify_project_export_archive.sh" "$EXPORT_ARCHIVE_PATH" >/dev/null
+"$SCRIPT_DIR/verify_project_export_clean_env.sh" "$EXPORT_BUNDLE_DIR" >/dev/null
 
 echo "Linux example export smoke OK: $EXAMPLE_NAME"
 echo "  bundle: $BUNDLE_DIR"

@@ -17,6 +17,19 @@ dq_add_test(test_CommandBus     core/test_CommandBus.cpp)
 dq_add_test(test_UndoManager    core/test_UndoManager.cpp)
 dq_add_test(test_ActionManager  core/test_ActionManager.cpp)
 dq_add_test(test_SessionManager core/test_SessionManager.cpp)
+add_executable(test_BuildGuidanceAnalyzer core/test_BuildGuidanceAnalyzer.cpp
+    ${CMAKE_SOURCE_DIR}/src/core/BuildGuidanceAnalyzer.cpp
+)
+target_include_directories(test_BuildGuidanceAnalyzer PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/include
+)
+target_link_libraries(test_BuildGuidanceAnalyzer PRIVATE
+    Qt6::Test
+    Qt6::Core
+)
+set_target_properties(test_BuildGuidanceAnalyzer PROPERTIES AUTOMOC ON)
+add_test(NAME test_BuildGuidanceAnalyzer COMMAND test_BuildGuidanceAnalyzer)
 
 # Тесты моделей данных
 dq_add_test(test_Module         core/test_Module.cpp)
@@ -49,6 +62,7 @@ add_executable(test_MainWindowEditorActions
     core/test_MainWindowEditorActions.cpp
     ${CMAKE_SOURCE_DIR}/src/core/MainWindow.cpp
     ${CMAKE_SOURCE_DIR}/src/core/NewProjectWizard.cpp
+    ${CMAKE_SOURCE_DIR}/src/core/ProjectPropertiesDialog.cpp
     ${CMAKE_SOURCE_DIR}/src/core/ProjectTemplates.cpp
     ${CMAKE_SOURCE_DIR}/src/core/SettingsDialog.cpp
     ${CMAKE_SOURCE_DIR}/src/core/NewFileDialog.cpp
@@ -76,6 +90,7 @@ add_executable(test_MainWindowBuildOutputNavigation
     core/test_MainWindowBuildOutputNavigation.cpp
     ${CMAKE_SOURCE_DIR}/src/core/MainWindow.cpp
     ${CMAKE_SOURCE_DIR}/src/core/NewProjectWizard.cpp
+    ${CMAKE_SOURCE_DIR}/src/core/ProjectPropertiesDialog.cpp
     ${CMAKE_SOURCE_DIR}/src/core/ProjectTemplates.cpp
     ${CMAKE_SOURCE_DIR}/src/core/SettingsDialog.cpp
     ${CMAKE_SOURCE_DIR}/src/core/NewFileDialog.cpp
@@ -107,6 +122,30 @@ target_link_libraries(test_LSPClient PRIVATE
 )
 set_target_properties(test_LSPClient PROPERTIES AUTOMOC ON)
 add_test(NAME test_LSPClient COMMAND test_LSPClient)
+
+add_executable(test_ToolchainResolver codegen/test_ToolchainResolver.cpp)
+target_link_libraries(test_ToolchainResolver PRIVATE
+    dq_codegen
+    Qt6::Test
+)
+set_target_properties(test_ToolchainResolver PROPERTIES AUTOMOC ON)
+add_test(NAME test_ToolchainResolver COMMAND test_ToolchainResolver)
+
+add_executable(test_ProjectPropertiesDialog
+    core/test_ProjectPropertiesDialog.cpp
+    ${CMAKE_SOURCE_DIR}/src/core/ProjectPropertiesDialog.cpp
+)
+target_include_directories(test_ProjectPropertiesDialog PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/include
+)
+target_link_libraries(test_ProjectPropertiesDialog PRIVATE
+    dq_codegen
+    Qt6::Test
+    Qt6::Widgets
+)
+set_target_properties(test_ProjectPropertiesDialog PROPERTIES AUTOMOC ON)
+add_test(NAME test_ProjectPropertiesDialog COMMAND test_ProjectPropertiesDialog)
 
 # Тесты редактора
 add_executable(test_CompilerOutputParser editor/test_CompilerOutputParser.cpp)
@@ -151,6 +190,9 @@ target_link_libraries(test_LinuxProjectExporter PRIVATE
     dq_codegen
     dq_lsp
     Qt6::Test
+)
+target_compile_definitions(test_LinuxProjectExporter PRIVATE
+    DQ_TEST_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
 )
 set_target_properties(test_LinuxProjectExporter PROPERTIES AUTOMOC ON)
 add_test(NAME test_LinuxProjectExporter COMMAND test_LinuxProjectExporter)

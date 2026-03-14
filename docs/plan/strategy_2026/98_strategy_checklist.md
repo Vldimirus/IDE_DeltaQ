@@ -33,7 +33,8 @@
 
 ## Active Execution Tracks
 
-- `[ ]` Linux project export v1 `(новый главный track; цель: довести DeltaQ от build/run внутри IDE до build/export/handoff-ready Linux bundle для пользовательского ПО; детальный execution plan: docs/plan/strategy_2026/30_linux_project_export_v1.md)`
+- `[x]` Project properties and toolchain UX v1 `(planning/implementation track закрыт; DeltaQ получил явный Project Properties surface, portable/local build settings separation, реальную toolchain-aware build integration, guided diagnostics и top-level toolbar/localization polish; детальный execution plan: docs/plan/strategy_2026/31_project_properties_and_toolchain_ux_v1.md)`
+- `[x]` Linux project export v1 `(главный delivery track закрыт; DeltaQ доведён от build/run внутри IDE до build/export/handoff-ready Linux bundle для пользовательского ПО, включая self-contained desktop export verification; детальный execution plan: docs/plan/strategy_2026/30_linux_project_export_v1.md)`
 - `[ ]` Linux-first release polish `(в работе; narrative между README/onboarding/examples/release docs и user-facing Linux checklist уже закрыты, открытым хвостом остаются screenshots / visual proof; детальный execution plan: docs/plan/strategy_2026/29_linux_release_polish.md)`
 
 ## Foundation And Governance
@@ -220,7 +221,7 @@
 
 - `[x]` Внешнему пользователю легко показать прозрачность generated code
 - `[x]` Внешнему пользователю легко показать ценность стандартной библиотеки
-- `[ ]` Проект выглядит как целостный инструмент, а не набор несвязанных подсистем
+- `[x]` Проект выглядит как целостный инструмент, а не набор несвязанных подсистем
 
 ## Acceptance Gates
 
@@ -242,7 +243,7 @@
 
 - `[x]` Новый пользователь понимает идею проекта по README и примерам
 - `[x]` Есть 2-3 сильных demo-потока
-- `[ ]` DeltaQ можно показать как целостный open-source инструмент
+- `[x]` DeltaQ можно показать как целостный open-source инструмент
 
 ## Delivery And Release
 
@@ -258,6 +259,17 @@
 - `[x]` Есть install-layout, совместимый с текущим runtime-ожиданием `applicationDirPath()`
 - `[x]` Release bundle включает не только `deltaq` и `modules`, но и `templates` с `examples`
 - `[x]` CI выполняет install/package smoke для self-contained Linux bundle
+
+### Project Configuration And Toolchains
+
+- `[x]` Есть отдельный `Project -> Properties...` dialog
+- `[x]` `.dqproj` хранит portable build intent, а не machine-local absolute paths
+- `[x]` Есть отдельный local-user слой для путей к `cmake` / compiler / builder
+- `[x]` IDE показывает найденные compiler/build tool kits и умеет делать `Rescan`
+- `[x]` `BuildManager` использует выбранный generator/toolchain, а не только жёсткий auto-path
+- `[x]` Missing toolchain/dependency cases показываются как guided diagnostics, а не только raw log
+- `[x]` Quick-access toolbar использует иконки, tooltip и status-bar descriptions
+- `[x]` Top-level русская локализация закрывает workbench/project/build configuration flow
 - `[x]` Есть automated first-run smoke для Linux release bundle с isolated `DELTAQ_HOME`
 - `[x]` Есть automated `open example -> build -> run` smoke для Linux release bundle
 - `[x]` CI выполняет AppDir smoke на каждом Linux workflow run
@@ -275,7 +287,7 @@
 - `[x]` Export produces runnable directory bundle в `dist/` для `console` и `desktop` на текущем Linux host
 - `[x]` Есть user-facing `Build -> Export Linux Bundle`, который делает `pre-build -> build -> export` и не пакует stale build silently
 - `[x]` Console project bundle запускается вне project tree и без DeltaQ checkout
-- `[ ]` Desktop project bundle включает нужный runtime payload и проходит isolated smoke `(локальный post-export smoke, extracted-archive smoke, near-clean env smoke и loader-level proof уже есть; clean-environment gate ещё открыт)`
+- `[x]` Desktop project bundle включает нужный runtime payload и проходит isolated smoke `(локальный post-export smoke, extracted-archive smoke, `bwrap`-based clean-environment gate и loader-level proof закрыты)`
 - `[x]` Exported bundle можно упаковать в `.tar.gz` без отдельного packaging flow
 - `[x]` Dependency model и ограничения export `v1` описаны честно и user-visible
 

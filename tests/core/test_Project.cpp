@@ -13,10 +13,16 @@ private slots:
     void buildConfigRoundtrip()
     {
         BuildConfig bc;
+        bc.system = "cmake";
         bc.compiler = "clang";
-        bc.standard = "c23";
-        bc.outputDir = "out/";
-        bc.flags = {"-Wall", "-Wextra", "-O2"};
+        bc.generator = "ninja";
+        bc.buildProfile = "Release";
+        bc.cStandard = "c23";
+        bc.cxxStandard = "c++23";
+        bc.outputDir = "build/";
+        bc.extraCFlags = {"-Wall", "-Wextra", "-O2"};
+        bc.extraCxxFlags = {"-stdlib=libc++"};
+        bc.toolchainMode = "manual";
 
         auto json = bc.toJson();
         auto restored = BuildConfig::fromJson(json);
@@ -27,28 +33,67 @@ private slots:
     {
         BuildConfig a, b;
         a.compiler = "gcc";
-        a.standard = "c17";
+        a.cStandard = "c17";
         b.compiler = "gcc";
-        b.standard = "c17";
+        b.cStandard = "c17";
         QVERIFY(a == b);
 
-        b.standard = "c23";
+        b.cStandard = "c23";
         QVERIFY(!(a == b));
     }
 
     void buildConfigDefaults()
     {
         BuildConfig bc;
+        QCOMPARE(bc.system, "cmake");
         QCOMPARE(bc.compiler, "auto");
-        QCOMPARE(bc.standard, "c17");
+        QCOMPARE(bc.generator, "auto");
+        QCOMPARE(bc.buildProfile, "Debug");
+        QCOMPARE(bc.cStandard, "c17");
+        QCOMPARE(bc.cxxStandard, "c++20");
         QCOMPARE(bc.outputDir, "build/");
-        QVERIFY(bc.flags.isEmpty());
+        QVERIFY(bc.extraCFlags.isEmpty());
+        QVERIFY(bc.extraCxxFlags.isEmpty());
+        QCOMPARE(bc.toolchainMode, "auto");
 
         // fromJson с пустым объектом → значения по умолчанию
         auto fromEmpty = BuildConfig::fromJson(QJsonObject{});
+        QCOMPARE(fromEmpty.system, "cmake");
         QCOMPARE(fromEmpty.compiler, "auto");
-        QCOMPARE(fromEmpty.standard, "c17");
+        QCOMPARE(fromEmpty.generator, "auto");
+        QCOMPARE(fromEmpty.buildProfile, "Debug");
+        QCOMPARE(fromEmpty.cStandard, "c17");
+        QCOMPARE(fromEmpty.cxxStandard, "c++20");
         QCOMPARE(fromEmpty.outputDir, "build/");
+    }
+
+    void buildConfigFromLegacyJson()
+    {
+        QJsonObject json;
+        json["compiler"] = "clang";
+        json["standard"] = "c23";
+        json["output"] = "build/";
+        json["flags"] = QJsonArray{"-Wall", "-O2"};
+        json["build_tool"] = "make";
+
+        const BuildConfig restored = BuildConfig::fromJson(json);
+        QCOMPARE(restored.compiler, QString("clang"));
+        QCOMPARE(restored.cStandard, QString("c23"));
+        QCOMPARE(restored.cxxStandard, QString("c++20"));
+        QCOMPARE(restored.generator, QString("unix_makefiles"));
+        QCOMPARE(restored.extraCFlags, QStringList({"-Wall", "-O2"}));
+    }
+
+    void localSettingsRoundtrip()
+    {
+        ProjectLocalSettings settings;
+        settings.selectionMode = "kit";
+        settings.selectedKitId = "linux-gcc-ninja";
+        settings.manualOverride.enabled = false;
+        settings.lastResolvedFingerprint = "sha256:test";
+
+        const ProjectLocalSettings restored = ProjectLocalSettings::fromJson(settings.toJson());
+        QCOMPARE(restored, settings);
     }
 
     // --- Project ---
@@ -67,7 +112,8 @@ private slots:
     {
         auto p = Project::createNew("TestProject");
         p.build.compiler = "clang";
-        p.build.flags = {"-O3"};
+        p.build.generator = "ninja";
+        p.build.extraCFlags = {"-O3"};
 
         auto json = p.toJson();
         auto restored = Project::fromJson(json);

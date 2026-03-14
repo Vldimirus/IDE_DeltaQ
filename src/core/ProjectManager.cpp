@@ -33,11 +33,12 @@ bool ProjectManager::createProject(const QString &name, const QString &dir)
     m_project = Project::createNew(name);
     m_project.projectDir = dir;
     m_project.projectFilePath = dir + "/" + name + ".dqproj";
+    m_localSettings = ProjectLocalSettings();
 
     if (!ensureDirectories(dir))
         return false;
 
-    if (!saveProject())
+    if (!saveProjectMetadataOnly())
         return false;
 
     m_isOpen = true;
@@ -59,11 +60,12 @@ bool ProjectManager::createProject(const QString &name, const QString &dir,
     m_project.projectDir = dir;
     m_project.projectFilePath = dir + "/" + name + ".dqproj";
     m_project.projectType = type;
+    m_localSettings = ProjectLocalSettings();
 
     if (!ensureDirectories(dir))
         return false;
 
-    if (!saveProject())
+    if (!saveProjectMetadataOnly())
         return false;
 
     m_isOpen = true;
@@ -85,9 +87,21 @@ bool ProjectManager::openProject(const QString &dqprojPath)
     if (m_isOpen)
         closeProject();
 
-    m_project = Project::fromJson(doc.object());
+    const QJsonObject projectJson = doc.object();
+    m_project = Project::fromJson(projectJson);
     m_project.projectFilePath = dqprojPath;
     m_project.projectDir = QFileInfo(dqprojPath).absolutePath();
+    m_localSettings = ProjectLocalSettings();
+
+    QFile localFile(projectLocalSettingsPath());
+    if (localFile.exists() && localFile.open(QIODevice::ReadOnly)) {
+        QJsonParseError localError;
+        const QJsonDocument localDoc = QJsonDocument::fromJson(localFile.readAll(), &localError);
+        if (localError.error == QJsonParseError::NoError)
+            m_localSettings = ProjectLocalSettings::fromJson(localDoc.object());
+    } else {
+        loadLocalSettingsFromLegacyProjectJson(projectJson);
+    }
 
     // Загрузка модулей, графов и макетов из директории проекта
     m_registry->loadRegistry(m_project.projectDir);
@@ -101,17 +115,29 @@ bool ProjectManager::openProject(const QString &dqprojPath)
     return true;
 }
 
+bool ProjectManager::saveProjectMetadataOnly()
+{
+    if (m_project.projectFilePath.isEmpty())
+        return false;
+
+    if (!writeProjectMetadata())
+        return false;
+    if (!writeLocalSettings())
+        return false;
+
+    emit projectSaved();
+    return true;
+}
+
 bool ProjectManager::saveProject()
 {
     if (m_project.projectFilePath.isEmpty())
         return false;
 
-    QFile file(m_project.projectFilePath);
-    if (!file.open(QIODevice::WriteOnly))
+    if (!writeProjectMetadata())
         return false;
-
-    QJsonDocument doc(m_project.toJson());
-    file.write(doc.toJson(QJsonDocument::Indented));
+    if (!writeLocalSettings())
+        return false;
 
     // Сохранение модулей, графов и макетов
     m_registry->saveRegistry(m_project.projectDir);
@@ -135,6 +161,7 @@ bool ProjectManager::closeProject()
     if (m_uiLayoutStore)
         m_uiLayoutStore->clear();
     m_project = Project();
+    m_localSettings = ProjectLocalSettings();
     m_isOpen = false;
 
     emit projectClosed();
@@ -150,6 +177,66 @@ bool ProjectManager::ensureDirectories(const QString &dir)
            d.mkpath("src/ui") &&
            d.mkpath("build") &&
            d.mkpath("dqmods");
+}
+
+QString ProjectManager::projectLocalSettingsPath() const
+{
+    if (m_project.projectFilePath.isEmpty())
+        return {};
+    return m_project.projectFilePath + ".user";
+}
+
+bool ProjectManager::writeProjectMetadata()
+{
+    QFile file(m_project.projectFilePath);
+    if (!file.open(QIODevice::WriteOnly))
+        return false;
+
+    const QJsonDocument doc(m_project.toJson());
+    file.write(doc.toJson(QJsonDocument::Indented));
+    return true;
+}
+
+bool ProjectManager::writeLocalSettings()
+{
+    const QString path = projectLocalSettingsPath();
+    if (path.isEmpty())
+        return false;
+
+    if (m_localSettings.isDefault()) {
+        QFile localFile(path);
+        return !localFile.exists() || localFile.remove();
+    }
+
+    QFile file(path);
+    if (!file.open(QIODevice::WriteOnly))
+        return false;
+
+    const QJsonDocument doc(m_localSettings.toJson());
+    file.write(doc.toJson(QJsonDocument::Indented));
+    return true;
+}
+
+void ProjectManager::loadLocalSettingsFromLegacyProjectJson(const QJsonObject &projectJson)
+{
+    m_localSettings = ProjectLocalSettings();
+
+    const QJsonObject build = projectJson["build"].toObject();
+    const QString legacyCompilerPath = build["compiler_path"].toString();
+    const QString legacyBuildTool = build["build_tool"].toString().trimmed().toLower();
+
+    if (!legacyCompilerPath.isEmpty()) {
+        m_localSettings.selectionMode = "manual";
+        m_localSettings.manualOverride.enabled = true;
+        m_localSettings.manualOverride.cCompilerPath = legacyCompilerPath;
+    }
+
+    if (legacyBuildTool == "ninja" || legacyBuildTool == "make") {
+        m_localSettings.selectionMode = "manual";
+        m_localSettings.manualOverride.enabled = true;
+        m_localSettings.manualOverride.generator =
+            (legacyBuildTool == "ninja") ? "ninja" : "unix_makefiles";
+    }
 }
 
 } // namespace DeltaQ

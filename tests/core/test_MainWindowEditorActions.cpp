@@ -4,6 +4,7 @@
 #include <QStatusBar>
 #include <QTemporaryDir>
 #include <QTest>
+#include <QToolBar>
 
 #include "../../src/blockEditor/BlockEditorWidget.h"
 #include "../../src/core/ActionManager.h"
@@ -109,6 +110,60 @@ private slots:
         processUi();
 
         QCOMPARE(window.statusBar()->currentMessage(), "No project open");
+    }
+
+    void projectActionsAreRegisteredAndWired()
+    {
+        MainWindow window;
+
+        QAction *propertiesAction = window.actionManager()->action("project.properties");
+        QAction *rescanAction = window.actionManager()->action("project.rescanToolchains");
+        QAction *openBuildDirAction = window.actionManager()->action("project.openBuildDirectory");
+        QAction *openDistDirAction = window.actionManager()->action("project.openDistDirectory");
+        QVERIFY(propertiesAction != nullptr);
+        QVERIFY(rescanAction != nullptr);
+        QVERIFY(openBuildDirAction != nullptr);
+        QVERIFY(openDistDirAction != nullptr);
+        QCOMPARE(propertiesAction->text(), "Project Properties...");
+        QCOMPARE(rescanAction->text(), "Rescan Toolchains");
+        QCOMPARE(openBuildDirAction->text(), "Open Build Directory");
+        QCOMPARE(openDistDirAction->text(), "Open Dist Directory");
+
+        propertiesAction->trigger();
+        processUi();
+        QCOMPARE(window.statusBar()->currentMessage(), "No project open");
+
+        rescanAction->trigger();
+        processUi();
+        QVERIFY(window.statusBar()->currentMessage().startsWith("Toolchain scan completed: "));
+
+        openBuildDirAction->trigger();
+        processUi();
+        QCOMPARE(window.statusBar()->currentMessage(), "No project open");
+
+        openDistDirAction->trigger();
+        processUi();
+        QCOMPARE(window.statusBar()->currentMessage(), "No project open");
+    }
+
+    void toolbarUsesIconsAndHoverDescriptions()
+    {
+        MainWindow window;
+
+        auto *toolBar = window.findChild<QToolBar *>("mainToolBar");
+        QVERIFY(toolBar != nullptr);
+        QCOMPARE(toolBar->toolButtonStyle(), Qt::ToolButtonIconOnly);
+
+        QAction *propertiesAction = window.actionManager()->action("project.properties");
+        QAction *buildAction = window.actionManager()->action("build.build");
+        QVERIFY(propertiesAction != nullptr);
+        QVERIFY(buildAction != nullptr);
+        QVERIFY(!propertiesAction->icon().isNull());
+        QVERIFY(!propertiesAction->toolTip().isEmpty());
+        QVERIFY(!propertiesAction->statusTip().isEmpty());
+        QVERIFY(!buildAction->icon().isNull());
+        QVERIFY(!buildAction->toolTip().isEmpty());
+        QVERIFY(!buildAction->statusTip().isEmpty());
     }
 };
 

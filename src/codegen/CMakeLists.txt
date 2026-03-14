@@ -5,6 +5,7 @@ add_library(dq_codegen STATIC
     PreBuildProcessor.cpp
     BuildPipeline.cpp
     CompilerDetector.cpp
+    ToolchainResolver.cpp
 )
 
 target_include_directories(dq_codegen PUBLIC

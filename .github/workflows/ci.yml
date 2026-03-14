@@ -30,6 +30,7 @@ jobs:
             build-essential \
             cmake \
             ninja-build \
+            bubblewrap \
             pkg-config \
             qt6-base-dev \
             qt6-tools-dev-tools \
@@ -61,6 +62,9 @@ jobs:
 
       - name: Example export smoke
         run: ./scripts/smoke_linux_example_export.sh "$INSTALL_SMOKE_DIR"
+
+      - name: Desktop example export smoke
+        run: ./scripts/smoke_linux_example_export.sh "$INSTALL_SMOKE_DIR" desktop_ui_flow
 
       - name: Package smoke
         run: cpack --config "$CMAKE_BUILD_DIR/CPackConfig.cmake" -B "$PACKAGE_DIR"

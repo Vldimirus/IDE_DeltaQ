@@ -8,6 +8,7 @@ namespace DeltaQ {
 
 class PreBuildProcessor;
 class BuildManager;
+struct ProjectBuildRequest;
 
 class BuildPipeline : public QObject {
     Q_OBJECT
@@ -17,17 +18,13 @@ public:
                   QObject *parent = nullptr);
 
     // Полный pipeline: pre-build → build
-    void run(const QString &projectDir, const QString &projectName,
-             const QString &cStandard, const QString &cxxStandard,
-             const QString &projectType);
+    void run(const ProjectBuildRequest &request);
 
     // Только генерация исходников
     void runPreBuild(const QString &projectDir);
 
     // Только компиляция (предполагает что исходники уже сгенерированы)
-    void runBuild(const QString &projectDir, const QString &projectName,
-                  const QString &cStandard, const QString &cxxStandard,
-                  const QString &projectType);
+    void runBuild(const ProjectBuildRequest &request);
 
 signals:
     void pipelineStarted();

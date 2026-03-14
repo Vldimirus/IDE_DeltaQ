@@ -501,3 +501,9 @@ Acceptance:
   - CI/release workflow теперь гоняет `smoke_linux_example_export.sh`;
   - user-visible checklist и ограничения `v1` вынесены в отдельную release-документацию;
   - документированный scope теперь честно отличает Linux project export от packaging самой IDE.
+- `2026-03-14`: clean-environment gate закрыт:
+  - добавлен `verify_project_export_clean_env.sh` на базе `bubblewrap`;
+  - extracted console и desktop bundle теперь проходят sandboxed run вне project tree;
+  - `smoke_linux_example_export.sh` дополнен clean-env verification step;
+  - CI/release workflow устанавливают `bubblewrap` и гоняют export smoke не только для `minimal_console_flow`, но и для `desktop_ui_flow`;
+  - `test_LinuxProjectExporter` подтверждает clean-env path end-to-end.

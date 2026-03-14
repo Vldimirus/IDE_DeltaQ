@@ -14,6 +14,7 @@ add_executable(deltaq
     main.cpp
     core/MainWindow.cpp
     core/NewProjectWizard.cpp
+    core/ProjectPropertiesDialog.cpp
     core/ProjectTemplates.cpp
     core/SettingsDialog.cpp
     core/NewFileDialog.cpp

@@ -2,76 +2,101 @@
 #include "BuildManager.h"
 #include "CompilerOutputParser.h"
 #include "CMakeGenerator.h"
+#include <deltaq/BuildTypes.h>
 #include "../core/GraphStore.h"
 #include "../core/ModuleRegistry.h"
+
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QStringList>
 #include <QTextStream>
 
 namespace DeltaQ {
+
+namespace {
+
+QString normalizedPathForComparison(const QString &path)
+{
+    if (path.isEmpty())
+        return {};
+
+    const QFileInfo info(path);
+    if (info.exists()) {
+        const QString canonical = info.canonicalFilePath();
+        if (!canonical.isEmpty())
+            return canonical;
+    }
+
+    return QDir::cleanPath(path);
+}
+
+} // namespace
 
 BuildManager::BuildManager(QObject *parent)
     : QObject(parent)
     , m_parser(new CompilerOutputParser(this))
     , m_generator(new CMakeGenerator(this))
 {
-    // Пробрасываем ошибки компилятора как сигналы
     connect(m_parser, &CompilerOutputParser::errorFound, this, [this](const CompilerError &err) {
-        QString sev = err.isError() ? "error" : (err.isWarning() ? "warning" : "note");
+        const QString sev = err.isError() ? "error" : (err.isWarning() ? "warning" : "note");
         emit buildError(err.file, err.line, err.column, sev, err.message);
     });
 }
 
 void BuildManager::setModuleRegistry(ModuleRegistry *registry)
 {
-    // Генератор CMake должен знать о текущем реестре, чтобы добавлять в сборку
-    // только те imported pack-ы, которые реально используются графами проекта.
     m_generator->setModuleRegistry(registry);
 }
 
 void BuildManager::setGraphStore(GraphStore *store)
 {
-    // Графы передаём отдельно, потому что именно они определяют фактическое использование pack-ов.
     m_generator->setGraphStore(store);
 }
 
-void BuildManager::build(const QString &projectDir, const QString &projectName,
-                          const QString &cStandard, const QString &cxxStandard,
-                          const QString &projectType)
+void BuildManager::build(const ProjectBuildRequest &request)
 {
     if (isBuilding())
         return;
 
     m_parser->clear();
+    m_currentRequest = request;
 
-    QString buildDir = projectDir + "/build";
+    const QString buildDir = request.projectDir + "/build";
     QDir().mkpath(buildDir);
     m_currentBuildDir = buildDir;
 
     emit buildStarted();
 
-    // Если есть имя проекта — генерируем CMakeLists.txt
-    if (!projectName.isEmpty()) {
+    if (!request.projectName.isEmpty()) {
         emit buildOutput(tr("=== Generating CMakeLists.txt ===\n"));
-        m_generator->generate(projectDir, projectName, cStandard, cxxStandard, {}, projectType);
+        m_generator->generate(request.projectDir,
+                              request.projectName,
+                              request.cStandard,
+                              request.cxxStandard,
+                              request.extraCFlags,
+                              request.extraCxxFlags,
+                              request.projectType);
     }
 
-    // Проверяем есть ли CMakeLists.txt
-    if (!QFile::exists(projectDir + "/CMakeLists.txt")) {
+    if (!QFile::exists(request.projectDir + "/CMakeLists.txt")) {
         emit buildOutput(tr("=== Error: CMakeLists.txt not found ===\n"));
         emit buildFinished(false, 1, 0);
         return;
     }
 
     QString configureReason;
-    if (shouldConfigure(projectDir, buildDir, &configureReason)) {
-        const QString heading = configureReason.isEmpty()
-            ? tr("=== Configuring with CMake ===\n")
-            : tr("=== Re-configuring build directory ===\n");
-        emit buildOutput(heading);
+    if (shouldConfigure(request, &configureReason)) {
+        emit buildOutput(configureReason.isEmpty()
+                             ? tr("=== Configuring with CMake ===\n")
+                             : tr("=== Re-configuring build directory ===\n"));
         if (!configureReason.isEmpty())
             emit buildOutput(tr("Reason: %1\n").arg(configureReason));
+        emit buildOutput(tr("Generator: %1\n").arg(request.toolchain.generatorDisplayName));
+        emit buildOutput(tr("Build profile: %1\n").arg(request.toolchain.buildProfile));
+        emit buildOutput(tr("CMake: %1\n").arg(request.toolchain.cmakePath));
+        emit buildOutput(tr("C compiler: %1\n").arg(request.toolchain.cCompilerPath));
+        emit buildOutput(tr("C++ compiler: %1\n").arg(request.toolchain.cxxCompilerPath));
 
         m_process = new QProcess(this);
         m_process->setWorkingDirectory(buildDir);
@@ -90,25 +115,28 @@ void BuildManager::build(const QString &projectDir, const QString &projectName,
                     m_process = nullptr;
                     return;
                 }
+
+                writeConfiguredFingerprint(m_currentBuildDir, m_currentRequest.toolchain.fingerprint);
+
                 m_process->deleteLater();
                 m_process = nullptr;
-                // После успешной конфигурации — запускаем сборку
-                runBuild(m_currentBuildDir);
-            } else {
-                emit buildOutput(tr("\n=== CMake configure failed ===\n"));
-                emit buildFinished(false, m_parser->errorCount(), m_parser->warningCount());
-                m_process->deleteLater();
-                m_process = nullptr;
+                runBuild(m_currentRequest, m_currentBuildDir);
+                return;
             }
+
+            emit buildOutput(tr("\n=== CMake configure failed ===\n"));
+            emit buildFinished(false, m_parser->errorCount(), m_parser->warningCount());
+            m_process->deleteLater();
+            m_process = nullptr;
         });
-        m_process->start("cmake", {".."});
-    } else {
-        // CMake уже сконфигурирован — сразу собираем
-        runBuild(buildDir);
+        m_process->start(request.toolchain.cmakePath, configureArguments(request));
+        return;
     }
+
+    runBuild(request, buildDir);
 }
 
-void BuildManager::runBuild(const QString &buildDir)
+void BuildManager::runBuild(const ProjectBuildRequest &request, const QString &buildDir)
 {
     emit buildOutput(tr("=== Building project ===\n"));
 
@@ -119,7 +147,81 @@ void BuildManager::runBuild(const QString &buildDir)
     connect(m_process, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
             this, &BuildManager::onProcessFinished);
 
-    m_process->start("cmake", {"--build", ".", "--parallel"});
+    m_process->start(request.toolchain.cmakePath, {"--build", ".", "--parallel"});
+}
+
+bool BuildManager::shouldConfigure(const ProjectBuildRequest &request, QString *reason) const
+{
+    const QString buildDir = request.projectDir + "/build";
+    const QString cachePath = buildDir + "/CMakeCache.txt";
+    if (!QFile::exists(cachePath)) {
+        if (reason)
+            reason->clear();
+        return true;
+    }
+
+    const QString buildArtifact = expectedBuildArtifact(buildDir);
+    if (buildArtifact.isEmpty() || !QFile::exists(buildArtifact)) {
+        if (reason) {
+            *reason = buildArtifact.isEmpty()
+                ? tr("CMake generator is unknown; forcing a fresh configure")
+                : tr("Missing generated build file: %1").arg(QDir(buildDir).relativeFilePath(buildArtifact));
+        }
+        return true;
+    }
+
+    if (!request.toolchain.fingerprint.isEmpty()) {
+        const QString storedFingerprint = configuredFingerprint(buildDir);
+        if (storedFingerprint.isEmpty()) {
+            if (reason)
+                *reason = tr("Missing DeltaQ configure fingerprint");
+            return true;
+        }
+        if (storedFingerprint != request.toolchain.fingerprint) {
+            if (reason)
+                *reason = tr("Resolved toolchain fingerprint changed");
+            return true;
+        }
+    }
+
+    const QString configuredGenerator = cacheValue(cachePath, "CMAKE_GENERATOR");
+    if (!request.toolchain.generatorDisplayName.isEmpty()
+        && !configuredGenerator.isEmpty()
+        && configuredGenerator != request.toolchain.generatorDisplayName) {
+        if (reason)
+            *reason = tr("Configured generator differs from selected generator");
+        return true;
+    }
+
+    const QString configuredBuildType = cacheValue(cachePath, "CMAKE_BUILD_TYPE");
+    if (!request.toolchain.buildProfile.isEmpty()
+        && !configuredBuildType.isEmpty()
+        && configuredBuildType != request.toolchain.buildProfile) {
+        if (reason)
+            *reason = tr("Configured build profile differs from selected profile");
+        return true;
+    }
+
+    const QString configuredCCompiler = normalizedPathForComparison(
+        cacheValue(cachePath, "CMAKE_C_COMPILER"));
+    const QString configuredCxxCompiler = normalizedPathForComparison(
+        cacheValue(cachePath, "CMAKE_CXX_COMPILER"));
+    if (!request.toolchain.cCompilerPath.isEmpty()
+        && !configuredCCompiler.isEmpty()
+        && configuredCCompiler != normalizedPathForComparison(request.toolchain.cCompilerPath)) {
+        if (reason)
+            *reason = tr("Configured C compiler differs from selected compiler");
+        return true;
+    }
+    if (!request.toolchain.cxxCompilerPath.isEmpty()
+        && !configuredCxxCompiler.isEmpty()
+        && configuredCxxCompiler != normalizedPathForComparison(request.toolchain.cxxCompilerPath)) {
+        if (reason)
+            *reason = tr("Configured C++ compiler differs from selected compiler");
+        return true;
+    }
+
+    return shouldConfigure(request.projectDir, buildDir, reason);
 }
 
 bool BuildManager::shouldConfigure(const QString &projectDir, const QString &buildDir,
@@ -144,8 +246,8 @@ bool BuildManager::shouldConfigure(const QString &projectDir, const QString &bui
 
     QFileInfo cmakeInfo(projectDir + "/CMakeLists.txt");
     QFileInfo cacheInfo(cachePath);
-    if (cmakeInfo.exists() && cacheInfo.exists() &&
-        cmakeInfo.lastModified() > cacheInfo.lastModified()) {
+    if (cmakeInfo.exists() && cacheInfo.exists()
+        && cmakeInfo.lastModified() > cacheInfo.lastModified()) {
         if (reason)
             *reason = tr("Project CMakeLists.txt is newer than the last configure");
         return true;
@@ -189,9 +291,38 @@ QString BuildManager::expectedBuildArtifact(const QString &buildDir) const
     return {};
 }
 
+QString BuildManager::configuredFingerprintPath(const QString &buildDir) const
+{
+    return buildDir + "/.deltaq_configure_fingerprint";
+}
+
+QString BuildManager::configuredFingerprint(const QString &buildDir) const
+{
+    QFile file(configuredFingerprintPath(buildDir));
+    if (!file.open(QIODevice::ReadOnly | QIODevice::Text))
+        return {};
+    return QString::fromUtf8(file.readAll()).trimmed();
+}
+
+QStringList BuildManager::configureArguments(const ProjectBuildRequest &request) const
+{
+    QStringList args{request.projectDir};
+    if (!request.toolchain.generatorDisplayName.isEmpty())
+        args << "-G" << request.toolchain.generatorDisplayName;
+    if (!request.toolchain.buildProfile.isEmpty())
+        args << QString("-DCMAKE_BUILD_TYPE=%1").arg(request.toolchain.buildProfile);
+    if (!request.toolchain.cCompilerPath.isEmpty())
+        args << QString("-DCMAKE_C_COMPILER=%1").arg(request.toolchain.cCompilerPath);
+    if (!request.toolchain.cxxCompilerPath.isEmpty())
+        args << QString("-DCMAKE_CXX_COMPILER=%1").arg(request.toolchain.cxxCompilerPath);
+    if (!request.toolchain.builderPath.isEmpty())
+        args << QString("-DCMAKE_MAKE_PROGRAM=%1").arg(request.toolchain.builderPath);
+    return args;
+}
+
 void BuildManager::clean(const QString &projectDir)
 {
-    QString buildDir = projectDir + "/build";
+    const QString buildDir = projectDir + "/build";
     QDir(buildDir).removeRecursively();
     emit buildOutput(tr("=== Clean complete ===\n"));
 }
@@ -211,12 +342,11 @@ void BuildManager::onProcessOutput()
 {
     if (!m_process)
         return;
-    QString out = m_process->readAllStandardOutput();
-    QString err = m_process->readAllStandardError();
+    const QString out = m_process->readAllStandardOutput();
+    const QString err = m_process->readAllStandardError();
 
     if (!out.isEmpty()) {
         emit buildOutput(out);
-        // Парсим на ошибки
         for (const auto &line : out.split('\n'))
             m_parser->parseLine(line);
     }
@@ -229,9 +359,9 @@ void BuildManager::onProcessOutput()
 
 void BuildManager::onProcessFinished(int exitCode, QProcess::ExitStatus status)
 {
-    bool success = (status == QProcess::NormalExit && exitCode == 0);
-    int errors = m_parser->errorCount();
-    int warnings = m_parser->warningCount();
+    const bool success = (status == QProcess::NormalExit && exitCode == 0);
+    const int errors = m_parser->errorCount();
+    const int warnings = m_parser->warningCount();
 
     if (success)
         emit buildOutput(tr("\n=== Build succeeded ===\n"));
@@ -254,6 +384,20 @@ int BuildManager::lastErrorCount() const
 int BuildManager::lastWarningCount() const
 {
     return m_parser->warningCount();
+}
+
+bool BuildManager::writeConfiguredFingerprint(const QString &buildDir,
+                                              const QString &fingerprint) const
+{
+    if (fingerprint.trimmed().isEmpty())
+        return true;
+
+    QFile file(configuredFingerprintPath(buildDir));
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Text))
+        return false;
+
+    file.write(fingerprint.toUtf8());
+    return true;
 }
 
 } // namespace DeltaQ

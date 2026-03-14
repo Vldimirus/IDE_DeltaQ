@@ -1,0 +1,17 @@
+<RCC>
+    <qresource prefix="/icons/toolbar">
+        <file alias="new_project.svg">../../resources/icons/toolbar/new_project.svg</file>
+        <file alias="open_project.svg">../../resources/icons/toolbar/open_project.svg</file>
+        <file alias="save.svg">../../resources/icons/toolbar/save.svg</file>
+        <file alias="project_properties.svg">../../resources/icons/toolbar/project_properties.svg</file>
+        <file alias="undo.svg">../../resources/icons/toolbar/undo.svg</file>
+        <file alias="redo.svg">../../resources/icons/toolbar/redo.svg</file>
+        <file alias="build.svg">../../resources/icons/toolbar/build.svg</file>
+        <file alias="run.svg">../../resources/icons/toolbar/run.svg</file>
+        <file alias="export_bundle.svg">../../resources/icons/toolbar/export_bundle.svg</file>
+        <file alias="code_editor.svg">../../resources/icons/toolbar/code_editor.svg</file>
+        <file alias="block_editor.svg">../../resources/icons/toolbar/block_editor.svg</file>
+        <file alias="ui_designer.svg">../../resources/icons/toolbar/ui_designer.svg</file>
+        <file alias="library_processor.svg">../../resources/icons/toolbar/library_processor.svg</file>
+    </qresource>
+</RCC>

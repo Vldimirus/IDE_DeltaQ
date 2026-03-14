@@ -25,6 +25,7 @@ private:
     static QString repoRootPath()
     {
         QStringList candidates = {
+            QDir::cleanPath(QString::fromUtf8(DQ_TEST_SOURCE_DIR)),
             QDir::cleanPath(QDir::currentPath()),
             QDir::cleanPath(QDir(QDir::currentPath()).absoluteFilePath("..")),
             QDir::cleanPath(QDir(QDir::currentPath()).absoluteFilePath("../.."))
@@ -34,6 +35,7 @@ private:
             const QDir appDir(QCoreApplication::applicationDirPath());
             candidates.append(QDir::cleanPath(appDir.absoluteFilePath("../..")));
             candidates.append(QDir::cleanPath(appDir.absoluteFilePath("../../..")));
+            candidates.append(QDir::cleanPath(appDir.absoluteFilePath("../../../..")));
         }
 
         for (const auto &candidate : candidates) {
@@ -156,6 +158,31 @@ private:
                  qPrintable(QString::fromUtf8(stdoutData + stderrData)));
     }
 
+    static void verifyCleanEnvironmentScript(const QString &repoRoot,
+                                             const QString &bundleDir,
+                                             const QString &workingDir,
+                                             const QString &expectedText = {},
+                                             const QProcessEnvironment *environment = nullptr)
+    {
+        QByteArray stdoutData;
+        QByteArray stderrData;
+        QStringList arguments = {
+            repoRoot + "/scripts/verify_project_export_clean_env.sh",
+            bundleDir
+        };
+        if (!expectedText.isEmpty())
+            arguments << "--expect-text" << expectedText;
+
+        QVERIFY2(runProcess("bash",
+                            arguments,
+                            workingDir,
+                            &stdoutData,
+                            &stderrData,
+                            120000,
+                            environment),
+                 qPrintable(QString::fromUtf8(stdoutData + stderrData)));
+    }
+
 private slots:
     void exportsBuiltConsoleProjectIntoHandoffBundle()
     {
@@ -204,6 +231,11 @@ private slots:
 
         const QString extractedBundleDir = extractArchive(result.archivePath, extractRoot.path());
         const QString extractedLauncherPath = QDir(extractedBundleDir).filePath(targetName);
+
+        verifyCleanEnvironmentScript(repoRoot,
+                                     extractedBundleDir,
+                                     extractRoot.path(),
+                                     "Hello from exported bundle");
 
         QProcess app;
         app.setProcessEnvironment(QProcessEnvironment());
@@ -283,12 +315,18 @@ private slots:
         const QString extractedBundleDir = extractArchive(result.archivePath, extractRoot.path());
         const QString extractedLauncherPath = QDir(extractedBundleDir).filePath(targetName);
 
+        QProcessEnvironment cleanEnv;
+        cleanEnv.insert("SDL_VIDEODRIVER", "dummy");
+        cleanEnv.insert("SDL_RENDER_DRIVER", "software");
+        cleanEnv.insert("DQ_DESKTOP_UI_FLOW_AUTOCLOSE_MS", "1200");
+        verifyCleanEnvironmentScript(repoRoot,
+                                     extractedBundleDir,
+                                     extractRoot.path(),
+                                     {},
+                                     &cleanEnv);
+
         QProcess app;
-        QProcessEnvironment env;
-        env.insert("SDL_VIDEODRIVER", "dummy");
-        env.insert("SDL_RENDER_DRIVER", "software");
-        env.insert("DQ_DESKTOP_UI_FLOW_AUTOCLOSE_MS", "1200");
-        app.setProcessEnvironment(env);
+        app.setProcessEnvironment(cleanEnv);
         app.setProgram(extractedLauncherPath);
         app.setWorkingDirectory(extractRoot.path());
         app.start();

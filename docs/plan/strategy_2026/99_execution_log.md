@@ -4305,3 +4305,352 @@
   IDE-level automation smoke;
 - user-visible scope и ограничения export описаны явно;
 - единственный честно незакрытый technical gap остаётся container/VM-level clean-environment gate.
+
+### Шаг 79 — оформлен execution plan для Project Properties, toolchain UX и top-level workbench polish
+
+**Фаза:** `Linux-first delivery follow-up`
+
+**Что сделано:**
+
+- создан новый strategy-документ:
+  - `docs/plan/strategy_2026/31_project_properties_and_toolchain_ux_v1.md`;
+- в `98_strategy_checklist.md` добавлен новый active track:
+  - `Project properties and toolchain UX v1`;
+- в checklist добавлена отдельная секция:
+  - `Project Configuration And Toolchains`.
+
+**Зачем это сделано:**
+
+- зафиксировать следующий системный слой поверх уже собранного Linux build/export path;
+- перестать обсуждать `Project Properties`, toolchain detection и toolbar/localization
+  как несвязанный wishlist;
+- развести:
+  - portable project settings в `.dqproj`;
+  - machine-local tool paths в отдельный local-user слой;
+- заранее принять архитектурное решение, что `v1` остаётся на `CMake`, а не уходит
+  в поддержку нескольких build systems одновременно.
+
+**Что зафиксировано в плане:**
+
+- `Project -> Properties...` как отдельная project-level surface, а не расширение общего `Settings`;
+- `CMake` как единственный build orchestrator для `v1`;
+- отдельный local-user слой для путей к `cmake`, compiler и builder;
+- развитие `CompilerDetector` в product-facing toolchain scanner/resolver;
+- обязательная интеграция выбранного generator/toolchain в `BuildManager` и export path;
+- guided missing-dependency diagnostics вместо reliance только на raw build log;
+- upgrade quick toolbar до `icon + tooltip + status-tip`;
+- отдельный top-level pass по русской локализации.
+
+**Итог:**
+
+- следующий большой UX/build-surface этап теперь оформлен как исполнимый plan, а не как устное обсуждение;
+- есть единый source-of-truth для дальнейшего решения по implementation order;
+- можно предметно выбирать, когда открывать этот track и какой slice брать первым.
+
+### Шаг 80 — `Project Properties / Toolchain UX v1` plan доведён до implementation-grade после review
+
+**Фаза:** `Linux-first delivery follow-up`
+
+**Что сделано:**
+
+- `31_project_properties_and_toolchain_ux_v1.md` пересмотрен после review findings;
+- устранено противоречие между тезисом "UI не должен быть декоративным" и
+  recommended execution order;
+- configurable build output dir выведен из `v1` scope;
+- добавлена formal kit model:
+  - `selected_kit_id`
+  - `manual override`
+  - precedence `manual -> selected kit -> auto`;
+- добавлены requirements на:
+  - metadata-only project save;
+  - configure fingerprint / forced reconfigure semantics.
+
+**Зачем это сделано:**
+
+- довести plan от strong strategy-doc до более честного implementation-spec;
+- не обещать пользователю editable output dir при текущей жёсткой привязке к `build/`;
+- не оставлять двусмысленность вокруг kit persistence и save side effects;
+- зафиксировать, что полноценный `Project Properties` editing UI должен идти только
+  после backend-integrated toolchain truth.
+
+**Итог:**
+
+- execution order теперь согласован с техническим риском;
+- plan больше не скрывает cross-cutting сложность вокруг `build/`-зависимых путей;
+- следующий implementation slice можно брать уже без очевидных архитектурных противоречий.
+
+### Шаг 81 — backend slice для Project Properties / Toolchain UX доведён до working code
+
+**Фаза:** `Linux-first delivery follow-up`
+
+**Что сделано:**
+
+- нормализован portable/local split для project build settings:
+  - `.dqproj` хранит project intent;
+  - `.dqproj.user` хранит local toolchain selection и fingerprint;
+- добавлен `ToolchainResolver`:
+  - stable `kit_id`;
+  - precedence `manual -> selected kit -> auto`;
+  - resolved toolchain fingerprint;
+- `BuildPipeline` и `BuildManager` переведены на resolved build request;
+- `cmake configure` теперь запускается с явными:
+  - `-G`;
+  - `-D CMAKE_BUILD_TYPE=...`;
+  - `-D CMAKE_C_COMPILER=...`;
+  - `-D CMAKE_CXX_COMPILER=...`;
+  - `-D CMAKE_MAKE_PROGRAM=...`;
+- `BuildManager` сохраняет configure fingerprint в build tree и форсит reconfigure при его смене;
+- `MainWindow` после успешной сборки сохраняет новый resolved fingerprint через metadata-only save path.
+
+**Тестовое покрытие:**
+
+- обновлены и прошли:
+  - `test_Project`;
+  - `test_ProjectManager`;
+  - `test_BuildManager`;
+  - `test_ToolchainResolver`;
+  - `test_MainWindowEditorActions`.
+
+**Что это меняет:**
+
+- toolchain/backend truth больше не декоративна и уже реально влияет на build;
+- groundwork для `Project -> Properties...` теперь есть и не требует "сначала нарисовать UI, потом подключить";
+- следующий честный незакрытый слой:
+  - user-facing `Project Properties`;
+  - `Rescan Toolchains`;
+  - guided diagnostics для missing tools/deps.
+
+### Шаг 82 — user-facing `Project Properties` и `Rescan Toolchains` добавлены поверх backend truth
+
+**Фаза:** `Linux-first delivery follow-up`
+
+**Что сделано:**
+
+- добавлен `Project` menu в `MainWindow`;
+- добавлены actions:
+  - `Project Properties...`;
+  - `Rescan Toolchains`;
+- реализован `ProjectPropertiesDialog`:
+  - `General`;
+  - `Build`;
+  - `Toolchain`;
+- dialog показывает detected kits и resolved toolchain summary;
+- сохранение идёт через `saveProjectMetadataOnly()`, без скрытого сохранения graph/UI/module данных;
+- `Rescan Toolchains` работает и отдельно из главного меню, и из самого dialog.
+
+**Тестовое покрытие:**
+
+- обновлены и прошли:
+  - `test_ActionManager`;
+  - `test_MainWindowEditorActions`;
+  - `test_MainWindowBuildOutputNavigation`;
+  - `test_ProjectPropertiesDialog`.
+
+**Что остаётся незакрытым:**
+
+- guided diagnostics для missing toolchain/dependency cases;
+- toolbar icons / hover descriptions;
+- top-level RU localization pass;
+- дополнительные project actions уровня `Open Build Directory / Open Dist Directory`.
+
+### Шаг 83 — guided diagnostics добавлены для missing toolchain и desktop dependencies
+
+**Фаза:** `Linux-first delivery follow-up`
+
+**Что сделано:**
+
+- добавлен `BuildGuidanceAnalyzer`;
+- preflight failure по missing `cmake / compiler / builder` теперь даёт structured guidance;
+- desktop configure failure по `SDL2 / SDL2_ttf` теперь даёт dependency guidance;
+- guidance показывается и в build output, и как отдельное user-facing message с next steps;
+- distro-aware install hints добавлены для:
+  - Debian/Ubuntu;
+  - Fedora;
+  - Arch/Manjaro;
+- fallback guidance есть и для unknown distro.
+
+**Тестовое покрытие:**
+
+- добавлен и проходит `test_BuildGuidanceAnalyzer`;
+- регресс-покрытие `MainWindow` не сломано:
+  - `test_MainWindowEditorActions`;
+  - `test_MainWindowBuildOutputNavigation`.
+
+**Итог:**
+
+- основной `Project / Toolchain UX v1` track теперь закрывает не только model/persistence/backend truth и `Project Properties`, но и первый продуктовый слой guided diagnostics;
+- следующий незакрытый блок сместился в polish/UI territory:
+  - toolbar icons / hover descriptions;
+  - top-level RU localization;
+  - optional extra project actions (`Open Build Directory / Open Dist Directory`).
+
+### Шаг 84 — quick toolbar переведён на icon + hover description UX
+
+**Фаза:** `Linux-first delivery follow-up`
+
+**Что сделано:**
+
+- `ActionManager` получил icon binding для основных project/build/view actions;
+- actions получили заполненные `toolTip` и `statusTip`;
+- main toolbar переведён в `icon-only` режим;
+- composition верхнего quick-access bar выровнена вокруг реально частых действий:
+  - new/open/save;
+  - project properties;
+  - undo/redo;
+  - build/run/export;
+  - view switching.
+
+**Тестовое покрытие:**
+
+- обновлены и проходят:
+  - `test_ActionManager`;
+  - `test_MainWindowEditorActions`.
+
+**Итог:**
+
+- toolbar больше не выглядит как смесь text-only actions и случайных кнопок;
+- hover теперь даёт и button tooltip, и status-bar description;
+- `Stage 8` в `31_project_properties_and_toolchain_ux_v1.md` можно считать закрытым.
+
+### Шаг 85 — top-level RU localization pass закрыт для `Project / Build / Toolchain` flow
+
+**Фаза:** `Linux-first delivery follow-up`
+
+**Что сделано:**
+
+- выполнен targeted перевод новых top-level strings в `deltaq_ru.ts`;
+- покрыты user-visible строки для:
+  - `ActionManager`;
+  - `Project Properties`;
+  - toolchain diagnostics;
+  - build/export status feedback;
+- собран актуальный `deltaq_ru.qm` через target `translations`.
+
+**Проверка:**
+
+- `cmake --build build/qt-dev --target translations`
+- верхнеуровневые контексты `ActionManager`, `BuildManager`, `ProjectPropertiesDialog` больше не содержат `unfinished` переводов на новых surfaces.
+
+**Итог:**
+
+- русский first-contact layer теперь выглядит цельно в `Project / Build / Toolchain` flow;
+- это не означает full translation completion для всего репозитория, но для `v1` acceptance по top-level localization закрыт;
+- `Project properties and toolchain UX v1` можно считать закрытым как execution track.
+
+### Шаг 86 — в `Project` menu добавлены быстрые actions для `build/` и `dist/`
+
+**Фаза:** `Linux-first delivery follow-up`
+
+**Что сделано:**
+
+- добавлены actions:
+  - `Open Build Directory`;
+  - `Open Dist Directory`;
+- actions зарегистрированы в `ActionManager` с icon/tooltip/status-tip metadata;
+- `MainWindow` открывает каталоги через безопасный helper:
+  - если проект не открыт, показывается `No project open`;
+  - если `build/` или `dist/` ещё не существуют, пользователь получает понятный status-bar feedback;
+  - при наличии каталога IDE открывает его как системную директорию handoff/debug workflow.
+
+**Тестовое покрытие:**
+
+- обновлены и проходят:
+  - `test_ActionManager`;
+  - `test_MainWindowEditorActions`.
+
+**Проверка:**
+
+- `cmake --build build/qt-dev --parallel --target test_ActionManager test_MainWindowEditorActions translations`
+- `QT_QPA_PLATFORM=offscreen ctest --test-dir build/qt-dev --output-on-failure -R 'test_(ActionManager|MainWindowEditorActions)$'`
+
+**Итог:**
+
+- `Project` menu теперь закрывает не только configuration surface, но и быстрый handoff/access path к build artifacts;
+- старый optional follow-up по `Open Build Directory / Open Dist Directory` можно считать закрытым.
+
+### Шаг 87 — clean-environment gate закрыт для desktop project export
+
+**Фаза:** `Linux-first delivery follow-up`
+
+**Что сделано:**
+
+- добавлен `scripts/verify_project_export_clean_env.sh`;
+- verifier использует `bubblewrap`, чтобы запускать exported bundle в урезанном filesystem namespace, где виден только сам bundle и минимальный system baseline;
+- verifier по-прежнему опирается на уже существующий loader-level proof из `verify_project_export_bundle.sh`, а поверх него добавляет реальный sandboxed runtime run;
+- `smoke_linux_example_export.sh` теперь включает clean-environment verification;
+- CI/release workflows устанавливают `bubblewrap` и гоняют export smoke как для `minimal_console_flow`, так и для `desktop_ui_flow`.
+
+**Тестовое покрытие:**
+
+- `test_LinuxProjectExporter` расширен:
+  - extracted console bundle проходит clean-env verification с проверкой ожидаемого stdout;
+  - extracted desktop bundle проходит clean-env verification в headless режиме;
+- тестовый repo-root resolver обновлён под новый `build/qt-dev` layout через compile-time source dir define.
+
+**Проверка:**
+
+- `QT_QPA_PLATFORM=offscreen ctest --test-dir build/qt-dev --output-on-failure -R 'test_LinuxProjectExporter$'`
+  - запускался вне Codex sandbox, потому что `bubblewrap` требует реального host execution; результат — зелёный.
+
+**Итог:**
+
+- последний незакрытый hard gate в `Linux project export v1` снят;
+- desktop self-contained claim теперь подтверждён не только `ldd`/near-clean env, но и отдельным sandboxed runtime run;
+- `Linux project export v1` можно считать закрытым как execution track.
+
+### Шаг 88 — toolbar переведён на собственный neutral SVG icon set
+
+**Фаза:** `Linux-first delivery follow-up`
+
+**Что сделано:**
+
+- добавлен встроенный resource bundle `resources/icons/toolbar/*.svg`;
+- `dq_core` теперь компилирует `toolbar_icons.qrc`;
+- toolbar-visible actions переведены с случайных platform/system glyphs на собственные иконки:
+  - new/open/save;
+  - project properties;
+  - undo/redo;
+  - build/run/export;
+  - code/block/UI/library views;
+- для всех этих actions оставлен fallback на стандартные `QStyle`-иконки, если resource не загрузится.
+
+**Зачем это сделано:**
+
+- toolbar больше не тащит в screenshots чужие или визуально случайные логотипы;
+- `UI Designer` больше не выглядит как привязка к бренду Qt;
+- quick-access bar визуально стал более цельным и продуктовым.
+
+**Тестовое покрытие:**
+
+- обновлены и проходят:
+  - `test_ActionManager`;
+  - `test_MainWindowEditorActions`.
+
+**Проверка:**
+
+- `cmake --build build/qt-dev --parallel --target test_ActionManager test_MainWindowEditorActions`
+- `QT_QPA_PLATFORM=offscreen ctest --test-dir build/qt-dev --output-on-failure -R 'test_(ActionManager|MainWindowEditorActions)$'`
+
+### Шаг 89 — screenshots / visual proof встроены в public release surface
+
+**Фаза:** `Linux-first release polish`
+
+**Что сделано:**
+
+- пользовательские screenshots добавлены в:
+  - `README.md`;
+  - `README_RU.md`;
+  - `docs/release/README.md`;
+- корневые README теперь показывают не только claims, но и реальный Linux-first IDE flow:
+  - создание проекта;
+  - module/code work;
+  - UI / graph composition;
+  - build feedback;
+  - exported app handoff;
+- release docs получили полный visual-proof block для внешнего показа Linux artifacts.
+
+**Итог:**
+
+- public release surface теперь подтверждается не только текстом и checklist-ами, но и реальными кадрами из живой IDE;
+- пункт `screenshots / visual proof` в `29_linux_release_polish.md` закрыт;
+- `External Trust` и `Phase 3` критерий "DeltaQ можно показать как целостный open-source инструмент" можно считать закрытым.

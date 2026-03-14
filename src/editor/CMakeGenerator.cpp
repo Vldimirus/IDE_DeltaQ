@@ -78,10 +78,20 @@ QString CMakeGenerator::generate(const QString &projectDir, const QString &proje
                                   const QString &cStandard, const QString &cxxStandard,
                                   const QStringList &extraFlags, const QString &projectType)
 {
+    return generate(projectDir, projectName, cStandard, cxxStandard,
+                    extraFlags, extraFlags, projectType);
+}
+
+QString CMakeGenerator::generate(const QString &projectDir, const QString &projectName,
+                                  const QString &cStandard, const QString &cxxStandard,
+                                  const QStringList &extraCFlags,
+                                  const QStringList &extraCxxFlags,
+                                  const QString &projectType)
+{
     QStringList sources = collectSources(projectDir);
     const QVector<ImportedPackRequirement> importedPackRequirements = collectImportedPackRequirements();
     QString content = generateContent(projectName, sources, cStandard, cxxStandard,
-                                      extraFlags, projectType, importedPackRequirements);
+                                      extraCFlags, extraCxxFlags, projectType, importedPackRequirements);
 
     // Записываем CMakeLists.txt в корень проекта
     QString cmakePath = projectDir + "/CMakeLists.txt";
@@ -203,7 +213,8 @@ QString CMakeGenerator::generateContent(const QString &projectName,
                                          const QStringList &sources,
                                          const QString &cStandard,
                                          const QString &cxxStandard,
-                                         const QStringList &extraFlags,
+                                         const QStringList &extraCFlags,
+                                         const QStringList &extraCxxFlags,
                                          const QString &projectType,
                                          const QVector<ImportedPackRequirement> &importedPackRequirements) const
 {
@@ -280,8 +291,10 @@ QString CMakeGenerator::generateContent(const QString &projectName,
     // Флаги компиляции
     cmake += QString("target_compile_options(%1 PRIVATE\n").arg(projectName);
     cmake += "    -Wall -Wextra\n";
-    for (const auto &flag : extraFlags)
-        cmake += QString("    %1\n").arg(flag);
+    for (const auto &flag : extraCFlags)
+        cmake += QString("    $<$<COMPILE_LANGUAGE:C>:%1>\n").arg(flag);
+    for (const auto &flag : extraCxxFlags)
+        cmake += QString("    $<$<COMPILE_LANGUAGE:CXX>:%1>\n").arg(flag);
     cmake += ")\n";
 
     // SDL2 для desktop-проектов (CMake package -> pkg-config fallback)
