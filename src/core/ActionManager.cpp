@@ -98,6 +98,7 @@ void ActionManager::setupStandardActions()
     // Группа "build"
     registerAction("build.build", tr("Build"), QKeySequence("Ctrl+B"), "build");
     registerAction("build.run", tr("Run"), QKeySequence("Ctrl+R"), "build");
+    registerAction("build.exportLinuxBundle", tr("Export Linux Bundle"), {}, "build");
     registerAction("build.clean", tr("Clean"), QKeySequence("Ctrl+Shift+B"), "build");
 
     // Группа "debug"

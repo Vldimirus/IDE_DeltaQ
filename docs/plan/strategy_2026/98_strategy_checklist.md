@@ -33,6 +33,7 @@
 
 ## Active Execution Tracks
 
+- `[ ]` Linux project export v1 `(новый главный track; цель: довести DeltaQ от build/run внутри IDE до build/export/handoff-ready Linux bundle для пользовательского ПО; детальный execution plan: docs/plan/strategy_2026/30_linux_project_export_v1.md)`
 - `[ ]` Linux-first release polish `(в работе; narrative между README/onboarding/examples/release docs и user-facing Linux checklist уже закрыты, открытым хвостом остаются screenshots / visual proof; детальный execution plan: docs/plan/strategy_2026/29_linux_release_polish.md)`
 
 ## Foundation And Governance
@@ -267,4 +268,17 @@
 - `[x]` Есть tag-based release workflow, публикующий Linux tarball и checksum как GitHub Release assets
 - `[x]` Есть публичный packaged artifact beyond Linux tarball: AppImage для tagged releases
 - `[x]` AppImage реально собирается и проходит локальную офлайн-safe verification, а не только infrastructure scaffolding
+
+### Linux Project Export v1
+
+- `[x]` Есть backend export pipeline для пользовательского Linux-проекта `(ProjectExecutableResolver + LinuxProjectExporter + build-coupled MainWindow action)`
+- `[x]` Export produces runnable directory bundle в `dist/` для `console` и `desktop` на текущем Linux host
+- `[x]` Есть user-facing `Build -> Export Linux Bundle`, который делает `pre-build -> build -> export` и не пакует stale build silently
+- `[x]` Console project bundle запускается вне project tree и без DeltaQ checkout
+- `[ ]` Desktop project bundle включает нужный runtime payload и проходит isolated smoke `(локальный post-export smoke, extracted-archive smoke, near-clean env smoke и loader-level proof уже есть; clean-environment gate ещё открыт)`
+- `[x]` Exported bundle можно упаковать в `.tar.gz` без отдельного packaging flow
+- `[ ]` Dependency model и ограничения export `v1` описаны честно и user-visible
+
+### Cross-Platform Delivery
+
 - `[ ]` Есть полноценная cross-platform delivery story для Windows и macOS

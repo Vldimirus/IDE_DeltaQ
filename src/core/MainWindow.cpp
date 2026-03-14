@@ -17,6 +17,8 @@
 #include "../editor/CodeEditorTab.h"
 #include "../editor/ProjectTreeView.h"
 #include "../editor/BuildManager.h"
+#include "../editor/LinuxProjectExporter.h"
+#include "../editor/ProjectExecutableResolver.h"
 #include "../editor/CompilerOutputParser.h"
 #include "../lsp/LSPClient.h"
 #include "../lsp/LSPTypes.h"
@@ -279,6 +281,7 @@ void MainWindow::setupMenus()
     auto *buildMenu = menuBar()->addMenu(tr("&Build"));
     buildMenu->addAction(m_actionManager->buildAction());
     buildMenu->addAction(m_actionManager->runAction());
+    buildMenu->addAction(m_actionManager->action("build.exportLinuxBundle"));
     buildMenu->addAction(m_actionManager->action("build.clean"));
 
     auto *debugMenu = menuBar()->addMenu(tr("&Debug"));
@@ -457,6 +460,8 @@ void MainWindow::setupConnections()
     connect(am->action("edit.format"), &QAction::triggered, m_codeEditor, &CodeEditorWidget::formatDocument);
 
     connect(am->buildAction(), &QAction::triggered, this, &MainWindow::onBuild);
+    connect(am->action("build.exportLinuxBundle"), &QAction::triggered,
+            this, &MainWindow::onExportLinuxBundle);
     connect(am->action("build.clean"), &QAction::triggered, this, &MainWindow::onClean);
     connect(am->runAction(), &QAction::triggered, this, &MainWindow::onRun);
 
@@ -485,17 +490,15 @@ void MainWindow::setupConnections()
         m_outputDock->show();
     });
     connect(m_buildManager, &BuildManager::buildStarted, this, [this]() {
-        m_buildOutput->clear();
-        m_buildDiagnostics->clear();
         m_outputTabs->setCurrentWidget(m_buildOutput);
         m_outputDock->show();
-        m_actionManager->buildAction()->setEnabled(false);
+        setBuildActionsEnabled(false);
         statusBar()->showMessage(tr("Building..."));
     });
     connect(m_buildManager, &BuildManager::buildError,
             this, &MainWindow::addBuildDiagnosticEntry);
     connect(m_buildManager, &BuildManager::buildFinished, this, [this](bool success, int errors, int warnings) {
-        m_actionManager->buildAction()->setEnabled(true);
+        setBuildActionsEnabled(true);
         if (success)
             statusBar()->showMessage(tr("Build succeeded"), 5000);
         else
@@ -996,39 +999,32 @@ void MainWindow::onSaveFile()
 
 void MainWindow::onBuild()
 {
-    if (!m_projectManager->isProjectOpen()) {
-        statusBar()->showMessage(tr("No project open"), 3000);
-        return;
-    }
+    runBuildPipeline(tr("Build completed"), tr("Build failed"));
+}
 
-    m_buildOutput->clear();
-    m_buildDiagnostics->clear();
-    m_outputTabs->setCurrentWidget(m_buildOutput);
-    m_outputDock->show();
+void MainWindow::onExportLinuxBundle()
+{
+    runBuildPipeline(tr("Build completed"),
+                     tr("Build failed"),
+                     [this](bool success) {
+        if (!success)
+            return;
 
-    // Подключаем вывод pipeline к buildOutput (однократно через lambda)
-    const auto outputConn = std::make_shared<QMetaObject::Connection>();
-    *outputConn = connect(m_buildPipeline, &BuildPipeline::pipelineOutput,
-                        this, [this](const QString &text) {
-        appendBuildOutputChunk(text);
+        QString errorMessage;
+        if (!exportCurrentProjectLinuxBundle(&errorMessage)) {
+            const QString failure = errorMessage.isEmpty()
+                ? tr("Linux export failed")
+                : errorMessage;
+            appendBuildOutputChunk(tr("\n=== Linux bundle export failed ===\n"));
+            appendBuildOutputChunk(tr("ERROR: %1\n").arg(failure));
+            m_outputTabs->setCurrentWidget(m_buildOutput);
+            m_outputDock->show();
+            statusBar()->showMessage(failure, 5000);
+            return;
+        }
+
+        statusBar()->showMessage(tr("Linux bundle exported"), 5000);
     });
-
-    // По завершению pipeline отключаем соединение
-    connect(m_buildPipeline, &BuildPipeline::pipelineFinished,
-            this, [this, outputConn](bool success) {
-        disconnect(*outputConn);
-        if (success)
-            statusBar()->showMessage(tr("Build completed"), 3000);
-        else
-            statusBar()->showMessage(tr("Build failed"), 3000);
-    }, Qt::SingleShotConnection);
-
-    // Запускаем двухфазную сборку
-    m_buildPipeline->run(m_projectManager->projectDir(),
-                         m_projectManager->currentProject().name,
-                         m_projectManager->currentProject().build.standard,
-                         "20",
-                         m_projectManager->currentProject().projectType);
 }
 
 void MainWindow::onClean()
@@ -1063,23 +1059,7 @@ void MainWindow::onDebugStart()
         return;
     }
 
-    // Ищем исполняемый файл в build/
-    QString buildDir = m_projectManager->projectDir() + "/build";
-    QString projectName = m_projectManager->currentProject().name;
-    QStringList candidates = {
-        buildDir + "/" + projectName,
-        buildDir + "/src/" + projectName,
-        buildDir + "/" + projectName.toLower(),
-    };
-
-    QString executable;
-    for (const auto &path : candidates) {
-        if (QFile::exists(path)) {
-            executable = path;
-            break;
-        }
-    }
-
+    const QString executable = resolveProjectExecutable();
     if (executable.isEmpty()) {
         statusBar()->showMessage(tr("Executable not found — build first"), 3000);
         return;
@@ -1843,25 +1823,110 @@ bool MainWindow::openProjectPath(const QString &path, QString *errorMessage)
     return true;
 }
 
+void MainWindow::setBuildActionsEnabled(bool enabled)
+{
+    if (m_actionManager->buildAction())
+        m_actionManager->buildAction()->setEnabled(enabled);
+    if (auto *exportAction = m_actionManager->action("build.exportLinuxBundle"))
+        exportAction->setEnabled(enabled);
+}
+
+void MainWindow::runBuildPipeline(const QString &successMessage,
+                                  const QString &failureMessage,
+                                  std::function<void(bool)> completionHandler)
+{
+    if (!m_projectManager->isProjectOpen()) {
+        statusBar()->showMessage(tr("No project open"), 3000);
+        return;
+    }
+
+    if (m_buildManager && m_buildManager->isBuilding()) {
+        statusBar()->showMessage(tr("Build already in progress"), 3000);
+        return;
+    }
+
+    m_buildOutput->clear();
+    m_buildDiagnostics->clear();
+    m_outputTabs->setCurrentWidget(m_buildOutput);
+    m_outputDock->show();
+    setBuildActionsEnabled(false);
+
+    const auto outputConn = std::make_shared<QMetaObject::Connection>();
+    *outputConn = connect(m_buildPipeline, &BuildPipeline::pipelineOutput,
+                          this, [this](const QString &text) {
+        appendBuildOutputChunk(text);
+        m_outputDock->show();
+    });
+
+    connect(m_buildPipeline, &BuildPipeline::pipelineFinished,
+            this,
+            [this, outputConn, successMessage, failureMessage,
+             completionHandler = std::move(completionHandler)](bool success) mutable {
+        disconnect(*outputConn);
+        setBuildActionsEnabled(true);
+        statusBar()->showMessage(success ? successMessage : failureMessage, 3000);
+
+        if (completionHandler)
+            completionHandler(success);
+    },
+            Qt::SingleShotConnection);
+
+    m_buildPipeline->run(m_projectManager->projectDir(),
+                         m_projectManager->currentProject().name,
+                         m_projectManager->currentProject().build.standard,
+                         "20",
+                         m_projectManager->currentProject().projectType);
+}
+
+bool MainWindow::exportCurrentProjectLinuxBundle(QString *errorMessage)
+{
+    if (!m_projectManager->isProjectOpen()) {
+        if (errorMessage)
+            *errorMessage = tr("No project open");
+        return false;
+    }
+
+    const QString projectDir = m_projectManager->projectDir();
+    const auto &project = m_projectManager->currentProject();
+    const QString buildDir = QDir(projectDir).filePath("build");
+
+    LinuxProjectExporter exporter;
+    LinuxExportOptions options;
+    options.projectDir = projectDir;
+    options.projectName = project.name;
+    options.projectType = project.projectType;
+    options.buildDir = buildDir;
+    options.distRootDir = QDir(projectDir).filePath("dist");
+    options.packageArchive = true;
+    LinuxExportResult result = exporter.exportBuiltProject(options);
+    if (!result.success) {
+        if (errorMessage)
+            *errorMessage = result.errorMessage;
+        return false;
+    }
+
+    appendBuildOutputChunk(tr("\n=== Linux bundle export ===\n"));
+    appendBuildOutputChunk(tr("Bundle directory: %1\n").arg(result.bundleDir));
+    if (!result.archivePath.isEmpty())
+        appendBuildOutputChunk(tr("Archive: %1\n").arg(result.archivePath));
+    appendBuildOutputChunk(tr("Launcher: %1\n").arg(result.launcherPath));
+    appendBuildOutputChunk(tr("Manifest: %1\n").arg(result.manifestPath));
+    m_outputTabs->setCurrentWidget(m_buildOutput);
+    m_outputDock->show();
+
+    if (errorMessage)
+        errorMessage->clear();
+    return true;
+}
+
 QString MainWindow::resolveProjectExecutable() const
 {
     if (!m_projectManager->isProjectOpen())
         return {};
 
-    const QString buildDir = m_projectManager->projectDir() + "/build";
-    const QString projectName = m_projectManager->currentProject().name;
-    const QStringList candidates = {
-        buildDir + "/" + projectName,
-        buildDir + "/src/" + projectName,
-        buildDir + "/" + projectName.toLower(),
-    };
-
-    for (const auto &path : candidates) {
-        if (QFile::exists(path))
-            return path;
-    }
-
-    return {};
+    ProjectExecutableResolver resolver;
+    return resolver.resolve(m_projectManager->projectDir() + "/build",
+                            m_projectManager->currentProject().name);
 }
 
 bool MainWindow::startProjectRun(const QString &stdinText, QString *errorMessage)

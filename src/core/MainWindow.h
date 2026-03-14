@@ -10,6 +10,7 @@
 #include <QLabel>
 #include <QPointer>
 #include <QTextEdit>
+#include <functional>
 #include <memory>
 
 class QPlainTextEdit;
@@ -76,6 +77,7 @@ private slots:
     void onSettings();
     void onNewFile();
     void onBuild();
+    void onExportLinuxBundle();
     void onClean();
     void onRun();
     void onDebugStart();
@@ -112,6 +114,11 @@ private:
     QString normalizeBuildErrorPath(const QString &filePath) const;
     void openTextFileAtLocation(const QString &path, int line, int column);
     bool openProjectPath(const QString &path, QString *errorMessage = nullptr);
+    void setBuildActionsEnabled(bool enabled);
+    void runBuildPipeline(const QString &successMessage,
+                          const QString &failureMessage,
+                          std::function<void(bool)> completionHandler = {});
+    bool exportCurrentProjectLinuxBundle(QString *errorMessage = nullptr);
     bool startProjectRun(const QString &stdinText = {}, QString *errorMessage = nullptr);
     QString resolveProjectExecutable() const;
     void finishStartupAutomation(bool success, const QString &message);

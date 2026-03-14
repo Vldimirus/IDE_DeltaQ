@@ -3987,3 +3987,267 @@
 - narrative между `README`, onboarding, examples и release docs теперь собран в единый путь;
 - user-facing Linux artifact checklist закрыт;
 - открытым куском public release surface остаётся уже не базовая навигация, а screenshots / visual proof.
+
+### Шаг 73 — запущен execution track `Linux Project Export v1`
+
+**Фаза:** `Linux-first delivery follow-up`
+
+**Что сделано:**
+
+- зафиксировано, что packaging самой `DeltaQ IDE` и export пользовательского
+  приложения являются разными delivery-контурами;
+- создан новый план
+  `docs/plan/strategy_2026/30_linux_project_export_v1.md`;
+- `98_strategy_checklist.md` обновлён:
+  - новый active execution track теперь явно выделен;
+  - добавлен отдельный delivery-block для `Linux Project Export v1`.
+
+**Зачем это сделано:**
+
+- убрать стратегическую путаницу между "IDE собирается как Linux artifact" и
+  "IDE выпускает готовый Linux artifact для пользовательского проекта";
+- перенести главный implementation focus с остаточного public polish на
+  закрытие product-critical path:
+  `build -> export -> runnable Linux bundle`;
+- зафиксировать scope `v1` так, чтобы не расползтись сразу в AppImage export,
+  Windows/macOS и universal portability claims.
+
+**Что зафиксировано в плане:**
+
+- `v1` export строится как directory bundle в `dist/<ProjectName>/`, а не сразу
+  как AppImage;
+- сначала делается backend export service и automated smoke, потом UI action;
+- acceptance для `v1` закрывается минимум на `console` и `desktop`;
+- imported pack runtime payload считается отдельным явно контролируемым куском,
+  а не "магией по умолчанию".
+
+**Проверка:**
+
+- сверены текущие repo facts:
+  - `test_PreBuildProcessor.cpp` уже подтверждает
+    `pre-build -> CMake -> build -> run` для `console` и `desktop`;
+  - `CMakeGenerator.cpp` по desktop-пути всё ещё опирается на системные
+    `SDL2`/`SDL2_ttf`;
+  - отдельного export pipeline для пользовательского проекта в репозитории пока нет.
+
+**Итог:**
+
+- `strategy_2026` теперь содержит не только Linux packaging story для IDE, но и
+  отдельный source-of-truth для следующего product-critical этапа;
+- дальнейшая реализация может идти последовательно по плану
+  `30_linux_project_export_v1.md`, без создания второго несвязанного набора
+  планов.
+
+### Шаг 74 — execution spec для `Linux Project Export v1` доведён до `v2`
+
+**Фаза:** `Linux-first delivery follow-up`
+
+**Что сделано:**
+
+- скорректирован план `30_linux_project_export_v1.md` по четырём критическим
+  execution-gap-ам, выявленным при review;
+- убрана ошибочная опора на `BuildManager::expectedBuildArtifact(...)` как на
+  способ найти runtime binary проекта;
+- desktop font/data dependency поднята из "later asset story" в основной desktop
+  export contract;
+- в verification добавлен clean-environment gate вместо проверки только на
+  developer machine;
+- зафиксирована semantics свежести сборки:
+  user-facing export по умолчанию делает rebuild перед assemble/export.
+
+**Зачем это сделано:**
+
+- убрать риск, что реализация export начнёт паковать `Makefile`/`build.ninja`
+  вместо реального executable;
+- не допустить ложного закрытия desktop export только упаковкой `.so`, когда UI
+  runtime всё ещё зависит от системных шрифтов;
+- сделать self-contained claim проверяемым честно, а не только на машине, где
+  уже установлены все нужные runtime pieces;
+- исключить silent packaging stale build-а.
+
+**На что теперь опирается план:**
+
+- `BuildManager::expectedBuildArtifact(...)` трактуется только как marker
+  сконфигурированного build tree;
+- export должен получить отдельный executable resolver поверх текущих heuristic
+  путей (`MainWindow::resolveProjectExecutable()` / test helper
+  `findBuiltExecutable(...)`);
+- desktop export acceptance требует bundled font baseline и явного runtime lookup
+  order;
+- delivery-claim требует не только local smoke, но и isolated verification.
+
+**Итог:**
+
+- `30_linux_project_export_v1.md` больше не является только strategy outline;
+- документ стал ближе к реальному execution spec, на который уже можно
+  последовательно опираться при реализации export backend.
+
+### Шаг 75 — реализован первый кодовый срез `Linux Project Export v1` для console-path
+
+**Фаза:** `Linux-first delivery follow-up`
+
+**Что сделано:**
+
+- добавлен `src/editor/ProjectExecutableResolver.{h,cpp}`;
+- добавлен `src/editor/LinuxProjectExporter.{h,cpp}`;
+- `MainWindow` переведён на `ProjectExecutableResolver` для run/debug пути вместо
+  ручного поиска по нескольким hardcoded candidate-path;
+- добавлены autotest-ы:
+  - `tests/editor/test_ProjectExecutableResolver.cpp`
+  - `tests/editor/test_LinuxProjectExporter.cpp`;
+- `98_strategy_checklist.md` обновлён так, чтобы console export был отмечен как
+  реально закрытый slice, а общий Linux export track остался честно частичным.
+
+**Зачем это сделано:**
+
+- закрыть первый реальный implementation step из нового плана, а не оставлять
+  `Linux Project Export v1` только на уровне документа;
+- развести build-system marker и runtime executable уже в коде, а не только в spec;
+- получить минимальный handoff-ready artifact хотя бы для console-пути;
+- закрепить regression path `build -> export -> run exported bundle`.
+
+**Технические детали:**
+
+- `ProjectExecutableResolver` ищет runnable executable в `build/` и подкаталогах,
+  вместо misuse `BuildManager::expectedBuildArtifact(...)`;
+- `LinuxProjectExporter` пока честно поддерживает только `console` и собирает
+  directory bundle:
+  - launcher в корне bundle;
+  - `bin/<ProjectName>.bin`;
+  - `lib/`;
+  - `assets/fonts/`;
+  - `EXPORT_INFO.txt`;
+- desktop export в текущем slice явно отклоняется с диагностикой, чтобы не
+  создавать ложное впечатление завершённости.
+
+**Проверка:**
+
+- `cmake -S . -B build -DDQ_BUILD_TESTS=ON`
+- `cmake --build build --parallel --target deltaq test_BuildManager test_ProjectExecutableResolver test_LinuxProjectExporter`
+- `ctest --test-dir build --output-on-failure -R 'test_(BuildManager|ProjectExecutableResolver|LinuxProjectExporter)$'`
+
+**Результат проверки:**
+
+- все 3 целевых теста прошли успешно;
+- `test_LinuxProjectExporter` подтверждает, что console-bundle можно запустить из
+  handoff directory после удаления исходного project tree.
+
+**Итог:**
+
+- `Linux Project Export v1` вышел из состояния "только план";
+- console-path теперь закрыт как реальная рабочая вертикаль;
+- следующим implementation target остаётся desktop runtime bundling с font/data
+  baseline и isolated verification.
+
+### Шаг 76 — добавлен user-facing `Build -> Export Linux Bundle` и закрыт local desktop bundle smoke
+
+**Фаза:** `Linux-first delivery follow-up`
+
+**Что сделано:**
+
+- в `ActionManager` добавлено действие `build.exportLinuxBundle`;
+- в `MainWindow` добавлен user-facing путь `Build -> Export Linux Bundle`;
+- export теперь запускается только через связку `pre-build -> build -> export`, а
+  не пакует последний случайный output из `build/`;
+- build/output wiring в `MainWindow` выровнен так, чтобы pre-build log больше не
+  стирался на событии `BuildManager::buildStarted`;
+- autotest `test_MainWindowEditorActions` расширен проверкой регистрации и wiring
+  нового action;
+- `test_LinuxProjectExporter` уже подтверждает runnable desktop bundle после
+  удаления исходного project tree.
+
+**Зачем это сделано:**
+
+- закрыть важный user-facing slice плана, а не оставлять export только backend-функцией;
+- жёстко зафиксировать semantics "сначала собрать, потом экспортировать";
+- приблизить Linux export к реальному UX внутри IDE;
+- перевести desktop export из состояния "архитектурно задуман" в состояние
+  "локально runnable и проверенный autotest-ом".
+
+**Технические детали:**
+
+- `MainWindow::runBuildPipeline(...)` стал общим helper-ом для обычного build и
+  export-coupled build;
+- `MainWindow::exportCurrentProjectLinuxBundle(...)` использует
+  `LinuxProjectExporter` и пишет результат в `Build Output`;
+- новое action подключено в `Build` menu и использует дефолтный output path
+  `dist/<ProjectName>/`;
+- desktop export по-прежнему не объявлен полностью завершённым: runtime payload и
+  local smoke уже есть, но clean-environment / isolated verification gate ещё открыт.
+
+**Проверка:**
+
+- `cmake --build build --parallel --target deltaq test_ActionManager test_MainWindowEditorActions test_MainWindowBuildOutputNavigation test_LinuxProjectExporter`
+- `QT_QPA_PLATFORM=offscreen ctest --test-dir build --output-on-failure -R 'test_(ActionManager|MainWindowEditorActions|MainWindowBuildOutputNavigation|LinuxProjectExporter)$'`
+
+**Результат проверки:**
+
+- все 4 целевых теста прошли успешно;
+- `MainWindow` user-facing wiring подтверждён GUI-тестом;
+- regression по build output navigation не появилась;
+- desktop export smoke остаётся зелёным после добавления user-facing export flow.
+
+**Итог:**
+
+- внутри IDE появился честный путь `Build -> Export Linux Bundle`;
+- export больше не требует ручного backend-вызова;
+- текущий основной незакрытый technical gap сместился на isolated verification и
+  packaging/handoff polishing exported bundle.
+
+### Шаг 77 — добавлены project-export archive packaging и loader-level verification scripts
+
+**Фаза:** `Linux-first delivery follow-up`
+
+**Что сделано:**
+
+- `LinuxProjectExporter` расширен поддержкой `.tar.gz` архива из того же bundle;
+- `MainWindow` export flow теперь по умолчанию создаёт не только `dist/<ProjectName>/`,
+  но и archive рядом с ним;
+- добавлены shell-скрипты:
+  - `scripts/verify_project_export_bundle.sh`
+  - `scripts/verify_project_export_archive.sh`;
+- `test_LinuxProjectExporter` расширен так, чтобы проверять:
+  - bundle verification script;
+  - archive verification script;
+  - извлечение `.tar.gz`;
+  - запуск extracted artifact после удаления исходного bundle directory.
+
+**Зачем это сделано:**
+
+- закрыть handoff gap между "есть directory bundle" и "есть реальный передаваемый artifact";
+- получить loader-level proof, что non-allowlisted runtime libs у desktop export
+  берутся из bundle, а не молча из host system;
+- закрепить regression path не только для bundle, но и для packaged archive.
+
+**Технические детали:**
+
+- `LinuxExportOptions` получил `packageArchive`, а `LinuxExportResult` — `archivePath`;
+- archive собирается через `tar -czf` из уже подготовленного bundle directory;
+- `verify_project_export_bundle.sh` валидирует layout, desktop font baseline и
+  через `ldd` + `LD_LIBRARY_PATH` проверяет, что non-allowlisted libs резолвятся
+  из `bundle/lib`;
+- `verify_project_export_archive.sh` распаковывает архив и прогоняет bundle verifier
+  на extracted payload.
+- launcher больше не зависит от внешнего `dirname`, поэтому extracted bundle можно
+  запускать в почти пустом environment без скрытой зависимости от host `PATH`.
+
+**Проверка:**
+
+- `cmake --build build --parallel --target test_LinuxProjectExporter test_MainWindowEditorActions`
+- `QT_QPA_PLATFORM=offscreen ctest --test-dir build --output-on-failure -R 'test_(LinuxProjectExporter|MainWindowEditorActions)$'`
+
+**Результат проверки:**
+
+- оба теста прошли успешно;
+- exporter теперь regression-covered не только по directory bundle, но и по `.tar.gz`;
+- extracted archive запускается после удаления исходного bundle;
+- extracted archive дополнительно запускается в near-clean environment;
+- loader-level verification для desktop export автоматизирован хотя бы на уровне
+  текущего Linux host.
+
+**Итог:**
+
+- `Linux Project Export v1` получил handoff-ready archive path;
+- закрыт acceptance про упаковку exported bundle без отдельного packaging flow;
+- следующий незакрытый technical gate теперь уже уже сузился до clean-environment
+  verification и user-visible documentation/limitations.

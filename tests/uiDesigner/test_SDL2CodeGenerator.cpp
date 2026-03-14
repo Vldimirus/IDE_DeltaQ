@@ -209,6 +209,10 @@ private slots:
         QVERIFY(code.uiSource.contains("void dq_ui_backend_begin_frame(DQ_UIBackendContext *backend)"));
         QVERIFY(code.uiSource.contains("bool dq_ui_backend_translate_event(const DQ_UIBackendEvent *backend_event,"));
         QVERIFY(code.uiSource.contains("void dq_ui_backend_window_size(DQ_UIBackendContext *backend, int *width, int *height)"));
+        QVERIFY(code.uiSource.contains("static bool dq_ui_runtime_try_open_bundled_font(UIState *ui, int size)"));
+        QVERIFY(code.uiSource.contains("getenv(\"DELTAQ_FONT_PATH\")"));
+        QVERIFY(code.uiSource.contains("getenv(\"DELTAQ_ASSET_ROOT\")"));
+        QVERIFY(code.uiSource.contains("../assets/fonts/default.ttf"));
         QVERIFY(code.uiSource.contains("static DQ_UIWidgetId dq_ui_runtime_hit_test(const UIState *ui, int x, int y)"));
         QVERIFY(code.uiSource.contains("static void dq_ui_runtime_sync_state(UIState *ui)"));
         QVERIFY(code.uiSource.contains("static void dq_ui_runtime_dispatch_click(UIState *ui, DQ_UIWidgetId widget_id)"));
@@ -224,6 +228,7 @@ private slots:
         QVERIFY(code.uiSource.contains("dq_ui_runtime_append_text(ui, ui->runtime.focused_widget, event->text);"));
         QVERIFY(code.uiSource.contains("dq_ui_runtime_sync_state(ui);"));
         QVERIFY(code.uiSource.contains("case DQ_UIRuntimeEvent_MouseDown:"));
+        QVERIFY(code.uiSource.contains("dq_ui_runtime_try_open_bundled_font(ui, 14);"));
         QVERIFY(code.uiSource.contains("btnOk"));
         QVERIFY(code.uiSource.contains("lblTitle"));
         QVERIFY(code.uiSource.contains("tfName"));

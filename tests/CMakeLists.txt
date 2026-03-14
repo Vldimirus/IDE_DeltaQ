@@ -136,6 +136,25 @@ target_link_libraries(test_BuildManager PRIVATE
 set_target_properties(test_BuildManager PROPERTIES AUTOMOC ON)
 add_test(NAME test_BuildManager COMMAND test_BuildManager)
 
+add_executable(test_ProjectExecutableResolver editor/test_ProjectExecutableResolver.cpp)
+target_link_libraries(test_ProjectExecutableResolver PRIVATE
+    dq_editor
+    dq_lsp
+    Qt6::Test
+)
+set_target_properties(test_ProjectExecutableResolver PROPERTIES AUTOMOC ON)
+add_test(NAME test_ProjectExecutableResolver COMMAND test_ProjectExecutableResolver)
+
+add_executable(test_LinuxProjectExporter editor/test_LinuxProjectExporter.cpp)
+target_link_libraries(test_LinuxProjectExporter PRIVATE
+    dq_editor
+    dq_codegen
+    dq_lsp
+    Qt6::Test
+)
+set_target_properties(test_LinuxProjectExporter PROPERTIES AUTOMOC ON)
+add_test(NAME test_LinuxProjectExporter COMMAND test_LinuxProjectExporter)
+
 add_executable(test_AnnotationParser editor/test_AnnotationParser.cpp)
 target_link_libraries(test_AnnotationParser PRIVATE
     dq_editor

@@ -513,6 +513,8 @@ QString SDL2CodeGenerator::generateUISource(const UILayout &layout, const QStrin
     out << makeGeneratedLayoutBanner(layout, "UI implementation", baseName + ".c");
     out << "#include \"" << baseName << ".h\"\n";
     out << "#include \"" << baseName << "_events.h\"\n";
+    out << "#include <stdio.h>\n";
+    out << "#include <stdlib.h>\n";
     out << "#include <string.h>\n\n";
 
     // SDL2-реализация backend boundary для окна, событий и кадра.
@@ -615,6 +617,38 @@ QString SDL2CodeGenerator::generateUISource(const UILayout &layout, const QStrin
     out << "void dq_ui_backend_end_frame(DQ_UIBackendContext *backend) {\n";
     out << "    if (!backend || !backend->renderer) return;\n";
     out << "    SDL_RenderPresent(backend->renderer);\n";
+    out << "}\n\n";
+
+    out << "static bool dq_ui_runtime_try_open_font_path(UIState *ui, const char *path, int size) {\n";
+    out << "    if (!ui || !path || !path[0]) return false;\n";
+    out << "    ui->font = TTF_OpenFont(path, size);\n";
+    out << "    return ui->font != NULL;\n";
+    out << "}\n\n";
+
+    out << "static bool dq_ui_runtime_try_open_bundled_font(UIState *ui, int size) {\n";
+    out << "    const char *font_path = getenv(\"DELTAQ_FONT_PATH\");\n";
+    out << "    if (font_path && font_path[0] && dq_ui_runtime_try_open_font_path(ui, font_path, size)) {\n";
+    out << "        return true;\n";
+    out << "    }\n";
+    out << "    const char *asset_root = getenv(\"DELTAQ_ASSET_ROOT\");\n";
+    out << "    if (asset_root && asset_root[0]) {\n";
+    out << "        char bundled_font[1024];\n";
+    out << "        snprintf(bundled_font, sizeof(bundled_font), \"%s/fonts/default.ttf\", asset_root);\n";
+    out << "        if (dq_ui_runtime_try_open_font_path(ui, bundled_font, size)) {\n";
+    out << "            return true;\n";
+    out << "        }\n";
+    out << "    }\n";
+    out << "    char *base_path = SDL_GetBasePath();\n";
+    out << "    if (base_path && base_path[0]) {\n";
+    out << "        char bundled_font[1024];\n";
+    out << "        snprintf(bundled_font, sizeof(bundled_font), \"%s../assets/fonts/default.ttf\", base_path);\n";
+    out << "        if (dq_ui_runtime_try_open_font_path(ui, bundled_font, size)) {\n";
+    out << "            SDL_free(base_path);\n";
+    out << "            return true;\n";
+    out << "        }\n";
+    out << "    }\n";
+    out << "    if (base_path) SDL_free(base_path);\n";
+    out << "    return false;\n";
     out << "}\n\n";
 
     out << "bool dq_ui_backend_translate_event(const DQ_UIBackendEvent *backend_event,\n";
@@ -1638,7 +1672,10 @@ QString SDL2CodeGenerator::generateUISource(const UILayout &layout, const QStrin
     out << "void ui_init(UIState *ui) {\n";
     out << "    memset(ui, 0, sizeof(UIState));\n\n";
 
-    // Загрузка системного шрифта
+    // Сначала пробуем bundle-local font baseline для exported desktop artifact.
+    out << "    dq_ui_runtime_try_open_bundled_font(ui, 14);\n\n";
+
+    // Затем fallback на системные шрифты для dev/build-tree path.
     out << "    // Поиск системного шрифта\n";
     out << "    const char *font_paths[] = {\n";
     out << "        \"/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf\",\n";
@@ -1647,9 +1684,11 @@ QString SDL2CodeGenerator::generateUISource(const UILayout &layout, const QStrin
     out << "        \"C:\\\\Windows\\\\Fonts\\\\arial.ttf\",\n";
     out << "        NULL\n";
     out << "    };\n";
-    out << "    for (int i = 0; font_paths[i]; i++) {\n";
-    out << "        ui->font = TTF_OpenFont(font_paths[i], 14);\n";
-    out << "        if (ui->font) break;\n";
+    out << "    if (!ui->font) {\n";
+    out << "        for (int i = 0; font_paths[i]; i++) {\n";
+    out << "            ui->font = TTF_OpenFont(font_paths[i], 14);\n";
+    out << "            if (ui->font) break;\n";
+    out << "        }\n";
     out << "    }\n\n";
 
     for (const auto *w : widgets) {

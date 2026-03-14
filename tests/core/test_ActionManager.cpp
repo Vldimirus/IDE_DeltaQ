@@ -89,6 +89,7 @@ private slots:
         QVERIFY(mgr.action("edit.undo") != nullptr);
         QVERIFY(mgr.action("edit.redo") != nullptr);
         QVERIFY(mgr.action("build.build") != nullptr);
+        QVERIFY(mgr.action("build.exportLinuxBundle") != nullptr);
         QVERIFY(mgr.action("view.codeEditor") != nullptr);
 
         // Проверяем группы

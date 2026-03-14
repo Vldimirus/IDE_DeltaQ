@@ -1,6 +1,7 @@
 #include <QAction>
 #include <QApplication>
 #include <QFile>
+#include <QStatusBar>
 #include <QTemporaryDir>
 #include <QTest>
 
@@ -95,6 +96,19 @@ private slots:
         QVERIFY(!window.actionManager()->action("edit.rename")->isEnabled());
         QVERIFY(!window.actionManager()->action("edit.format")->isEnabled());
         QVERIFY(!window.actionManager()->action("edit.openGeneratedOrigin")->isEnabled());
+    }
+
+    void linuxExportActionIsRegisteredAndWired()
+    {
+        MainWindow window;
+        QAction *exportAction = window.actionManager()->action("build.exportLinuxBundle");
+        QVERIFY(exportAction != nullptr);
+        QCOMPARE(exportAction->text(), "Export Linux Bundle");
+
+        exportAction->trigger();
+        processUi();
+
+        QCOMPARE(window.statusBar()->currentMessage(), "No project open");
     }
 };
 
