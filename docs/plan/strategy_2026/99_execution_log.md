@@ -4654,3 +4654,165 @@
 - public release surface теперь подтверждается не только текстом и checklist-ами, но и реальными кадрами из живой IDE;
 - пункт `screenshots / visual proof` в `29_linux_release_polish.md` закрыт;
 - `External Trust` и `Phase 3` критерий "DeltaQ можно показать как целостный open-source инструмент" можно считать закрытым.
+
+### Шаг 90 — главный фокус смещён с release polish на product maturity recovery
+
+**Фаза:** `post-export / product maturity reset`
+
+**Почему это сделано:**
+
+После Linux export, toolchain UX и visual proof стало видно, что следующая
+главная проблема DeltaQ — не отсутствие ещё одного release-артефакта, а
+несоответствие между сильной инфраструктурой и ещё сырой прикладной/desktop
+зрелостью:
+
+- `UI Designer` всё ещё даёт мелкие, но критичные mismatch-и;
+- desktop templates слишком похожи на historical test fixtures;
+- standard library пока сильнее как набор примитивов, чем как useful baseline;
+- идея `external library -> DeltaQ module pack` остаётся сильной, но недоведённой
+  до user-facing product value.
+
+**Что зафиксировано:**
+
+- создан новый master-plan:
+  - `32_product_maturity_recovery_v1.md`;
+- новый приоритетный порядок работ:
+  1. `UI Designer Hardening`
+  2. `Desktop Template Overhaul`
+  3. `Bug Burn-Down For Trust`
+  4. `Core Module Library v1`
+  5. `External Library Adapter v1`
+  6. `Release Framing Re-Evaluation`
+- `Linux-first release polish` не отменён, но финальный release candidate больше
+  не считается главным immediate goal до закрытия product-maturity блокеров.
+
+**Итог:**
+
+- у `strategy_2026` появился новый основной execution-track, который связывает:
+  - desktop/UI hardening;
+  - module ecosystem practical value;
+  - library adaptation;
+  - honest release framing;
+- дальнейшая работа должна идти не от абстрактного "ещё чуть-чуть polish", а от
+  конкретных product-maturity критериев.
+
+### Шаг 91 — master-plan `32_product_maturity_recovery_v1.md` ужесточён до execution-grade v2
+
+**Фаза:** `post-export / product maturity reset`
+
+**Почему это потребовалось:**
+
+Первая версия `32_product_maturity_recovery_v1.md` была сильной как strategic
+outline, но в ней ещё оставались execution gaps:
+
+- слишком субъективные acceptance-формулировки;
+- неявная regression/migration-матрица;
+- недостаточная связка с уже принятыми документами `21 / 22 / 27 / 31`;
+- двусмысленность вокруг imported-pack reference cases;
+- конфликт между линейным execution order и идеей bug burn-down "между stage-ами".
+
+**Что исправлено:**
+
+- добавлены общие `Definition Of Done Rules` с привязкой к
+  `23_acceptance_criteria.md`;
+- добавлена явная `Regression And Migration Matrix` с обязательными checked-in
+  examples:
+  - `minimal_console_flow`;
+  - `desktop_ui_flow`;
+  - `reusable_composition_console`;
+  - `imported_pack_sensor_console`;
+  - `imported_pack_checksum_console`;
+- `Stage 1/2/4/5` получили более жёсткие, однозначно проверяемые acceptance gates;
+- `Stage 4` теперь явно продолжает `21_standard_library_strategy.md`, а не создаёт
+  второй competing baseline;
+- `Stage 5` теперь первично переиспользует `mini_sensor_sdk` и
+  `mini_checksum_sdk`, а не "ищет третий reference case" без причины;
+- `Stage 5` теперь включает failure UX для unsupported ABI / missing intake metadata;
+- `Stage 3` переопределён как поперечный gating-lane, а не как waterfall-stage,
+  и не переоткрывает целиком уже закрытый track `31`.
+
+**Итог:**
+
+- `32_product_maturity_recovery_v1.md` теперь ближе к implementation-grade master-plan;
+- по нему можно не только обсуждать приоритеты, но и реально фиксировать closure
+  stage-ов по проверяемым критериям.
+
+### Шаг 92 — в maturity master-plan добавлены template-catalog и delivery no-regression gates
+
+**Фаза:** `post-export / product maturity reset`
+
+**Почему это потребовалось:**
+
+После ужесточения `32_product_maturity_recovery_v1.md` всё ещё оставались три
+execution-дыры:
+
+- Stage 2 можно было формально закрыть, не покрыв весь user-facing desktop template catalog;
+- Stage 1 ещё недостаточно явно доказывал parity для `minimum size` и `resizable policy`;
+- maturity-cycle не ставил отдельный жёсткий no-regression gate на уже закрытые
+  export/release flows.
+
+**Что исправлено:**
+
+- Stage 2 теперь охватывает не только `desktop` и `desktop_text_editor`, но весь
+  catalog `desktop / desktop_text_editor / desktop_mdi / desktop_empty`;
+- для desktop templates зафиксировано правило:
+  - либо template остаётся user-facing и проходит `create -> pre-build -> build -> run`;
+  - либо явно переводится в internal-only/hidden status;
+- Stage 1 теперь требует parity не только по `width/height`, но и по
+  `minimum size` + `resizable policy` между designer/save-load/runtime;
+- в `Definition Of Done Rules` и `Regression And Migration Matrix` добавлен
+  отдельный delivery no-regression gate:
+  - release `first-run`;
+  - release `open example -> build -> run`;
+  - `Export Linux Bundle` для `minimal_console_flow` и `desktop_ui_flow`;
+- Stage 3 acceptance теперь тоже явно требует не деградировать release/export
+  surfaces из уже закрытых tracks `29 / 30 / 31`.
+
+**Итог:**
+
+- maturity-track больше не может "тихо" сломать уже закрытый Linux delivery слой;
+- Stage 1 и Stage 2 получили ещё более жёсткий и честный closure bar.
+
+### Шаг 93 — Stage 1 начат: window metadata unified между designer, `.dqui` и SDL2 runtime
+
+**Фаза:** `Product Maturity Recovery v1 / Stage 1`
+
+**Что сделано:**
+
+- `DesignScene` получил явный window-level state для:
+  - `title`;
+  - `min_width`;
+  - `min_height`;
+  - `resizable`;
+- save/load через `.dqui` больше не теряет window properties при round-trip;
+- `PropertyEditor` теперь умеет редактировать:
+  - `Width`;
+  - `Height`;
+  - `Min Width`;
+  - `Min Height`;
+  - `Resizable`;
+- `SDL2CodeGenerator` теперь использует тот же contract для:
+  - window title;
+  - initial size;
+  - minimum size;
+  - resizable flag;
+- generated runtime больше не создаёт окно только по `layout.name` и сырым
+  `geometry.width/height`, игнорируя window-policy metadata.
+
+**Тестовое покрытие:**
+
+- расширены и проходят:
+  - `test_DesignScene`;
+  - `test_SDL2CodeGenerator`;
+  - `test_UILayout`.
+
+**Проверка:**
+
+- `cmake --build build/qt-dev --parallel --target test_DesignScene test_SDL2CodeGenerator test_UILayout`
+- `QT_QPA_PLATFORM=offscreen ctest --test-dir build/qt-dev --output-on-failure -R 'test_(DesignScene|SDL2CodeGenerator|UILayout)$'`
+
+**Итог:**
+
+- первый проверяемый slice `Stage 1` закрыт;
+- сам `Stage 1: UI Designer Hardening` ещё не завершён целиком, но основной
+  contract gap `designer -> .dqui -> generated runtime` по window metadata уже снят.

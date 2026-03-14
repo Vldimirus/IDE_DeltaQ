@@ -52,6 +52,38 @@ bool widgetMatchesContract(const UIWidget &widget, const QString &contractType)
     return widgetContractType(widget) == contractType;
 }
 
+QString generatedWindowTitle(const UILayout &layout)
+{
+    return uiWindowTitle(layout.window);
+}
+
+int generatedWindowMinimumWidth(const UILayout &layout)
+{
+    return uiWindowMinimumWidth(layout.window);
+}
+
+int generatedWindowMinimumHeight(const UILayout &layout)
+{
+    return uiWindowMinimumHeight(layout.window);
+}
+
+int generatedWindowInitialWidth(const UILayout &layout)
+{
+    return qMax(static_cast<int>(layout.window.geometry.width()),
+                generatedWindowMinimumWidth(layout));
+}
+
+int generatedWindowInitialHeight(const UILayout &layout)
+{
+    return qMax(static_cast<int>(layout.window.geometry.height()),
+                generatedWindowMinimumHeight(layout));
+}
+
+QString cBoolLiteral(bool value)
+{
+    return value ? QStringLiteral("true") : QStringLiteral("false");
+}
+
 } // namespace
 
 GeneratedCode SDL2CodeGenerator::generate(const UILayout &layout, const QString &baseName)
@@ -123,11 +155,19 @@ QString SDL2CodeGenerator::generateMainFile(const UILayout &layout, const QStrin
     out << "int main(int argc, char *argv[]) {\n";
     out << "    (void)argc; (void)argv;\n\n";
 
-    int w = static_cast<int>(layout.window.geometry.width());
-    int h = static_cast<int>(layout.window.geometry.height());
+    const int w = generatedWindowInitialWidth(layout);
+    const int h = generatedWindowInitialHeight(layout);
+    const int minWidth = generatedWindowMinimumWidth(layout);
+    const int minHeight = generatedWindowMinimumHeight(layout);
+    const QString title = generatedWindowTitle(layout);
+    const bool resizable = uiWindowResizable(layout.window);
 
     out << "    DQ_UIBackendContext backend;\n";
-    out << "    if (!dq_ui_backend_init(&backend, " << cStringLiteral(layout.name) << ", " << w << ", " << h << ")) {\n";
+    out << "    if (!dq_ui_backend_init(&backend, "
+        << cStringLiteral(title) << ", "
+        << w << ", " << h << ", "
+        << minWidth << ", " << minHeight << ", "
+        << cBoolLiteral(resizable) << ")) {\n";
     out << "        return 1;\n";
     out << "    }\n\n";
 
@@ -200,7 +240,10 @@ QString SDL2CodeGenerator::generateUIHeader(const UILayout &layout, const QStrin
     out << "    DQ_UIBackendRenderer *renderer;\n";
     out << "} DQ_UIBackendContext;\n\n";
 
-    out << "bool dq_ui_backend_init(DQ_UIBackendContext *backend, const char *title, int width, int height);\n";
+    out << "bool dq_ui_backend_init(DQ_UIBackendContext *backend, const char *title,\n";
+    out << "                         int width, int height,\n";
+    out << "                         int min_width, int min_height,\n";
+    out << "                         bool resizable);\n";
     out << "void dq_ui_backend_shutdown(DQ_UIBackendContext *backend);\n";
     out << "bool dq_ui_backend_poll_event(DQ_UIBackendEvent *event);\n";
     out << "Uint32 dq_ui_backend_ticks(void);\n";
@@ -518,7 +561,10 @@ QString SDL2CodeGenerator::generateUISource(const UILayout &layout, const QStrin
     out << "#include <string.h>\n\n";
 
     // SDL2-реализация backend boundary для окна, событий и кадра.
-    out << "bool dq_ui_backend_init(DQ_UIBackendContext *backend, const char *title, int width, int height) {\n";
+    out << "bool dq_ui_backend_init(DQ_UIBackendContext *backend, const char *title,\n";
+    out << "                         int width, int height,\n";
+    out << "                         int min_width, int min_height,\n";
+    out << "                         bool resizable) {\n";
     out << "    if (!backend) return false;\n";
     out << "    memset(backend, 0, sizeof(DQ_UIBackendContext));\n";
     out << "    if (SDL_Init(SDL_INIT_VIDEO) < 0) {\n";
@@ -530,11 +576,15 @@ QString SDL2CodeGenerator::generateUISource(const UILayout &layout, const QStrin
     out << "        SDL_Quit();\n";
     out << "        return false;\n";
     out << "    }\n";
+    out << "    Uint32 window_flags = SDL_WINDOW_SHOWN;\n";
+    out << "    if (resizable) {\n";
+    out << "        window_flags |= SDL_WINDOW_RESIZABLE;\n";
+    out << "    }\n";
     out << "    backend->window = SDL_CreateWindow(\n";
     out << "        title,\n";
     out << "        SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,\n";
     out << "        width, height,\n";
-    out << "        SDL_WINDOW_SHOWN);\n";
+    out << "        window_flags);\n";
     out << "    if (!backend->window) {\n";
     out << "        SDL_Log(\"CreateWindow failed: %s\", SDL_GetError());\n";
     out << "        TTF_Quit();\n";
@@ -556,6 +606,7 @@ QString SDL2CodeGenerator::generateUISource(const UILayout &layout, const QStrin
     out << "            return false;\n";
     out << "        }\n";
     out << "    }\n";
+    out << "    SDL_SetWindowMinimumSize(backend->window, min_width, min_height);\n";
     out << "    return true;\n";
     out << "}\n\n";
 
@@ -1775,8 +1826,8 @@ QString SDL2CodeGenerator::generateUISource(const UILayout &layout, const QStrin
         }
     }
     out << "    ui_apply_layout(ui, "
-        << static_cast<int>(layout.window.geometry.width()) << ", "
-        << static_cast<int>(layout.window.geometry.height()) << ");\n";
+        << generatedWindowInitialWidth(layout) << ", "
+        << generatedWindowInitialHeight(layout) << ");\n";
     out << "    dq_ui_runtime_sync_state(ui);\n";
     out << "}\n\n";
 

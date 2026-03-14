@@ -5,6 +5,7 @@
 #include <QMap>
 #include <QString>
 #include <QSizeF>
+#include <QVariant>
 
 namespace DeltaQ {
 
@@ -31,9 +32,13 @@ public:
 
     // Рамка окна по умолчанию
     QRectF windowRect() const { return m_windowRect; }
-    void setWindowRect(const QRectF &rect) { m_windowRect = rect; update(); }
+    void setWindowRect(const QRectF &rect);
     QString windowTitle() const { return m_windowTitle; }
-    void setWindowTitle(const QString &title) { m_windowTitle = title; update(); }
+    void setWindowTitle(const QString &title);
+    QSizeF windowMinimumSize() const { return m_windowMinimumSize; }
+    void setWindowMinimumSize(const QSizeF &size);
+    bool windowResizable() const { return m_windowResizable; }
+    void setWindowResizable(bool resizable);
     void selectWindow() { m_windowSelected = true; update(); }
     void clearWindowSelection() { m_windowSelected = false; update(); }
     bool isWindowSelected() const { return m_windowSelected; }
@@ -87,14 +92,15 @@ private:
     // Рамка окна
     QRectF m_windowRect = QRectF(0, 0, 800, 600);
     QString m_windowTitle = QStringLiteral("Window");
+    QSizeF m_windowMinimumSize = QSizeF(240, 180);
+    bool m_windowResizable = true;
+    QMap<QString, QVariant> m_windowProperties;
     static constexpr qreal TitleBarHeight = 30.0;
     bool m_windowSelected = false;
     bool m_windowResizing = false;
     int m_windowActiveHandle = -1;
     QRectF m_windowResizeStartRect;
     static constexpr qreal WindowHandleSize = 8.0;
-    static constexpr qreal MinWindowWidth = 240.0;
-    static constexpr qreal MinWindowHeight = 180.0;
 
     // Ghost-preview при перетаскивании
     bool m_showDropPreview = false;

@@ -61,6 +61,10 @@ private slots:
         UILayout layout = UILayout::create("TestLayout");
         layout.window.geometry = QRectF(0, 0, 900, 620);
         layout.window.properties["title"] = "Text Pad";
+        layout.window.properties["min_width"] = 420;
+        layout.window.properties["min_height"] = 300;
+        layout.window.properties["resizable"] = false;
+        layout.window.properties["margin"] = 12;
 
         UIWidget btn = UIWidget::create("Button", "btn1");
         btn.geometry = QRectF(10, 20, 100, 40);
@@ -75,12 +79,28 @@ private slots:
         QCOMPARE(scene.widgetItems().size(), 2);
         QCOMPARE(scene.windowRect(), QRectF(0, 0, 900, 620));
         QCOMPARE(scene.windowTitle(), QString("Text Pad"));
+        QCOMPARE(scene.windowMinimumSize(), QSizeF(420, 300));
+        QCOMPARE(scene.windowResizable(), false);
 
         // Round-trip
         UILayout result = scene.toLayout("TestLayout");
         QCOMPARE(result.window.children.size(), 2);
         QCOMPARE(result.window.geometry, QRectF(0, 0, 900, 620));
         QCOMPARE(result.window.properties.value("title").toString(), QString("Text Pad"));
+        QCOMPARE(result.window.properties.value("min_width").toInt(), 420);
+        QCOMPARE(result.window.properties.value("min_height").toInt(), 300);
+        QCOMPARE(result.window.properties.value("resizable").toBool(), false);
+        QCOMPARE(result.window.properties.value("margin").toInt(), 12);
+    }
+
+    void testWindowMinimumSizeClampsGeometry()
+    {
+        DesignScene scene;
+        scene.setWindowMinimumSize(QSizeF(480, 360));
+        scene.setWindowRect(QRectF(0, 0, 320, 240));
+
+        QCOMPARE(scene.windowRect(), QRectF(0, 0, 480, 360));
+        QCOMPARE(scene.windowMinimumSize(), QSizeF(480, 360));
     }
 
     void testClearScene()

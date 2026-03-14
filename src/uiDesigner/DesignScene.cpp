@@ -48,6 +48,46 @@ DesignScene::DesignScene(QObject *parent)
     });
 }
 
+void DesignScene::setWindowRect(const QRectF &rect)
+{
+    QRectF normalized = rect;
+    normalized.setWidth(qMax(rect.width(), m_windowMinimumSize.width()));
+    normalized.setHeight(qMax(rect.height(), m_windowMinimumSize.height()));
+    m_windowRect = normalized;
+    update();
+}
+
+void DesignScene::setWindowTitle(const QString &title)
+{
+    const QString effectiveTitle = title.trimmed().isEmpty()
+        ? QStringLiteral("Window")
+        : title.trimmed();
+    m_windowTitle = effectiveTitle;
+    m_windowProperties["title"] = effectiveTitle;
+    update();
+}
+
+void DesignScene::setWindowMinimumSize(const QSizeF &size)
+{
+    const QSizeF normalized(qMax(size.width(), static_cast<qreal>(DQ_UIWindowDefaultMinWidth)),
+                            qMax(size.height(), static_cast<qreal>(DQ_UIWindowDefaultMinHeight)));
+    m_windowMinimumSize = normalized;
+    m_windowProperties["min_width"] = static_cast<int>(normalized.width());
+    m_windowProperties["min_height"] = static_cast<int>(normalized.height());
+    setWindowRect(m_windowRect);
+}
+
+void DesignScene::setWindowResizable(bool resizable)
+{
+    m_windowResizable = resizable;
+    m_windowProperties["resizable"] = resizable;
+    if (!m_windowResizable) {
+        m_windowResizing = false;
+        m_windowActiveHandle = -1;
+    }
+    update();
+}
+
 // --- Контейнеры ---
 
 bool DesignScene::isContainerType(const QString &type)
@@ -130,18 +170,16 @@ void DesignScene::loadFromLayout(const UILayout &layout)
 {
     clearScene();
 
+    m_windowProperties = layout.window.properties;
+    setWindowTitle(uiWindowTitle(layout.window));
+    setWindowMinimumSize(QSizeF(uiWindowMinimumWidth(layout.window),
+                                uiWindowMinimumHeight(layout.window)));
+    setWindowResizable(uiWindowResizable(layout.window));
+
     if (!layout.window.geometry.isEmpty())
         setWindowRect(layout.window.geometry);
     else
         setWindowRect(QRectF(0, 0, 800, 600));
-
-    const QString windowTitle = layout.window.properties.value("title").toString();
-    if (!windowTitle.trimmed().isEmpty())
-        setWindowTitle(windowTitle);
-    else if (!layout.window.name.trimmed().isEmpty())
-        setWindowTitle(layout.window.name);
-    else
-        setWindowTitle(QStringLiteral("Window"));
 
     // Создаём виджеты из дочерних элементов window (сам window = сцена)
     for (const auto &child : layout.window.children) {
@@ -157,7 +195,7 @@ UILayout DesignScene::toLayout(const QString &name) const
     layout.version = "1.0.0";
     layout.window = UIWidget::create("Window", name);
     layout.window.geometry = m_windowRect;
-    layout.window.properties["title"] = m_windowTitle;
+    layout.window.properties = m_windowProperties;
 
     // Собираем только корневые виджеты (без родителя)
     for (auto it = m_widgets.begin(); it != m_widgets.end(); ++it) {
@@ -175,6 +213,13 @@ void DesignScene::clearScene()
     clear(); // QGraphicsScene::clear()
     m_windowRect = QRectF(0, 0, 800, 600);
     m_windowTitle = QStringLiteral("Window");
+    m_windowMinimumSize = QSizeF(DQ_UIWindowDefaultMinWidth, DQ_UIWindowDefaultMinHeight);
+    m_windowResizable = DQ_UIWindowDefaultResizable;
+    m_windowProperties.clear();
+    m_windowProperties["title"] = m_windowTitle;
+    m_windowProperties["min_width"] = DQ_UIWindowDefaultMinWidth;
+    m_windowProperties["min_height"] = DQ_UIWindowDefaultMinHeight;
+    m_windowProperties["resizable"] = DQ_UIWindowDefaultResizable;
     m_windowSelected = false;
     m_windowResizing = false;
     m_windowActiveHandle = -1;
@@ -331,8 +376,8 @@ void DesignScene::mouseMoveEvent(QGraphicsSceneMouseEvent *event)
             break;
         }
 
-        m_windowRect.setWidth(qMax(width, MinWindowWidth));
-        m_windowRect.setHeight(qMax(height, MinWindowHeight));
+        m_windowRect.setWidth(qMax(width, m_windowMinimumSize.width()));
+        m_windowRect.setHeight(qMax(height, m_windowMinimumSize.height()));
         update();
         event->accept();
         return;
@@ -412,6 +457,9 @@ bool DesignScene::isInsideWindowClient(const QPointF &pos) const
 
 int DesignScene::windowResizeHandleAt(const QPointF &scenePos) const
 {
+    if (!m_windowResizable)
+        return -1;
+
     for (int i = 0; i < 3; ++i) {
         const QPointF center = windowResizeHandleCenter(m_windowRect, i);
         const QRectF handleRect(center.x() - WindowHandleSize,
@@ -427,6 +475,9 @@ int DesignScene::windowResizeHandleAt(const QPointF &scenePos) const
 
 void DesignScene::paintWindowResizeHandles(QPainter *painter)
 {
+    if (!m_windowResizable)
+        return;
+
     painter->save();
     painter->setPen(QPen(QColor(0, 120, 215), 1.5, Qt::DashLine));
     painter->setBrush(Qt::NoBrush);

@@ -250,6 +250,25 @@ private slots:
         QVERIFY(code.uiSource.contains("ui->tfContract.focused = ui->runtime.focused_widget == DQ_UIWidget_tfContract;"));
     }
 
+    void testWindowMetadataDrivesBackendInit()
+    {
+        UILayout layout = UILayout::create("WindowContract");
+        layout.window.geometry = QRectF(0, 0, 320, 240);
+        layout.window.properties["title"] = "Stage1 Window";
+        layout.window.properties["min_width"] = 420;
+        layout.window.properties["min_height"] = 310;
+        layout.window.properties["resizable"] = false;
+
+        GeneratedCode code = SDL2CodeGenerator::generate(layout);
+
+        QVERIFY(code.mainFile.contains("dq_ui_backend_init(&backend, \"Stage1 Window\", 420, 310, 420, 310, false)"));
+        QVERIFY(code.uiSource.contains("Uint32 window_flags = SDL_WINDOW_SHOWN;"));
+        QVERIFY(code.uiSource.contains("if (resizable) {"));
+        QVERIFY(code.uiSource.contains("window_flags |= SDL_WINDOW_RESIZABLE;"));
+        QVERIFY(code.uiSource.contains("SDL_SetWindowMinimumSize(backend->window, min_width, min_height);"));
+        QVERIFY(code.uiSource.contains("ui_apply_layout(ui, 420, 310);"));
+    }
+
     void testEventsHeaderContainsHandlers()
     {
         UILayout layout = createTestLayout();

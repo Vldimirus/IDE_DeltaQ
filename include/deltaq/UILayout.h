@@ -215,6 +215,37 @@ struct UIWidget {
     }
 };
 
+inline constexpr int DQ_UIWindowDefaultMinWidth = 240;
+inline constexpr int DQ_UIWindowDefaultMinHeight = 180;
+inline constexpr bool DQ_UIWindowDefaultResizable = true;
+
+inline QString uiWindowTitle(const UIWidget &window)
+{
+    const QString title = window.properties.value("title").toString().trimmed();
+    if (!title.isEmpty())
+        return title;
+    if (!window.name.trimmed().isEmpty())
+        return window.name;
+    return QStringLiteral("Window");
+}
+
+inline int uiWindowMinimumWidth(const UIWidget &window)
+{
+    return qMax(DQ_UIWindowDefaultMinWidth,
+                window.properties.value("min_width", DQ_UIWindowDefaultMinWidth).toInt());
+}
+
+inline int uiWindowMinimumHeight(const UIWidget &window)
+{
+    return qMax(DQ_UIWindowDefaultMinHeight,
+                window.properties.value("min_height", DQ_UIWindowDefaultMinHeight).toInt());
+}
+
+inline bool uiWindowResizable(const UIWidget &window)
+{
+    return window.properties.value("resizable", DQ_UIWindowDefaultResizable).toBool();
+}
+
 struct UILayout {
     QString id;
     QString name;

@@ -33,9 +33,10 @@
 
 ## Active Execution Tracks
 
+- `[ ]` Product maturity recovery v1 `(новый главный track; фокус смещён с простого release polish на product-grade доведение DeltaQ: UI Designer hardening, desktop template overhaul, curated useful module baseline, external library adaptation и bug burn-down; master plan: docs/plan/strategy_2026/32_product_maturity_recovery_v1.md)`
 - `[x]` Project properties and toolchain UX v1 `(planning/implementation track закрыт; DeltaQ получил явный Project Properties surface, portable/local build settings separation, реальную toolchain-aware build integration, guided diagnostics и top-level toolbar/localization polish; детальный execution plan: docs/plan/strategy_2026/31_project_properties_and_toolchain_ux_v1.md)`
 - `[x]` Linux project export v1 `(главный delivery track закрыт; DeltaQ доведён от build/run внутри IDE до build/export/handoff-ready Linux bundle для пользовательского ПО, включая self-contained desktop export verification; детальный execution plan: docs/plan/strategy_2026/30_linux_project_export_v1.md)`
-- `[ ]` Linux-first release polish `(в работе; narrative между README/onboarding/examples/release docs и user-facing Linux checklist уже закрыты, открытым хвостом остаются screenshots / visual proof; детальный execution plan: docs/plan/strategy_2026/29_linux_release_polish.md)`
+- `[ ]` Linux-first release polish `(частично; visual proof и release surface уже доведены, но final release candidate сознательно отложен до закрытия product-maturity блокеров; детальный execution plan: docs/plan/strategy_2026/29_linux_release_polish.md)`
 
 ## Foundation And Governance
 
@@ -244,6 +245,47 @@
 - `[x]` Новый пользователь понимает идею проекта по README и примерам
 - `[x]` Есть 2-3 сильных demo-потока
 - `[x]` DeltaQ можно показать как целостный open-source инструмент
+
+## Product Maturity Recovery v1
+
+### UI Designer Hardening
+
+- `[ ]` Размер окна и свойства окна совпадают между editor и runtime в desktop baseline `(частично: unified window metadata path для title / min size / resizable уже проведён через DesignScene -> .dqui -> SDL2 codegen и закреплён targeted tests)`
+- `[ ]` Resize окна мышью и через properties работает стабильно и без падений
+- `[ ]` Designer/codegen/runtime используют одну и ту же window-metadata model `(частично: общий contract для title / min_width / min_height / resizable уже landed; остаются более широкие parity-cases)`
+- `[ ]` Есть regression coverage на save/load, resize и property editing `(частично: round-trip/save-load и generated runtime contract уже покрыты, остаётся добить resize/runtime parity шире)`
+
+### Desktop Template Overhaul
+
+- `[ ]` `Desktop Text Editor` перестроен из test fixture в product-grade starter
+- `[ ]` Desktop templates покрывают базовые desktop-паттерны `(menu / tabs / dialogs / multi-window basics)`
+- `[ ]` Templates не содержат copy-paste артефактов из legacy showcase-примеров
+- `[ ]` Templates проходят `build -> run` как reference projects без ручных правок
+
+### Bug Burn-Down For Trust
+
+- `[ ]` Есть shortlist top-level user-facing блокирующих багов
+- `[ ]` Закрыты известные first-contact crash/mismatch defects в UI/build/template flow
+- `[ ]` Каждая закрытая критичная регрессия закреплена тестом или reproducible smoke-check
+
+### Core Module Library v1
+
+- `[ ]` Определён useful baseline по категориям `filesystem / timers / config-json / process / tcp-udp / serial`
+- `[ ]` Для baseline-категорий есть curated набор модулей с ролями `essential / convenience / specialized / legacy`
+- `[ ]` Есть 2-3 meaningful сценария, которые реально опираются на эти модули
+- `[ ]` Core-библиотека читается как product-curated system, а не набор примитивов
+
+### External Library Adapter v1
+
+- `[ ]` Есть Linux-first `C ABI` intake flow для внешней библиотеки
+- `[ ]` Есть reproducible path `header + binary -> raw wrappers -> curated pack`
+- `[ ]` Есть хотя бы один reference case `external library -> pack -> graph -> build/run`
+- `[ ]` Ограничения adapter-а описаны честно и user-visible
+
+### Release Framing Re-Evaluation
+
+- `[ ]` После закрытия maturity-блокеров выполнен новый state review
+- `[ ]` Принято честное решение: `technical preview` / `early usable Linux release` / `Linux release candidate`
 
 ## Delivery And Release
 

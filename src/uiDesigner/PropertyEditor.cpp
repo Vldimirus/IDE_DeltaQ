@@ -152,7 +152,7 @@ void PropertyEditor::buildWindowPropertyList()
 
     // Ширина окна
     auto *widthSb = new QDoubleSpinBox(m_contentWidget);
-    widthSb->setRange(200, 4000);
+    widthSb->setRange(m_windowScene->windowMinimumSize().width(), 4000);
     widthSb->setDecimals(0);
     widthSb->setValue(m_windowScene->windowRect().width());
     connect(widthSb, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
@@ -166,7 +166,7 @@ void PropertyEditor::buildWindowPropertyList()
 
     // Высота окна
     auto *heightSb = new QDoubleSpinBox(m_contentWidget);
-    heightSb->setRange(150, 4000);
+    heightSb->setRange(m_windowScene->windowMinimumSize().height(), 4000);
     heightSb->setDecimals(0);
     heightSb->setValue(m_windowScene->windowRect().height());
     connect(heightSb, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
@@ -177,6 +177,41 @@ void PropertyEditor::buildWindowPropertyList()
         emit windowPropertyChanged();
     });
     m_formLayout->addRow(tr("Height:"), heightSb);
+
+    auto *minWidthSb = new QDoubleSpinBox(m_contentWidget);
+    minWidthSb->setRange(DQ_UIWindowDefaultMinWidth, 4000);
+    minWidthSb->setDecimals(0);
+    minWidthSb->setValue(m_windowScene->windowMinimumSize().width());
+    connect(minWidthSb, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
+            this, [this](double val) {
+        if (m_updating || !m_windowScene) return;
+        const QSizeF currentMinSize = m_windowScene->windowMinimumSize();
+        m_windowScene->setWindowMinimumSize(QSizeF(val, currentMinSize.height()));
+        emit windowPropertyChanged();
+    });
+    m_formLayout->addRow(tr("Min Width:"), minWidthSb);
+
+    auto *minHeightSb = new QDoubleSpinBox(m_contentWidget);
+    minHeightSb->setRange(DQ_UIWindowDefaultMinHeight, 4000);
+    minHeightSb->setDecimals(0);
+    minHeightSb->setValue(m_windowScene->windowMinimumSize().height());
+    connect(minHeightSb, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
+            this, [this](double val) {
+        if (m_updating || !m_windowScene) return;
+        const QSizeF currentMinSize = m_windowScene->windowMinimumSize();
+        m_windowScene->setWindowMinimumSize(QSizeF(currentMinSize.width(), val));
+        emit windowPropertyChanged();
+    });
+    m_formLayout->addRow(tr("Min Height:"), minHeightSb);
+
+    auto *resizableCb = new QCheckBox(tr("Resizable"), m_contentWidget);
+    resizableCb->setChecked(m_windowScene->windowResizable());
+    connect(resizableCb, &QCheckBox::toggled, this, [this](bool checked) {
+        if (m_updating || !m_windowScene) return;
+        m_windowScene->setWindowResizable(checked);
+        emit windowPropertyChanged();
+    });
+    m_formLayout->addRow(resizableCb);
 
     m_updating = false;
 }
