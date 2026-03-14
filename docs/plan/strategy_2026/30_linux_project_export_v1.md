@@ -496,3 +496,8 @@ Acceptance:
     что non-allowlisted libs резолвятся из `bundle/lib`;
   - clean-environment / container-level gate всё ещё остаётся отдельным незакрытым
     шагом.
+- `2026-03-14`: user-facing path усилен ещё на один шаг:
+  - startup automation поддерживает `open -> build -> export`;
+  - CI/release workflow теперь гоняет `smoke_linux_example_export.sh`;
+  - user-visible checklist и ограничения `v1` вынесены в отдельную release-документацию;
+  - документированный scope теперь честно отличает Linux project export от packaging самой IDE.

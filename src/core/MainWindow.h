@@ -56,6 +56,7 @@ public:
     ActionManager *actionManager() const { return m_actionManager; }
     void startStartupAutomation(const QString &projectFilePath,
                                 bool buildProject,
+                                bool exportProject,
                                 bool runProject,
                                 bool quitWhenDone,
                                 const QString &runStdin = {},
@@ -126,6 +127,7 @@ private:
     struct StartupAutomationState {
         bool active = false;
         bool buildProject = false;
+        bool exportProject = false;
         bool runProject = false;
         bool quitWhenDone = false;
         bool awaitingBuild = false;

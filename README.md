@@ -38,6 +38,7 @@ If you want DeltaQ to read like one coherent Linux-first product rather than a s
 - [docs/onboarding/README.md](docs/onboarding/README.md) — the newcomer path from first run to stronger showcase examples.
 - [resources/examples/README.md](resources/examples/README.md) — the example catalog, recommended order, and what each checked-in project proves.
 - [docs/release/linux_first_release_checklist.md](docs/release/linux_first_release_checklist.md) — the manual acceptance path for Linux tarball and AppImage artifacts.
+- [docs/release/linux_project_export_checklist.md](docs/release/linux_project_export_checklist.md) — the handoff path for Linux applications exported from DeltaQ projects.
 
 ---
 
@@ -93,7 +94,7 @@ The build and release flow below is **Linux-first**. Building the repository on 
 ```bash
 # Ubuntu / Debian
 sudo apt install \
-    cmake g++ \
+    cmake ninja-build g++ \
     qt6-base-dev \
     libqscintilla2-qt6-dev \
     libclang-dev \
@@ -103,7 +104,7 @@ sudo apt install \
 
 # Fedora
 sudo dnf install \
-    cmake gcc-c++ \
+    cmake ninja-build gcc-c++ \
     qt6-qtbase-devel \
     qscintilla-qt6-devel \
     clang-devel \
@@ -116,6 +117,7 @@ sudo dnf install \
 - `libqscintilla2-qt6-dev` — advanced code editor (falls back to QPlainTextEdit if not found)
 - `libclang-dev` — library import/parsing (library processor is disabled without it)
 - `libsdl2-dev` and `libsdl2-ttf-dev` — required only for building generated UI projects
+- `ninja-build` — recommended generator used by the checked-in CMake presets and release workspace
 - `clangd` — LSP server for code intelligence
 - `gdb` — debugger backend
 
@@ -125,15 +127,14 @@ sudo dnf install \
 git clone https://github.com/Vldimirus/IDE_DeltaQ.git
 cd IDE_DeltaQ
 
-mkdir build && cd build
-cmake .. -DCMAKE_BUILD_TYPE=Release
-cmake --build . -j$(nproc)
+cmake --preset qt-dev
+cmake --build --preset qt-dev -j$(nproc)
 ```
 
 ### Run
 
 ```bash
-./build/src/deltaq
+./build/qt-dev/src/deltaq
 ```
 
 ### Build Options
@@ -146,8 +147,16 @@ cmake --build . -j$(nproc)
 
 ```bash
 # Example: build without tests
-cmake .. -DCMAKE_BUILD_TYPE=Release -DDQ_BUILD_TESTS=OFF
+cmake --preset qt-dev -DDQ_BUILD_TESTS=OFF
 ```
+
+### Build Layout
+
+- `build/qt-dev/` — local development build tree for Qt Creator and shell usage
+- `build/release/` — release workspace created by `scripts/build_release.sh`
+- `build/ci-linux/` — dedicated CI workspace
+
+Qt Creator can use the checked-in `CMakePresets.json` and point its development build at `qt-dev`, so the root `build/` directory stays a container for named build workspaces instead of accumulating loose `CMakeFiles/`, `src/`, and `tests/`.
 
 ---
 
@@ -195,7 +204,7 @@ DeltaQ now loads project templates directly from files in `resources/templates/`
 - **Console Counter Until Q** — console loop that prints an incrementing counter until the user presses `q`
 - **Desktop Empty Window** — SDL2 desktop app that opens a blank window
 - **Desktop UI Graph Example** — desktop project with a ready graph, UI layout, and generated SDL2 runtime files
-- **Desktop Text Editor** — simple SDL2 text editor with a top menu bar
+- **Desktop Text Editor** — DeltaQ desktop text-pad starter with a graph, UI layout, editable text area, and custom UI event handlers
 - **Desktop Multi Window Workspace** — desktop workspace with child windows inside the main frame
 
 The repository currently includes 5 checked-in example projects in `resources/examples/`:
@@ -259,14 +268,13 @@ DeltaQ uses a **module-centric architecture**. Every function is a module (`.dqm
 The repository currently includes 48 checked-in test source files covering `core`, `editor`, `uiDesigner`, `blockEditor`, `libProcessor`, `codegen`, `lsp`, and `debug`.
 
 ```bash
-cd build
-ctest --output-on-failure
+ctest --preset qt-dev
 ```
 
 Or run a specific test:
 
 ```bash
-./build/tests/test_CommandBus
+./build/qt-dev/tests/test_CommandBus
 ```
 
 The repository also includes a Linux CI baseline in `.github/workflows/ci.yml`: GitHub Actions performs full `configure -> build -> ctest` on Ubuntu and verifies install/package smoke for the self-contained bundle layout, including translation payload and bundled templates/examples.

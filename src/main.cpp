@@ -76,6 +76,9 @@ int main(int argc, char *argv[])
     const QCommandLineOption automationBuildOption(
         "automation-build",
         "Run build automatically after opening the project.");
+    const QCommandLineOption automationExportOption(
+        "automation-export",
+        "Run build/export automatically after opening the project.");
     const QCommandLineOption automationRunOption(
         "automation-run",
         "Run the built executable automatically after opening/building the project.");
@@ -93,6 +96,7 @@ int main(int argc, char *argv[])
 
     parser.addOption(automationProjectOption);
     parser.addOption(automationBuildOption);
+    parser.addOption(automationExportOption);
     parser.addOption(automationRunOption);
     parser.addOption(automationQuitOption);
     parser.addOption(automationStdinOption);
@@ -127,6 +131,7 @@ int main(int argc, char *argv[])
         mainWindow.startStartupAutomation(
             parser.value(automationProjectOption),
             parser.isSet(automationBuildOption),
+            parser.isSet(automationExportOption),
             parser.isSet(automationRunOption),
             parser.isSet(automationQuitOption),
             decodeEscapedText(parser.value(automationStdinOption)),

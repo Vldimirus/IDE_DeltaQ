@@ -1,0 +1,81 @@
+{
+  "version": 6,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 20,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "qt-dev",
+      "displayName": "Qt Dev",
+      "description": "Local development build for Qt Creator and shell usage.",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/qt-dev",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+        "DQ_BUILD_TESTS": "ON"
+      }
+    },
+    {
+      "name": "ci-linux",
+      "displayName": "CI Linux",
+      "description": "Headless CI build workspace.",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/ci-linux/cmake",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+        "DQ_BUILD_TESTS": "ON"
+      }
+    },
+    {
+      "name": "release-workspace",
+      "displayName": "Release Workspace",
+      "description": "Dedicated CMake build tree for release packaging scripts.",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/release/cmake",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_CXX_FLAGS_RELEASE": "-O2 -DNDEBUG",
+        "DQ_BUILD_TESTS": "ON"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "qt-dev",
+      "configurePreset": "qt-dev"
+    },
+    {
+      "name": "ci-linux",
+      "configurePreset": "ci-linux"
+    },
+    {
+      "name": "release-workspace",
+      "configurePreset": "release-workspace"
+    }
+  ],
+  "testPresets": [
+    {
+      "name": "qt-dev",
+      "configurePreset": "qt-dev",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "ci-linux",
+      "configurePreset": "ci-linux",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "release-workspace",
+      "configurePreset": "release-workspace",
+      "output": {
+        "outputOnFailure": true
+      }
+    }
+  ]
+}

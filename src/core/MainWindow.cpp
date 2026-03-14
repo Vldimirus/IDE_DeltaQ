@@ -515,6 +515,19 @@ void MainWindow::setupConnections()
             return;
         }
 
+        if (m_startupAutomation.exportProject) {
+            QString exportError;
+            if (!exportCurrentProjectLinuxBundle(&exportError)) {
+                finishStartupAutomation(false, exportError.isEmpty()
+                                                   ? tr("Automation export failed")
+                                                   : exportError);
+                return;
+            }
+
+            finishStartupAutomation(true, tr("Automation build/export completed"));
+            return;
+        }
+
         if (m_startupAutomation.runProject) {
             QString errorMessage;
             if (!startProjectRun(m_startupAutomation.stdinText, &errorMessage)) {
@@ -1763,6 +1776,7 @@ void MainWindow::restoreSession()
 
 void MainWindow::startStartupAutomation(const QString &projectFilePath,
                                         bool buildProject,
+                                        bool exportProject,
                                         bool runProject,
                                         bool quitWhenDone,
                                         const QString &runStdin,
@@ -1772,10 +1786,11 @@ void MainWindow::startStartupAutomation(const QString &projectFilePath,
         return;
 
     m_startupAutomation.active = true;
-    m_startupAutomation.buildProject = buildProject;
+    m_startupAutomation.buildProject = buildProject || exportProject;
+    m_startupAutomation.exportProject = exportProject;
     m_startupAutomation.runProject = runProject;
     m_startupAutomation.quitWhenDone = quitWhenDone;
-    m_startupAutomation.awaitingBuild = buildProject;
+    m_startupAutomation.awaitingBuild = m_startupAutomation.buildProject;
     m_startupAutomation.awaitingRun = false;
     m_startupAutomation.stdinText = runStdin;
     m_startupAutomation.expectedRunOutput = expectedRunOutput;
@@ -1789,6 +1804,19 @@ void MainWindow::startStartupAutomation(const QString &projectFilePath,
 
         if (m_startupAutomation.buildProject) {
             onBuild();
+            return;
+        }
+
+        if (m_startupAutomation.exportProject) {
+            QString exportError;
+            if (!exportCurrentProjectLinuxBundle(&exportError)) {
+                finishStartupAutomation(false, exportError.isEmpty()
+                                                   ? tr("Automation export failed")
+                                                   : exportError);
+                return;
+            }
+
+            finishStartupAutomation(true, tr("Automation build/export completed"));
             return;
         }
 

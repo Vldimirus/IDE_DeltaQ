@@ -5,16 +5,17 @@
 #
 # Использование:
 #   ./scripts/build_release.sh              — полная сборка
-#   ./scripts/build_release.sh --clean      — чистая сборка (удаляет build/)
+#   ./scripts/build_release.sh --clean      — чистая сборка release workspace
 #   ./scripts/build_release.sh --no-tests   — без тестов
 #   ./scripts/build_release.sh --package    — собрать + упаковать в архив
 #
-# Результат: build/release/DeltaQ/
+# Результат: build/release/
 #   ├── deltaq              — исполняемый файл
-#   ├── modules/            — библиотека модулей
-#   ├── templates/          — файловые шаблоны проектов
-#   ├── examples/           — reference examples
-#   └── config/             — создаётся при первом запуске
+#   ├── DeltaQ/             — install bundle
+#   ├── cmake/              — release CMake build tree
+#   ├── package/            — .tar.gz и SHA256SUMS
+#   ├── appimage/           — AppDir workspace
+#   └── tools/              — packaging tools
 # ============================================================
 
 set -e  # Остановка при любой ошибке
@@ -28,8 +29,11 @@ NC='\033[0m' # No Color
 
 # Корень проекта — папка уровнем выше scripts/
 PROJECT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-BUILD_DIR="$PROJECT_DIR/build"
-RELEASE_DIR="$BUILD_DIR/release/DeltaQ"
+BUILD_ROOT="$PROJECT_DIR/build"
+WORKSPACE_DIR="$BUILD_ROOT/release"
+CMAKE_BUILD_DIR="$WORKSPACE_DIR/cmake"
+RELEASE_DIR="$WORKSPACE_DIR/DeltaQ"
+PACKAGE_DIR="$WORKSPACE_DIR/package"
 NPROC=$(nproc 2>/dev/null || echo 4)
 
 # Разбор аргументов
@@ -44,7 +48,7 @@ for arg in "$@"; do
         --package)  DO_PACKAGE=1 ;;
         --help|-h)
             echo "Использование: $0 [--clean] [--no-tests] [--package]"
-            echo "  --clean      Чистая сборка (удаляет build/)"
+            echo "  --clean      Чистая сборка (удаляет build/release/)"
             echo "  --no-tests   Пропустить тесты"
             echo "  --package    Упаковать в .tar.gz архив"
             exit 0
@@ -91,8 +95,8 @@ echo -e "${GREEN}  Зависимости OK${NC}"
 # 2. Чистка (если запрошена)
 # ----------------------------------------------------------
 if [ "$DO_CLEAN" -eq 1 ]; then
-    echo -e "${YELLOW}[2/6] Чистая сборка — удаление build/...${NC}"
-    rm -rf "$BUILD_DIR"
+    echo -e "${YELLOW}[2/6] Чистая сборка — удаление build/release/...${NC}"
+    rm -rf "$WORKSPACE_DIR"
     echo -e "${GREEN}  Очищено${NC}"
 else
     echo -e "${YELLOW}[2/6] Инкрементальная сборка${NC}"
@@ -103,8 +107,7 @@ fi
 # ----------------------------------------------------------
 echo -e "${YELLOW}[3/6] Конфигурация CMake (Release)...${NC}"
 
-mkdir -p "$BUILD_DIR"
-cd "$BUILD_DIR"
+mkdir -p "$CMAKE_BUILD_DIR"
 
 CMAKE_ARGS=(
     -DCMAKE_BUILD_TYPE=Release
@@ -117,7 +120,7 @@ else
     CMAKE_ARGS+=(-DDQ_BUILD_TESTS=OFF)
 fi
 
-cmake "$PROJECT_DIR" "${CMAKE_ARGS[@]}"
+cmake -S "$PROJECT_DIR" -B "$CMAKE_BUILD_DIR" -G Ninja "${CMAKE_ARGS[@]}"
 echo -e "${GREEN}  Конфигурация OK${NC}"
 
 # ----------------------------------------------------------
@@ -125,7 +128,7 @@ echo -e "${GREEN}  Конфигурация OK${NC}"
 # ----------------------------------------------------------
 echo -e "${YELLOW}[4/6] Компиляция ($NPROC потоков)...${NC}"
 
-cmake --build . -j"$NPROC"
+cmake --build "$CMAKE_BUILD_DIR" -j"$NPROC"
 echo -e "${GREEN}  Компиляция OK${NC}"
 
 # ----------------------------------------------------------
@@ -133,13 +136,12 @@ echo -e "${GREEN}  Компиляция OK${NC}"
 # ----------------------------------------------------------
 if [ "$DO_TESTS" -eq 1 ]; then
     echo -e "${YELLOW}[5/6] Запуск тестов...${NC}"
-    cd "$BUILD_DIR"
     if [ -z "${DISPLAY:-}" ] && [ -z "${WAYLAND_DISPLAY:-}" ] && [ -z "${QT_QPA_PLATFORM:-}" ]; then
         export QT_QPA_PLATFORM=offscreen
         echo -e "${CYAN}  Headless-режим: QT_QPA_PLATFORM=offscreen${NC}"
     fi
-    if ctest --output-on-failure; then
-        TOTAL=$(ctest -N 2>/dev/null | tail -1 | grep -oP '\d+' || echo "?")
+    if ctest --test-dir "$CMAKE_BUILD_DIR" --output-on-failure; then
+        TOTAL=$(ctest --test-dir "$CMAKE_BUILD_DIR" -N 2>/dev/null | tail -1 | grep -oP '\d+' || echo "?")
         echo -e "${GREEN}  Все тесты пройдены ($TOTAL)${NC}"
     else
         echo -e "${RED}  Тесты провалились!${NC}"
@@ -156,7 +158,7 @@ echo -e "${YELLOW}[6/6] Формирование релиза...${NC}"
 
 rm -rf "$RELEASE_DIR"
 mkdir -p "$RELEASE_DIR"
-cmake --install "$BUILD_DIR" --prefix "$RELEASE_DIR"
+cmake --install "$CMAKE_BUILD_DIR" --prefix "$RELEASE_DIR"
 
 # Информация о версии
 VERSION=$(grep -A1 'project(DeltaQ' "$PROJECT_DIR/CMakeLists.txt" | grep -oP 'VERSION \K[0-9.]+')
@@ -183,11 +185,10 @@ echo -e "${GREEN}  Релиз собран: $RELEASE_DIR${NC}"
 # Упаковка в архив (если запрошена)
 # ----------------------------------------------------------
 if [ "$DO_PACKAGE" -eq 1 ]; then
-    PACKAGE_DIR="$BUILD_DIR/package"
     echo -e "${YELLOW}Упаковка в архив...${NC}"
     rm -rf "$PACKAGE_DIR"
     mkdir -p "$PACKAGE_DIR"
-    cpack --config "$BUILD_DIR/CPackConfig.cmake" -B "$PACKAGE_DIR"
+    cpack --config "$CMAKE_BUILD_DIR/CPackConfig.cmake" -B "$PACKAGE_DIR"
     ARCHIVE=$(find "$PACKAGE_DIR" -maxdepth 1 -type f -name "*.tar.gz" | head -1)
     if [ -z "$ARCHIVE" ]; then
         echo -e "${RED}  Архив не был создан${NC}"

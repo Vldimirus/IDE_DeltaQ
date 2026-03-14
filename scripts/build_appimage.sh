@@ -3,12 +3,14 @@
 set -euo pipefail
 
 PROJECT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-BUILD_DIR="$PROJECT_DIR/build"
-RELEASE_DIR="$BUILD_DIR/release/DeltaQ"
-APPIMAGE_ROOT="$BUILD_DIR/appimage"
+BUILD_ROOT="$PROJECT_DIR/build"
+WORKSPACE_DIR="$BUILD_ROOT/release"
+RELEASE_DIR="$WORKSPACE_DIR/DeltaQ"
+APPIMAGE_ROOT="$WORKSPACE_DIR/appimage"
 APPDIR="$APPIMAGE_ROOT/AppDir"
 APPDIR_BIN="$APPDIR/usr/bin"
-TOOLS_DIR="$APPIMAGE_ROOT/tools"
+TOOLS_DIR="$WORKSPACE_DIR/tools"
+PACKAGE_DIR="$WORKSPACE_DIR/package"
 DESKTOP_ID="org.deltaq.deltaq.desktop"
 
 DO_CLEAN=0
@@ -169,9 +171,9 @@ fi
 
 VERSION="$(grep -A1 'project(DeltaQ' "$PROJECT_DIR/CMakeLists.txt" | grep -oP 'VERSION \K[0-9.]+')"
 ARCH_NAME="$(uname -m)"
-APPIMAGE_OUT="$BUILD_DIR/package/DeltaQ-${VERSION}-${ARCH_NAME}.AppImage"
+APPIMAGE_OUT="$PACKAGE_DIR/DeltaQ-${VERSION}-${ARCH_NAME}.AppImage"
 
-mkdir -p "$BUILD_DIR/package"
+mkdir -p "$PACKAGE_DIR"
 rm -f "$APPIMAGE_OUT"
 APPSTREAMCLI_BIN="$(command -v appstreamcli || true)"
 export PATH="$TOOLS_DIR:$PATH"
@@ -213,10 +215,10 @@ fi
 APPIMAGE_EXTRACT_AND_RUN=1 "$APPIMAGETOOL_BIN" "${APPIMAGETOOL_ARGS[@]}"
 
 (
-    cd "$BUILD_DIR/package"
+    cd "$PACKAGE_DIR"
     sha256sum *.tar.gz *.AppImage > SHA256SUMS
 )
 
-"$PROJECT_DIR/scripts/verify_appimage_file.sh" "$APPIMAGE_OUT" "$BUILD_DIR/package/SHA256SUMS"
+"$PROJECT_DIR/scripts/verify_appimage_file.sh" "$APPIMAGE_OUT" "$PACKAGE_DIR/SHA256SUMS"
 
 echo "AppImage created: $APPIMAGE_OUT"

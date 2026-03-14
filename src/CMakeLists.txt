@@ -41,28 +41,46 @@ target_compile_definitions(deltaq PRIVATE
     DQ_APP_VERSION="${PROJECT_VERSION}"
 )
 
-# Копирование библиотеки модулей рядом с исполняемым файлом
-add_custom_command(TARGET deltaq POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
-        ${CMAKE_SOURCE_DIR}/modules
-        $<TARGET_FILE_DIR:deltaq>/modules
-    COMMENT "Copying modules library to build output..."
+function(dq_add_runtime_copy_target target_name source_dir dest_name comment_text)
+    file(GLOB_RECURSE runtime_files CONFIGURE_DEPENDS "${source_dir}/*")
+    set(stamp_file "${CMAKE_CURRENT_BINARY_DIR}/${target_name}.stamp")
+
+    add_custom_command(
+        OUTPUT "${stamp_file}"
+        COMMAND ${CMAKE_COMMAND} -E rm -rf "$<TARGET_FILE_DIR:deltaq>/${dest_name}"
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+            "${source_dir}"
+            "$<TARGET_FILE_DIR:deltaq>/${dest_name}"
+        COMMAND ${CMAKE_COMMAND} -E touch "${stamp_file}"
+        DEPENDS ${runtime_files}
+        COMMENT "${comment_text}"
+    )
+
+    add_custom_target(${target_name} DEPENDS "${stamp_file}")
+    add_dependencies(deltaq ${target_name})
+endfunction()
+
+# Runtime assets рядом с исполняемым файлом должны обновляться не только
+# при перекомпиляции deltaq, но и при изменении файлов шаблонов/examples/modules.
+dq_add_runtime_copy_target(
+    deltaq_runtime_modules
+    "${CMAKE_SOURCE_DIR}/modules"
+    "modules"
+    "Copying modules library to build output..."
 )
 
-# Копирование шаблонов проектов рядом с исполняемым файлом
-add_custom_command(TARGET deltaq POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
-        ${CMAKE_SOURCE_DIR}/resources/templates
-        $<TARGET_FILE_DIR:deltaq>/templates
-    COMMENT "Copying project templates to build output..."
+dq_add_runtime_copy_target(
+    deltaq_runtime_templates
+    "${CMAKE_SOURCE_DIR}/resources/templates"
+    "templates"
+    "Copying project templates to build output..."
 )
 
-# Копирование reference examples рядом с исполняемым файлом
-add_custom_command(TARGET deltaq POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
-        ${CMAKE_SOURCE_DIR}/resources/examples
-        $<TARGET_FILE_DIR:deltaq>/examples
-    COMMENT "Copying reference examples to build output..."
+dq_add_runtime_copy_target(
+    deltaq_runtime_examples
+    "${CMAKE_SOURCE_DIR}/resources/examples"
+    "examples"
+    "Copying reference examples to build output..."
 )
 
 install(TARGETS deltaq

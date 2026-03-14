@@ -13,6 +13,9 @@ This folder is the shortest documentation entry point for a new DeltaQ user on L
 3. [Linux-First Release Checklist](../release/linux_first_release_checklist.md)
    The manual acceptance path for Linux tarball and AppImage artifacts when you want to validate a packaged release rather than a source checkout.
 
+4. [Linux Project Export Checklist](../release/linux_project_export_checklist.md)
+   The handoff path for Linux application artifacts produced from a DeltaQ project via `Build -> Export Linux Bundle`.
+
 ## Suggested Order
 
 Use the docs in this order:
@@ -20,6 +23,7 @@ Use the docs in this order:
 1. run the minimal console walkthrough;
 2. open the example catalog and choose the next stronger scenario;
 3. use the Linux artifact checklist if you are reviewing or handing off a packaged build.
+4. use the project export checklist when you want to hand off an application built inside DeltaQ rather than the IDE itself.
 
 ## Related Docs
 

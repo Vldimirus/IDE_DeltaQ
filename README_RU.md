@@ -38,6 +38,7 @@ DeltaQ IDE построена вокруг одного прозрачного w
 - [docs/onboarding/README_RU.md](docs/onboarding/README_RU.md) — путь нового пользователя от first run к более сильным showcase-примерам.
 - [resources/examples/README_RU.md](resources/examples/README_RU.md) — каталог examples, рекомендуемый порядок и пояснение, что доказывает каждый checked-in проект.
 - [docs/release/linux_first_release_checklist_ru.md](docs/release/linux_first_release_checklist_ru.md) — ручной путь приёмки Linux tarball/AppImage artifacts.
+- [docs/release/linux_project_export_checklist_ru.md](docs/release/linux_project_export_checklist_ru.md) — путь handoff-проверки для Linux-приложений, экспортированных из проектов DeltaQ.
 
 ---
 
@@ -93,7 +94,7 @@ DeltaQ IDE построена на **4-слойной архитектуре** �
 ```bash
 # Ubuntu / Debian
 sudo apt install \
-    cmake g++ \
+    cmake ninja-build g++ \
     qt6-base-dev \
     libqscintilla2-qt6-dev \
     libclang-dev \
@@ -103,7 +104,7 @@ sudo apt install \
 
 # Fedora
 sudo dnf install \
-    cmake gcc-c++ \
+    cmake ninja-build gcc-c++ \
     qt6-qtbase-devel \
     qscintilla-qt6-devel \
     clang-devel \
@@ -116,6 +117,7 @@ sudo dnf install \
 - `libqscintilla2-qt6-dev` — продвинутый редактор кода (без него используется QPlainTextEdit)
 - `libclang-dev` — импорт/парсинг библиотек (обработчик библиотек отключается без него)
 - `libsdl2-dev` и `libsdl2-ttf-dev` — нужны только для сборки сгенерированных UI-проектов
+- `ninja-build` — рекомендуемый generator, который используют checked-in CMake presets и release workspace
 - `clangd` — LSP-сервер для интеллектуальных подсказок
 - `gdb` — бэкенд отладчика
 
@@ -125,15 +127,14 @@ sudo dnf install \
 git clone https://github.com/Vldimirus/IDE_DeltaQ.git
 cd IDE_DeltaQ
 
-mkdir build && cd build
-cmake .. -DCMAKE_BUILD_TYPE=Release
-cmake --build . -j$(nproc)
+cmake --preset qt-dev
+cmake --build --preset qt-dev -j$(nproc)
 ```
 
 ### Запуск
 
 ```bash
-./build/src/deltaq
+./build/qt-dev/src/deltaq
 ```
 
 ### Опции сборки
@@ -146,8 +147,16 @@ cmake --build . -j$(nproc)
 
 ```bash
 # Пример: сборка без тестов
-cmake .. -DCMAKE_BUILD_TYPE=Release -DDQ_BUILD_TESTS=OFF
+cmake --preset qt-dev -DDQ_BUILD_TESTS=OFF
 ```
+
+### Структура сборок
+
+- `build/qt-dev/` — локальная dev-сборка для Qt Creator и shell
+- `build/release/` — release workspace, который создаёт `scripts/build_release.sh`
+- `build/ci-linux/` — отдельный CI workspace
+
+В репозитории теперь есть `CMakePresets.json`, поэтому Qt Creator можно направить на preset `qt-dev`, и корень `build/` остаётся контейнером для именованных сборок, а не свалкой из `CMakeFiles/`, `src/` и `tests/`.
 
 ---
 
@@ -195,7 +204,7 @@ cmake .. -DCMAKE_BUILD_TYPE=Release -DDQ_BUILD_TESTS=OFF
 - **Console Counter Until Q** — консольный цикл, печатающий возрастающий счётчик до нажатия `q`
 - **Desktop Empty Window** — SDL2-приложение, открывающее пустое окно
 - **Desktop UI Graph Example** — desktop-проект с готовым графом, UI-раскладкой и сгенерированными SDL2 runtime-файлами
-- **Desktop Text Editor** — простой SDL2 текстовый редактор с верхним меню
+- **Desktop Text Editor** — DeltaQ desktop text-pad starter с графом, UI layout, editable text area и кастомными UI event handlers
 - **Desktop Multi Window Workspace** — рабочая область с дочерними окнами внутри главного окна
 
 Сейчас в репозитории есть 5 готовых проектов-примеров в `resources/examples/`:
@@ -259,14 +268,13 @@ DeltaQ построена на **модуле-центричной архите�
 В репозитории сейчас 48 файлов тестов, покрывающих `core`, `editor`, `uiDesigner`, `blockEditor`, `libProcessor`, `codegen`, `lsp` и `debug`.
 
 ```bash
-cd build
-ctest --output-on-failure
+ctest --preset qt-dev
 ```
 
 Или запуск конкретного теста:
 
 ```bash
-./build/tests/test_CommandBus
+./build/qt-dev/tests/test_CommandBus
 ```
 
 В репозитории также есть Linux CI baseline в `.github/workflows/ci.yml`: GitHub Actions выполняет полный `configure -> build -> ctest` на Ubuntu и дополнительно проверяет install/package smoke для самодостаточного bundle-layout, включая translation payload и bundled templates/examples.

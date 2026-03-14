@@ -15,6 +15,7 @@ jobs:
     env:
       QT_QPA_PLATFORM: offscreen
       CTEST_OUTPUT_ON_FAILURE: 1
+      RELEASE_CHECK_DIR: build/ci-release/cmake
 
     steps:
       - name: Checkout
@@ -36,56 +37,59 @@ jobs:
             libsdl2-ttf-dev
 
       - name: Configure
-        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DDQ_BUILD_TESTS=ON
+        run: cmake -S . -B "$RELEASE_CHECK_DIR" -G Ninja -DCMAKE_BUILD_TYPE=Release -DDQ_BUILD_TESTS=ON
 
       - name: Build
-        run: cmake --build build --parallel
+        run: cmake --build "$RELEASE_CHECK_DIR" --parallel
 
       - name: Test
-        run: ctest --test-dir build --output-on-failure
+        run: ctest --test-dir "$RELEASE_CHECK_DIR" --output-on-failure
 
       - name: Build release package
         run: ./scripts/build_release.sh --no-tests --package
 
+      - name: Example export smoke
+        run: ./scripts/smoke_linux_example_export.sh build/release/DeltaQ
+
       - name: Download AppImage tools
         run: |
-          mkdir -p build/tools
+          mkdir -p build/release/tools
           curl -L \
-            -o build/tools/linuxdeploy \
+            -o build/release/tools/linuxdeploy \
             https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
           curl -L \
-            -o build/tools/linuxdeploy-plugin-qt \
+            -o build/release/tools/linuxdeploy-plugin-qt \
             https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-x86_64.AppImage
           curl -L \
-            -o build/tools/appimagetool \
+            -o build/release/tools/appimagetool \
             https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
           curl -L \
-            -o build/tools/runtime-x86_64 \
+            -o build/release/tools/runtime-x86_64 \
             https://github.com/AppImage/type2-runtime/releases/download/continuous/runtime-x86_64
-          chmod +x build/tools/linuxdeploy build/tools/linuxdeploy-plugin-qt build/tools/appimagetool
+          chmod +x build/release/tools/linuxdeploy build/release/tools/linuxdeploy-plugin-qt build/release/tools/appimagetool
 
       - name: Build AppImage
         run: |
           ./scripts/build_appimage.sh \
             --no-tests \
-            --linuxdeploy build/tools/linuxdeploy \
-            --linuxdeploy-qt-plugin build/tools/linuxdeploy-plugin-qt \
-            --appimagetool build/tools/appimagetool \
-            --runtime-file build/tools/runtime-x86_64
+            --linuxdeploy build/release/tools/linuxdeploy \
+            --linuxdeploy-qt-plugin build/release/tools/linuxdeploy-plugin-qt \
+            --appimagetool build/release/tools/appimagetool \
+            --runtime-file build/release/tools/runtime-x86_64
 
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v4
         with:
           name: deltaq-linux-release
           path: |
-            build/package/*.tar.gz
-            build/package/*.AppImage
-            build/package/SHA256SUMS
+            build/release/package/*.tar.gz
+            build/release/package/*.AppImage
+            build/release/package/SHA256SUMS
 
       - name: Publish GitHub release assets
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            build/package/*.tar.gz
-            build/package/*.AppImage
-            build/package/SHA256SUMS
+            build/release/package/*.tar.gz
+            build/release/package/*.AppImage
+            build/release/package/SHA256SUMS

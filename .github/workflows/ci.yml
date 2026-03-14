@@ -14,6 +14,10 @@ jobs:
     env:
       QT_QPA_PLATFORM: offscreen
       CTEST_OUTPUT_ON_FAILURE: 1
+      CI_WORKSPACE: build/ci-linux
+      CMAKE_BUILD_DIR: build/ci-linux/cmake
+      INSTALL_SMOKE_DIR: build/ci-linux/install-smoke
+      PACKAGE_DIR: build/ci-linux/package
 
     steps:
       - name: Checkout
@@ -35,49 +39,52 @@ jobs:
             libsdl2-ttf-dev
 
       - name: Configure
-        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DDQ_BUILD_TESTS=ON
+        run: cmake --preset ci-linux
 
       - name: Build
-        run: cmake --build build --parallel
+        run: cmake --build --preset ci-linux --parallel
 
       - name: Test
-        run: ctest --test-dir build --output-on-failure
+        run: ctest --preset ci-linux
 
       - name: Install bundle smoke
-        run: cmake --install build --prefix build/install-smoke
+        run: cmake --install "$CMAKE_BUILD_DIR" --prefix "$INSTALL_SMOKE_DIR"
 
       - name: Verify bundle layout
-        run: ./scripts/verify_release_bundle.sh build/install-smoke
+        run: ./scripts/verify_release_bundle.sh "$INSTALL_SMOKE_DIR"
 
       - name: First-run smoke
-        run: ./scripts/smoke_linux_first_run.sh build/install-smoke
+        run: ./scripts/smoke_linux_first_run.sh "$INSTALL_SMOKE_DIR"
 
       - name: Example build/run smoke
-        run: ./scripts/smoke_linux_example_build_run.sh build/install-smoke
+        run: ./scripts/smoke_linux_example_build_run.sh "$INSTALL_SMOKE_DIR"
+
+      - name: Example export smoke
+        run: ./scripts/smoke_linux_example_export.sh "$INSTALL_SMOKE_DIR"
 
       - name: Package smoke
-        run: cpack --config build/CPackConfig.cmake -B build/package
+        run: cpack --config "$CMAKE_BUILD_DIR/CPackConfig.cmake" -B "$PACKAGE_DIR"
 
       - name: AppDir smoke
         run: ./scripts/build_appimage.sh --no-tests --appdir-only
 
       - name: Generate package checksums
         run: |
-          cd build/package
+          cd "$PACKAGE_DIR"
           sha256sum *.tar.gz > SHA256SUMS
 
       - name: Verify package artifact
         run: |
-          ls -1 build/package/*.tar.gz
-          ./scripts/verify_package_archive.sh build/package/*.tar.gz build/package/SHA256SUMS
+          ls -1 "$PACKAGE_DIR"/*.tar.gz
+          ./scripts/verify_package_archive.sh "$PACKAGE_DIR"/*.tar.gz "$PACKAGE_DIR/SHA256SUMS"
 
       - name: Upload package artifact
         uses: actions/upload-artifact@v4
         with:
           name: deltaq-linux-package
           path: |
-            build/package/*.tar.gz
-            build/package/SHA256SUMS
+            build/ci-linux/package/*.tar.gz
+            build/ci-linux/package/SHA256SUMS
 
       - name: Upload failure logs
         if: failure()
@@ -85,6 +92,6 @@ jobs:
         with:
           name: ci-failure-logs
           path: |
-            build/Testing/**/*
-            build/CMakeFiles/CMakeOutput.log
-            build/CMakeFiles/CMakeError.log
+            build/ci-linux/cmake/Testing/**/*
+            build/ci-linux/cmake/CMakeFiles/CMakeOutput.log
+            build/ci-linux/cmake/CMakeFiles/CMakeError.log

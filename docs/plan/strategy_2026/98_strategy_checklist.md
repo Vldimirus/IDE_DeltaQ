@@ -277,7 +277,7 @@
 - `[x]` Console project bundle запускается вне project tree и без DeltaQ checkout
 - `[ ]` Desktop project bundle включает нужный runtime payload и проходит isolated smoke `(локальный post-export smoke, extracted-archive smoke, near-clean env smoke и loader-level proof уже есть; clean-environment gate ещё открыт)`
 - `[x]` Exported bundle можно упаковать в `.tar.gz` без отдельного packaging flow
-- `[ ]` Dependency model и ограничения export `v1` описаны честно и user-visible
+- `[x]` Dependency model и ограничения export `v1` описаны честно и user-visible
 
 ### Cross-Platform Delivery
 

@@ -40,7 +40,7 @@ The script now assembles the release through `cmake --install`, so the produced 
 - `translations/`
 - `VERSION`
 
-Release layout verification is centralized in `scripts/verify_release_bundle.sh`. CI uses the same script against `build/install-smoke`, and `build_release.sh` runs it against the final release directory.
+Release layout verification is centralized in `scripts/verify_release_bundle.sh`. CI uses the same script against `build/ci-linux/install-smoke`, and `build_release.sh` runs it against the final release directory in `build/release/DeltaQ`.
 
 The Linux release path now also has an automated first-run smoke:
 
@@ -83,6 +83,32 @@ Package verification is two-stage:
 - `scripts/verify_release_bundle.sh` checks an install-layout directory;
 - `scripts/verify_package_archive.sh` validates `SHA256SUMS`, extracts the tarball, and re-runs bundle verification on the unpacked release.
 
+## Project Export Artifacts
+
+DeltaQ now also has a separate Linux artifact path for user projects built inside the IDE.
+
+The user-facing path is:
+
+- open a DeltaQ project;
+- run `Build -> Export Linux Bundle`;
+- hand off either:
+  - `dist/<ProjectName>/`
+  - `dist/<ProjectName>.tar.gz`
+
+Verification is also two-stage:
+
+- `scripts/verify_project_export_bundle.sh` checks the directory bundle;
+- `scripts/verify_project_export_archive.sh` extracts the archive and re-runs bundle verification.
+
+CI now also exercises this user-project path through IDE startup automation via:
+
+- `scripts/smoke_linux_example_export.sh build/ci-linux/install-smoke minimal_console_flow`
+- `scripts/smoke_linux_example_export.sh build/ci-linux/install-smoke desktop_ui_flow`
+
+For the user-facing acceptance path and current `v1` limitations, use:
+
+- `docs/release/linux_project_export_checklist.md`
+
 ## AppImage
 
 Linux AppImage packaging now has two layers:
@@ -92,6 +118,14 @@ Linux AppImage packaging now has two layers:
 - `.github/workflows/release.yml` downloads `linuxdeploy`, the Qt plugin, `appimagetool`, and the AppImage runtime, then publishes a real `.AppImage` on tagged releases.
 
 For headless or offline-safe local packaging, `build_appimage.sh` also forces AppImage tools into extract-and-run mode and injects an `appstreamcli --no-net` wrapper, so local validation does not fail just because DNS is unavailable during metadata checks.
+
+## Build Workspace Layout
+
+The repository now keeps `build/` as a container for named workspaces instead of mixing a live CMake tree with release artifacts in the same root:
+
+- `build/qt-dev/` — local development / Qt Creator build tree;
+- `build/release/` — release workspace with `cmake/`, `DeltaQ/`, `package/`, `appimage/`, and `tools/`;
+- `build/ci-linux/` — CI configure/build/test/install/package workspace.
 
 The AppImage bundle now also includes Qt's `offscreen` platform plugin explicitly, so extracted `.AppImage` contents can pass the same headless first-run and example smoke path as the plain Linux release bundle.
 

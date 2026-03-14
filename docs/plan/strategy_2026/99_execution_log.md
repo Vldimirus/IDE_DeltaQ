@@ -4251,3 +4251,57 @@
 - закрыт acceptance про упаковку exported bundle без отдельного packaging flow;
 - следующий незакрытый technical gate теперь уже уже сузился до clean-environment
   verification и user-visible documentation/limitations.
+
+### Шаг 78 — добавлен IDE automation export path, CI smoke и user-facing export checklist
+
+**Фаза:** `Linux-first delivery follow-up`
+
+**Что сделано:**
+
+- `MainWindow` startup automation расширен до `open -> build -> export`;
+- CLI получил флаг `--automation-export`;
+- добавлен `scripts/smoke_linux_example_export.sh`;
+- workflow `ci.yml` и `release.yml` теперь гоняют project-export smoke через саму IDE;
+- добавлены user-facing документы:
+  - `docs/release/linux_project_export_checklist.md`
+  - `docs/release/linux_project_export_checklist_ru.md`;
+- entry points в `README`, onboarding и release docs обновлены под новый export path.
+
+**Зачем это сделано:**
+
+- превратить project export из backend/test-only возможности в реальный CI-gated product path;
+- проверить именно пользовательский workflow `Build -> Export Linux Bundle`, а не только lower-level exporter API;
+- закрыть documentation gap по scope и ограничениям `v1`.
+
+**Технические детали:**
+
+- `--automation-export` автоматически использует build-coupled semantics и не обходит rebuild;
+- `smoke_linux_example_export.sh` копирует checked-in example в временный workspace,
+  запускает DeltaQ automation export, затем валидирует:
+  - `dist/<ProjectName>/`
+  - `dist/<ProjectName>.tar.gz`
+  - bundle/archive verification scripts;
+- локально smoke подтверждён для:
+  - `minimal_console_flow`
+  - `desktop_ui_flow`.
+
+**Проверка:**
+
+- `cmake --build build --parallel --target deltaq test_MainWindowEditorActions`
+- `cmake --install build --prefix build/install-smoke`
+- `bash scripts/smoke_linux_example_export.sh build/install-smoke minimal_console_flow`
+- `bash scripts/smoke_linux_example_export.sh build/install-smoke desktop_ui_flow`
+
+**Результат проверки:**
+
+- сигнатура automation path собрана успешно;
+- оба export smoke прошли успешно через саму IDE;
+- CI/release workflow теперь имеют отдельный gate для user-facing project export;
+- пункт про documented `v1` limitations можно считать закрытым.
+
+**Итог:**
+
+- `Linux Project Export v1` теперь покрыт не только autotest-ами exporter-а, но и
+  IDE-level automation smoke;
+- user-visible scope и ограничения export описаны явно;
+- единственный честно незакрытый technical gap остаётся container/VM-level clean-environment gate.
