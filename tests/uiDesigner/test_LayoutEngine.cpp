@@ -1,6 +1,7 @@
 // Тесты LayoutEngine
 #include <QTest>
 #include <QApplication>
+#include "../../src/uiDesigner/DesignScene.h"
 #include "../../src/uiDesigner/WidgetItem.h"
 #include "../../src/uiDesigner/LayoutEngine.h"
 #include <deltaq/UILayout.h>
@@ -128,6 +129,28 @@ private slots:
         LayoutEngine::applyLayout(container);
         QCOMPARE(container->childWidgets().size(), 0);
         delete container;
+    }
+
+    void testApplyAnchorsToRootWidgetsUsesStableIteration()
+    {
+        DesignScene scene;
+        scene.setWindowRect(QRectF(0, 0, 900, 620));
+
+        UIWidget child = UIWidget::create("Button", "btn_root");
+        child.geometry = QRectF(20, 40, 120, 40);
+        child.anchors.left = true;
+        child.anchors.right = true;
+        child.anchors.leftMargin = 20;
+        child.anchors.rightMargin = 20;
+
+        auto *item = scene.addWidgetItem(child);
+        QVERIFY(item != nullptr);
+
+        LayoutEngine::applyAnchorsToRootWidgets(&scene);
+
+        QCOMPARE(item->pos(), QPointF(20, 40));
+        QCOMPARE(item->widgetWidth(), 860.0);
+        QCOMPARE(item->widgetHeight(), 40.0);
     }
 };
 

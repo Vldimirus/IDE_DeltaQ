@@ -7,7 +7,7 @@
             "module_id": "core.io.string_constant",
             "position": {
                 "x": 80.0,
-                "y": 220.0
+                "y": 40.0
             },
             "properties": {
                 "value": "\"window1\""
@@ -18,7 +18,7 @@
             "module_id": "core.io.int_constant",
             "position": {
                 "x": 80.0,
-                "y": 300.0
+                "y": 140.0
             },
             "properties": {
                 "value": "640"
@@ -29,7 +29,7 @@
             "module_id": "core.io.int_constant",
             "position": {
                 "x": 80.0,
-                "y": 380.0
+                "y": 240.0
             },
             "properties": {
                 "value": "480"
@@ -39,88 +39,88 @@
             "id": "10000000-0000-0000-0000-000000000020",
             "module_id": "core.desktop.sdl_init",
             "position": {
-                "x": 440.0,
-                "y": 60.0
+                "x": 280.0,
+                "y": 140.0
             }
         },
         {
             "id": "10000000-0000-0000-0000-000000000021",
             "module_id": "core.desktop.ttf_init",
             "position": {
-                "x": 440.0,
-                "y": 180.0
+                "x": 540.0,
+                "y": 140.0
             }
         },
         {
             "id": "10000000-0000-0000-0000-000000000022",
             "module_id": "core.desktop.create_window",
             "position": {
-                "x": 440.0,
-                "y": 300.0
+                "x": 840.0,
+                "y": 140.0
             }
         },
         {
             "id": "10000000-0000-0000-0000-000000000023",
             "module_id": "core.desktop.create_renderer",
             "position": {
-                "x": 440.0,
-                "y": 430.0
+                "x": 1140.0,
+                "y": 140.0
             }
         },
         {
             "id": "10000000-0000-0000-0000-000000000024",
             "module_id": "core.desktop.ui_init",
             "position": {
-                "x": 440.0,
-                "y": 560.0
+                "x": 1440.0,
+                "y": 140.0
             }
         },
         {
             "id": "10000000-0000-0000-0000-000000000025",
             "module_id": "core.desktop.event_loop",
             "position": {
-                "x": 440.0,
-                "y": 690.0
+                "x": 1740.0,
+                "y": 140.0
             }
         },
         {
             "id": "10000000-0000-0000-0000-000000000026",
             "module_id": "core.desktop.ui_cleanup_font",
             "position": {
-                "x": 440.0,
-                "y": 820.0
+                "x": 2040.0,
+                "y": 140.0
             }
         },
         {
             "id": "10000000-0000-0000-0000-000000000027",
             "module_id": "core.desktop.destroy_renderer",
             "position": {
-                "x": 440.0,
-                "y": 950.0
+                "x": 2340.0,
+                "y": 140.0
             }
         },
         {
             "id": "10000000-0000-0000-0000-000000000028",
             "module_id": "core.desktop.destroy_window",
             "position": {
-                "x": 440.0,
-                "y": 1080.0
+                "x": 2640.0,
+                "y": 140.0
             }
         },
         {
             "id": "10000000-0000-0000-0000-000000000029",
             "module_id": "core.desktop.ttf_quit",
             "position": {
-                "x": 440.0,
-                "y": 1210.0
+                "x": 2940.0,
+                "y": 140.0
             }
         },
         {
             "id": "10000000-0000-0000-0000-000000000030",
             "module_id": "core.desktop.sdl_quit",
             "position": {
-                "x": 440.0,
-                "y": 1340.0
+                "x": 3240.0,
+                "y": 140.0
             }
         }
     ],

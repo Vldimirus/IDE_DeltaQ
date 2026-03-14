@@ -1,11 +1,15 @@
 {
     "id": "desktop_text_editor",
     "name": "Desktop Text Editor",
-    "description": "Simple SDL2 text editor with a top menu bar, editable text area, and basic keyboard shortcuts.",
+    "description": "DeltaQ desktop text pad starter with its own UI contract: document area, append-line input, sample/new actions, and custom event handlers.",
     "project_type": "desktop",
     "sort_order": 50,
     "summary_files": [
         "__PROJECT_NAME__.dqproj",
-        "src/main.c"
+        "graphs/main.dqgraph",
+        "ui/window1.dqui",
+        "src/main.c",
+        "src/ui/window1_events.h",
+        "src/ui/window1_events.c"
     ]
 }

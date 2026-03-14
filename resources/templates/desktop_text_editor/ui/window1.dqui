@@ -1,0 +1,118 @@
+{
+    "id": "50000000-0000-0000-0000-000000000010",
+    "name": "window1",
+    "version": "1.0.0",
+    "window": {
+        "id": "50000000-0000-0000-0000-000000000011",
+        "type": "Window",
+        "name": "window1",
+        "x": 0.0,
+        "y": 0.0,
+        "width": 900.0,
+        "height": 620.0,
+        "children": [
+            {
+                "id": "50000000-0000-0000-0000-000000000012",
+                "type": "Label",
+                "name": "lblDocName",
+                "x": 20.0,
+                "y": 20.0,
+                "width": 260.0,
+                "height": 30.0,
+                "properties": {
+                    "text": "untitled.txt"
+                }
+            },
+            {
+                "id": "50000000-0000-0000-0000-000000000013",
+                "type": "Label",
+                "name": "lblSubtitle",
+                "x": 20.0,
+                "y": 50.0,
+                "width": 420.0,
+                "height": 24.0,
+                "properties": {
+                    "text": "Quick text pad starter for DeltaQ desktop projects"
+                }
+            },
+            {
+                "id": "50000000-0000-0000-0000-000000000014",
+                "type": "Button",
+                "name": "btnNewDocument",
+                "x": 20.0,
+                "y": 92.0,
+                "width": 120.0,
+                "height": 36.0,
+                "properties": {
+                    "text": "New"
+                },
+                "events": {
+                    "onClick": "on_btnNewDocument_click"
+                }
+            },
+            {
+                "id": "50000000-0000-0000-0000-000000000015",
+                "type": "Button",
+                "name": "btnInsertSample",
+                "x": 156.0,
+                "y": 92.0,
+                "width": 160.0,
+                "height": 36.0,
+                "properties": {
+                    "text": "Insert Sample"
+                },
+                "events": {
+                    "onClick": "on_btnInsertSample_click"
+                }
+            },
+            {
+                "id": "50000000-0000-0000-0000-000000000016",
+                "type": "Button",
+                "name": "btnAppendLine",
+                "x": 332.0,
+                "y": 92.0,
+                "width": 150.0,
+                "height": 36.0,
+                "properties": {
+                    "text": "Append Line"
+                },
+                "events": {
+                    "onClick": "on_btnAppendLine_click"
+                }
+            },
+            {
+                "id": "50000000-0000-0000-0000-000000000017",
+                "type": "TextField",
+                "name": "editInput",
+                "x": 20.0,
+                "y": 146.0,
+                "width": 860.0,
+                "height": 32.0,
+                "properties": {
+                    "placeholder": "Type a line to append to the document"
+                }
+            },
+            {
+                "id": "50000000-0000-0000-0000-000000000018",
+                "type": "TextArea",
+                "name": "txtDocument",
+                "x": 20.0,
+                "y": 196.0,
+                "width": 860.0,
+                "height": 340.0
+            },
+            {
+                "id": "50000000-0000-0000-0000-000000000019",
+                "type": "Label",
+                "name": "lblStatus",
+                "x": 20.0,
+                "y": 554.0,
+                "width": 420.0,
+                "height": 24.0,
+                "properties": {
+                    "text": "Lines: 0 | Characters: 0"
+                }
+            }
+        ]
+    }
+}

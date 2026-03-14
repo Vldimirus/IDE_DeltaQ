@@ -14,6 +14,20 @@
 
 namespace DeltaQ {
 
+namespace {
+
+QPointF windowResizeHandleCenter(const QRectF &rect, int index)
+{
+    switch (index) {
+    case 0: return QPointF(rect.right(), rect.center().y());
+    case 1: return QPointF(rect.center().x(), rect.bottom());
+    case 2: return rect.bottomRight();
+    default: return {};
+    }
+}
+
+} // namespace
+
 DesignScene::DesignScene(QObject *parent)
     : QGraphicsScene(parent)
 {
@@ -116,6 +130,19 @@ void DesignScene::loadFromLayout(const UILayout &layout)
 {
     clearScene();
 
+    if (!layout.window.geometry.isEmpty())
+        setWindowRect(layout.window.geometry);
+    else
+        setWindowRect(QRectF(0, 0, 800, 600));
+
+    const QString windowTitle = layout.window.properties.value("title").toString();
+    if (!windowTitle.trimmed().isEmpty())
+        setWindowTitle(windowTitle);
+    else if (!layout.window.name.trimmed().isEmpty())
+        setWindowTitle(layout.window.name);
+    else
+        setWindowTitle(QStringLiteral("Window"));
+
     // Создаём виджеты из дочерних элементов window (сам window = сцена)
     for (const auto &child : layout.window.children) {
         createWidgetItems(child);
@@ -129,7 +156,8 @@ UILayout DesignScene::toLayout(const QString &name) const
     layout.name = name;
     layout.version = "1.0.0";
     layout.window = UIWidget::create("Window", name);
-    layout.window.geometry = QRectF(0, 0, 800, 600);
+    layout.window.geometry = m_windowRect;
+    layout.window.properties["title"] = m_windowTitle;
 
     // Собираем только корневые виджеты (без родителя)
     for (auto it = m_widgets.begin(); it != m_widgets.end(); ++it) {
@@ -145,6 +173,11 @@ void DesignScene::clearScene()
 {
     m_widgets.clear();
     clear(); // QGraphicsScene::clear()
+    m_windowRect = QRectF(0, 0, 800, 600);
+    m_windowTitle = QStringLiteral("Window");
+    m_windowSelected = false;
+    m_windowResizing = false;
+    m_windowActiveHandle = -1;
 }
 
 void DesignScene::setGridVisible(bool visible)
@@ -239,6 +272,9 @@ void DesignScene::drawBackground(QPainter *painter, const QRectF &rect)
         painter->drawLine(QPointF(titleBar.left(), titleBar.bottom()),
                           QPointF(titleBar.right(), titleBar.bottom()));
 
+        if (m_windowSelected)
+            paintWindowResizeHandles(painter);
+
         painter->restore();
     }
 }
@@ -247,12 +283,76 @@ void DesignScene::drawBackground(QPainter *painter, const QRectF &rect)
 
 void DesignScene::mousePressEvent(QGraphicsSceneMouseEvent *event)
 {
+    if (event->button() == Qt::LeftButton) {
+        const int handle = windowResizeHandleAt(event->scenePos());
+        if (handle >= 0) {
+            m_windowSelected = true;
+            m_windowResizing = true;
+            m_windowActiveHandle = handle;
+            m_windowResizeStartRect = m_windowRect;
+            update();
+            event->accept();
+            return;
+        }
+    }
+
     QGraphicsScene::mousePressEvent(event);
 
     // Если клик не попал ни по одному виджету и внутри windowRect — выделяем окно
     if (selectedItems().isEmpty() && m_windowRect.contains(event->scenePos())) {
+        m_windowSelected = true;
+        update();
         emit windowSelected();
+    } else if (!m_windowResizing) {
+        m_windowSelected = false;
+        update();
     }
+}
+
+void DesignScene::mouseMoveEvent(QGraphicsSceneMouseEvent *event)
+{
+    if (m_windowResizing && m_windowActiveHandle >= 0) {
+        const QPointF delta = event->scenePos() - event->lastScenePos();
+        qreal width = m_windowRect.width();
+        qreal height = m_windowRect.height();
+
+        switch (m_windowActiveHandle) {
+        case 0:
+            width += delta.x();
+            break;
+        case 1:
+            height += delta.y();
+            break;
+        case 2:
+            width += delta.x();
+            height += delta.y();
+            break;
+        default:
+            break;
+        }
+
+        m_windowRect.setWidth(qMax(width, MinWindowWidth));
+        m_windowRect.setHeight(qMax(height, MinWindowHeight));
+        update();
+        event->accept();
+        return;
+    }
+
+    QGraphicsScene::mouseMoveEvent(event);
+}
+
+void DesignScene::mouseReleaseEvent(QGraphicsSceneMouseEvent *event)
+{
+    if (event->button() == Qt::LeftButton && m_windowResizing) {
+        m_windowResizing = false;
+        m_windowActiveHandle = -1;
+        if (m_windowRect != m_windowResizeStartRect)
+            emit windowGeometryChanged();
+        event->accept();
+        return;
+    }
+
+    QGraphicsScene::mouseReleaseEvent(event);
 }
 
 // --- Ghost-preview при перетаскивании ---
@@ -308,6 +408,40 @@ bool DesignScene::isInsideWindowClient(const QPointF &pos) const
     QRectF clientRect(m_windowRect.x(), m_windowRect.y() + TitleBarHeight,
                       m_windowRect.width(), m_windowRect.height() - TitleBarHeight);
     return clientRect.contains(pos);
+}
+
+int DesignScene::windowResizeHandleAt(const QPointF &scenePos) const
+{
+    for (int i = 0; i < 3; ++i) {
+        const QPointF center = windowResizeHandleCenter(m_windowRect, i);
+        const QRectF handleRect(center.x() - WindowHandleSize,
+                                center.y() - WindowHandleSize,
+                                WindowHandleSize * 2,
+                                WindowHandleSize * 2);
+        if (handleRect.contains(scenePos))
+            return i;
+    }
+
+    return -1;
+}
+
+void DesignScene::paintWindowResizeHandles(QPainter *painter)
+{
+    painter->save();
+    painter->setPen(QPen(QColor(0, 120, 215), 1.5, Qt::DashLine));
+    painter->setBrush(Qt::NoBrush);
+    painter->drawRect(m_windowRect);
+
+    painter->setPen(QPen(QColor(0, 120, 215)));
+    painter->setBrush(QColor(0, 120, 215));
+    for (int i = 0; i < 3; ++i) {
+        const QPointF center = windowResizeHandleCenter(m_windowRect, i);
+        painter->drawRect(QRectF(center.x() - WindowHandleSize / 2,
+                                 center.y() - WindowHandleSize / 2,
+                                 WindowHandleSize,
+                                 WindowHandleSize));
+    }
+    painter->restore();
 }
 
 void DesignScene::dragEnterEvent(QGraphicsSceneDragDropEvent *event)

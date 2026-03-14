@@ -95,6 +95,7 @@ UIDesignerWidget::UIDesignerWidget(ModuleRegistry *registry, CommandBus *bus,
     connect(m_scene, &DesignScene::widgetSelected, this, [this](const QString &widgetId) {
         auto *item = m_scene->widgetItem(widgetId);
         if (item) {
+            m_scene->clearWindowSelection();
             m_propertyEditor->setWidget(item);
             // Обновить layout selector по текущему виджету
             m_layoutSelector->blockSignals(true);
@@ -107,13 +108,21 @@ UIDesignerWidget::UIDesignerWidget(ModuleRegistry *registry, CommandBus *bus,
 
     // Клик по пустому месту внутри окна → показать свойства окна
     connect(m_scene, &DesignScene::windowSelected, this, [this]() {
+        m_scene->selectWindow();
         m_propertyEditor->setWindowProperties(m_scene);
         m_objectTree->selectWindow();
     });
 
     // При изменении свойств окна (размер) → пересчитать anchor-привязки
     connect(m_propertyEditor, &PropertyEditor::windowPropertyChanged, this, [this]() {
+        m_scene->selectWindow();
         LayoutEngine::applyAnchorsToRootWidgets(m_scene);
+    });
+
+    connect(m_scene, &DesignScene::windowGeometryChanged, this, [this]() {
+        LayoutEngine::applyAnchorsToRootWidgets(m_scene);
+        m_propertyEditor->setWindowProperties(m_scene);
+        m_objectTree->selectWindow();
     });
 
     // При изменении anchors виджета → применить
@@ -160,10 +169,12 @@ UIDesignerWidget::UIDesignerWidget(ModuleRegistry *registry, CommandBus *bus,
         if (widgetId.isEmpty()) {
             // Клик по "Window" в дереве → показать свойства окна
             m_scene->clearSelection();
+            m_scene->selectWindow();
             m_propertyEditor->setWindowProperties(m_scene);
             return;
         }
         // Снять текущее выделение
+        m_scene->clearWindowSelection();
         m_scene->clearSelection();
         auto *item = m_scene->widgetItem(widgetId);
         if (item) {

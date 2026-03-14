@@ -59,6 +59,8 @@ private slots:
     {
         DesignScene scene;
         UILayout layout = UILayout::create("TestLayout");
+        layout.window.geometry = QRectF(0, 0, 900, 620);
+        layout.window.properties["title"] = "Text Pad";
 
         UIWidget btn = UIWidget::create("Button", "btn1");
         btn.geometry = QRectF(10, 20, 100, 40);
@@ -71,10 +73,14 @@ private slots:
 
         scene.loadFromLayout(layout);
         QCOMPARE(scene.widgetItems().size(), 2);
+        QCOMPARE(scene.windowRect(), QRectF(0, 0, 900, 620));
+        QCOMPARE(scene.windowTitle(), QString("Text Pad"));
 
         // Round-trip
         UILayout result = scene.toLayout("TestLayout");
         QCOMPARE(result.window.children.size(), 2);
+        QCOMPARE(result.window.geometry, QRectF(0, 0, 900, 620));
+        QCOMPARE(result.window.properties.value("title").toString(), QString("Text Pad"));
     }
 
     void testClearScene()

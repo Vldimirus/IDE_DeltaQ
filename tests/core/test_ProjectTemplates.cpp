@@ -1,10 +1,45 @@
 #include <QFile>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QTemporaryDir>
 #include <QTest>
 
 #include "../../src/core/ProjectTemplates.h"
 
 using namespace DeltaQ;
+
+namespace {
+
+QJsonObject loadJsonObject(const QString &path)
+{
+    QFile file(path);
+    if (!file.open(QIODevice::ReadOnly | QIODevice::Text))
+        return {};
+
+    return QJsonDocument::fromJson(file.readAll()).object();
+}
+
+QJsonObject findFirstNodeByModuleId(const QJsonObject &graph, const QString &moduleId)
+{
+    const QJsonArray nodes = graph.value("nodes").toArray();
+    for (const QJsonValue &value : nodes) {
+        const QJsonObject node = value.toObject();
+        if (node.value("module_id").toString() == moduleId)
+            return node;
+    }
+
+    return {};
+}
+
+QPointF nodePosition(const QJsonObject &graph, const QString &moduleId)
+{
+    const QJsonObject node = findFirstNodeByModuleId(graph, moduleId);
+    const QJsonObject position = node.value("position").toObject();
+    return QPointF(position.value("x").toDouble(), position.value("y").toDouble());
+}
+
+} // namespace
 
 class TestProjectTemplates : public QObject {
     Q_OBJECT
@@ -74,6 +109,87 @@ private slots:
         QVERIFY(QFile::exists(tmpDir.path() + "/UiProject/graphs/main.dqgraph"));
         QVERIFY(QFile::exists(tmpDir.path() + "/UiProject/ui/window1.dqui"));
         QVERIFY(QFile::exists(tmpDir.path() + "/UiProject/src/ui/window1_events.c"));
+
+        const QJsonObject graph = loadJsonObject(tmpDir.path() + "/UiProject/graphs/main.dqgraph");
+        const QPointF sdlInit = nodePosition(graph, "core.desktop.sdl_init");
+        const QPointF ttfInit = nodePosition(graph, "core.desktop.ttf_init");
+        const QPointF createWindow = nodePosition(graph, "core.desktop.create_window");
+        const QPointF createRenderer = nodePosition(graph, "core.desktop.create_renderer");
+        const QPointF uiInit = nodePosition(graph, "core.desktop.ui_init");
+        const QPointF eventLoop = nodePosition(graph, "core.desktop.event_loop");
+        const QPointF cleanupFont = nodePosition(graph, "core.desktop.ui_cleanup_font");
+
+        QCOMPARE(sdlInit.y(), 140.0);
+        QCOMPARE(ttfInit.y(), 140.0);
+        QCOMPARE(createWindow.y(), 140.0);
+        QCOMPARE(createRenderer.y(), 140.0);
+        QCOMPARE(uiInit.y(), 140.0);
+        QCOMPARE(eventLoop.y(), 140.0);
+        QCOMPARE(cleanupFont.y(), 140.0);
+
+        QVERIFY(sdlInit.x() < ttfInit.x());
+        QVERIFY(ttfInit.x() < createWindow.x());
+        QVERIFY(createWindow.x() < createRenderer.x());
+        QVERIFY(createRenderer.x() < uiInit.x());
+        QVERIFY(uiInit.x() < eventLoop.x());
+        QVERIFY(eventLoop.x() < cleanupFont.x());
+    }
+
+    void generateCopiesDesktopTextEditorStarterFiles()
+    {
+        QTemporaryDir tmpDir;
+        QVERIFY(tmpDir.isValid());
+
+        QString error;
+        QVERIFY2(ProjectTemplates::generate("desktop_text_editor",
+                                            tmpDir.path() + "/TextPadProject",
+                                            "TextPadProject",
+                                            &error),
+                 qPrintable(error));
+
+        QVERIFY(QFile::exists(tmpDir.path() + "/TextPadProject/TextPadProject.dqproj"));
+        QVERIFY(QFile::exists(tmpDir.path() + "/TextPadProject/graphs/main.dqgraph"));
+        QVERIFY(QFile::exists(tmpDir.path() + "/TextPadProject/ui/window1.dqui"));
+        QVERIFY(QFile::exists(tmpDir.path() + "/TextPadProject/src/ui/window1_events.c"));
+        QVERIFY(QFile::exists(tmpDir.path() + "/TextPadProject/src/ui/window1_events.h"));
+
+        QFile graphSourceFile(tmpDir.path() + "/TextPadProject/graphs/main.dqgraph");
+        QVERIFY(graphSourceFile.open(QIODevice::ReadOnly | QIODevice::Text));
+        const QString graphSource = QString::fromUtf8(graphSourceFile.readAll());
+        QVERIFY(graphSource.contains("\"ui_state\""));
+        QVERIFY(!graphSource.contains("\"font\""));
+
+        const QJsonObject graph = loadJsonObject(tmpDir.path() + "/TextPadProject/graphs/main.dqgraph");
+        const QJsonObject titleNode = findFirstNodeByModuleId(graph, "core.io.string_constant");
+        const QString titleValue = titleNode.value("properties").toObject().value("value").toString();
+        QCOMPARE(titleValue, QString("\"Text Pad\""));
+
+        const QPointF sdlInit = nodePosition(graph, "core.desktop.sdl_init");
+        const QPointF ttfInit = nodePosition(graph, "core.desktop.ttf_init");
+        const QPointF createWindow = nodePosition(graph, "core.desktop.create_window");
+        const QPointF createRenderer = nodePosition(graph, "core.desktop.create_renderer");
+        const QPointF uiInit = nodePosition(graph, "core.desktop.ui_init");
+        const QPointF eventLoop = nodePosition(graph, "core.desktop.event_loop");
+
+        QCOMPARE(sdlInit.y(), 140.0);
+        QCOMPARE(ttfInit.y(), 140.0);
+        QCOMPARE(createWindow.y(), 140.0);
+        QCOMPARE(createRenderer.y(), 140.0);
+        QCOMPARE(uiInit.y(), 140.0);
+        QCOMPARE(eventLoop.y(), 140.0);
+
+        QVERIFY(sdlInit.x() < ttfInit.x());
+        QVERIFY(ttfInit.x() < createWindow.x());
+        QVERIFY(createWindow.x() < createRenderer.x());
+        QVERIFY(createRenderer.x() < uiInit.x());
+        QVERIFY(uiInit.x() < eventLoop.x());
+
+        QFile layoutFile(tmpDir.path() + "/TextPadProject/ui/window1.dqui");
+        QVERIFY(layoutFile.open(QIODevice::ReadOnly | QIODevice::Text));
+        const QString layoutJson = QString::fromUtf8(layoutFile.readAll());
+        QVERIFY(layoutJson.contains("\"txtDocument\""));
+        QVERIFY(layoutJson.contains("\"btnAppendLine\""));
+        QVERIFY(layoutJson.contains("\"lblStatus\""));
     }
 };
 
