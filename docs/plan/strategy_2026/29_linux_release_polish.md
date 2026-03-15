@@ -58,7 +58,7 @@ Acceptance:
 ### 4. Final Phase 3 Closure
 
 - `[x]` После polish пересверить `98_strategy_checklist.md`
-- `[ ]` Закрыть пункт `Проект выглядит как целостный инструмент, а не набор несвязанных подсистем`
+- `[x]` Закрыть пункт `Проект выглядит как целостный инструмент, а не набор несвязанных подсистем`
 
 Acceptance:
 
@@ -81,3 +81,4 @@ Acceptance:
 - `2026-03-09`: `build_appimage.sh` исправлен по двум реальным AppImage-papercut-ам: рекурсивный `appstreamcli` wrapper больше не подвешивает `appimagetool`, а в AppImage теперь явно кладётся `libqoffscreen.so`, поэтому freshly built `.AppImage` локально проходит `verify_appimage_file.sh` вместе с post-extract first-run и example smoke.
 - `2026-03-09`: добавлены `docs/onboarding/README*`, `resources/examples/README*` и `docs/release/linux_first_release_checklist*.md`; README, onboarding, examples и release docs теперь связаны единым user-facing entry path, а открытым хвостом public surface остаётся уже только visual proof.
 - `2026-03-14`: screenshots / visual proof добавлены в `README.md`, `README_RU.md` и `docs/release/README.md`; public release surface теперь показывает не только claims, но и реальный IDE/export flow.
+- `2026-03-15`: после закрытия product-maturity blockers выполнен отдельный release-framing review; текущий честный public label зафиксирован как `Linux release candidate`, а `Linux-first release polish` можно считать закрытым для Linux-only scope.

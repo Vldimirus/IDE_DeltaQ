@@ -1,5 +1,11 @@
 # Release And CI
 
+Current release framing:
+
+- **Linux release candidate**
+- Linux-only scope; Windows/macOS remain roadmap delivery targets
+- current imported-pack claim remains Linux-first `C ABI` intake rather than universal ABI wrapping
+
 ## Linux CI Baseline
 
 DeltaQ now has a checked-in GitHub Actions workflow at `.github/workflows/ci.yml`.

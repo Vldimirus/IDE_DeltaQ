@@ -643,6 +643,19 @@ Execution-grade audit для Stage 4 зафиксирован в
 - release framing опирается на реальную зрелость продукта, а не на optimism bias;
 - release docs и screenshots больше не расходятся с daily-user reality.
 
+#### Current Stage 6 Status
+
+На срезе `2026-03-15` Stage 6 закрыта отдельным state review
+`docs/reports/project_state_2026-03-15_release_framing.md`.
+
+Принятое решение:
+
+- текущий честный public label — `Linux release candidate`;
+- это решение распространяется только на Linux-first scope;
+- Windows/macOS delivery остаются roadmap-направлениями, а не текущим release claim;
+- user-facing README/release docs/checklists теперь используют этот label явно,
+  вместо конкурирующих расплывчатых формулировок.
+
 ## Execution Order
 
 Практический порядок работ фиксируется так:

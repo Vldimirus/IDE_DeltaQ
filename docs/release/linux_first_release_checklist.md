@@ -2,6 +2,11 @@
 
 This checklist is the user-facing acceptance path for a DeltaQ Linux artifact before you hand it to another user or present it publicly.
 
+Current framing for this checklist:
+
+- treat the reviewed artifact as a **Linux release candidate**
+- do not reinterpret it as a cross-platform release claim
+
 ## Pick The Artifact Style
 
 - `.tar.gz`

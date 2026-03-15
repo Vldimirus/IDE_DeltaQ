@@ -2,6 +2,11 @@
 
 Этот checklist является user-facing путём приёмки Linux artifact DeltaQ перед тем, как отдавать его другому пользователю или показывать публично.
 
+Текущее framing для этого checklist:
+
+- рассматривайте проверяемый artifact как **Linux release candidate**
+- не трактуйте его как cross-platform release claim
+
 ## Выберите формат artifact
 
 - `.tar.gz`

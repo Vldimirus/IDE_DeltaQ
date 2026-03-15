@@ -5628,3 +5628,44 @@ fixture:
   user-facing flow прямо фиксирует Linux-first `C ABI` limits;
 - unsupported ABI и incomplete intake metadata больше не ведут к silent half-written pack;
 - следующий основной трек maturity recovery смещается на `Stage 6: Release Framing Re-Evaluation`.
+
+### Шаг 111 — `Stage 6` закрыт явным release-framing решением
+
+**Фаза:** `Product Maturity Recovery / Stage 6`
+
+**Что сделано:**
+
+- добавлен отдельный state-review документ:
+  - `docs/reports/project_state_2026-03-15_release_framing.md`;
+- новый review прямо сравнивает три возможных label-а:
+  - `technical preview`;
+  - `early usable Linux release`;
+  - `Linux release candidate`;
+- по итогам review зафиксировано решение:
+  - текущий честный public label — `Linux release candidate`;
+  - label относится только к Linux-first scope и не переносится на Windows/macOS;
+- старый audit `docs/reports/project_state_2026-03-09_post_priorities.md`
+  переведён в historical state, чтобы в репозитории не оставалось двух competing
+  "current" assessments;
+- user-facing wording выровнен под это решение:
+  - `README.md`
+  - `README_RU.md`
+  - `docs/release/README.md`
+  - `docs/release/linux_first_release_checklist.md`
+  - `docs/release/linux_first_release_checklist_ru.md`
+- отдельный over-claim в README про generic `C/C++` library import тоже сужен до
+  честного `Linux-first C ABI v1` framing;
+- `98_strategy_checklist.md`, `29_linux_release_polish.md` и
+  `32_product_maturity_recovery_v1.md` синхронизированы так, что:
+  - `Phase 2` и `Phase 3` больше не висят открытыми без причины;
+  - `Linux-first release polish` и `Product maturity recovery v1` отмечены закрытыми.
+
+**Проверка:**
+
+- `git diff --check -- README.md README_RU.md docs/release/README.md docs/release/linux_first_release_checklist.md docs/release/linux_first_release_checklist_ru.md docs/reports/project_state_2026-03-09_post_priorities.md docs/reports/project_state_2026-03-15_release_framing.md docs/plan/strategy_2026/29_linux_release_polish.md docs/plan/strategy_2026/32_product_maturity_recovery_v1.md docs/plan/strategy_2026/98_strategy_checklist.md docs/plan/strategy_2026/99_execution_log.md`
+
+**Итог:**
+
+- release wording теперь опирается на реально закрытые maturity-blockers, а не на optimism bias;
+- DeltaQ больше не описывается то как "почти polish", то как "implicit RC" в разных местах;
+- maturity recovery track `Stage 1-6` можно считать закрытым целиком.

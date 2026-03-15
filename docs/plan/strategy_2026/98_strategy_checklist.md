@@ -28,15 +28,15 @@
 ## Phase Status
 
 - `[x] Phase 1: Core Stabilization`
-- `[ ] Phase 2: Module Ecosystem`
-- `[ ] Phase 3: Showcase And Adoption`
+- `[x] Phase 2: Module Ecosystem`
+- `[x] Phase 3: Showcase And Adoption`
 
 ## Active Execution Tracks
 
-- `[ ]` Product maturity recovery v1 `(новый главный track; фокус смещён с простого release polish на product-grade доведение DeltaQ: UI Designer hardening, desktop template overhaul, curated useful module baseline, external library adaptation и bug burn-down; master plan: docs/plan/strategy_2026/32_product_maturity_recovery_v1.md)`
+- `[x]` Product maturity recovery v1 `(главный maturity-track закрыт: UI Designer, desktop templates, useful core baseline, imported-pack adapter и release framing доведены до explicit product-grade статуса; master plan: docs/plan/strategy_2026/32_product_maturity_recovery_v1.md)`
 - `[x]` Project properties and toolchain UX v1 `(planning/implementation track закрыт; DeltaQ получил явный Project Properties surface, portable/local build settings separation, реальную toolchain-aware build integration, guided diagnostics и top-level toolbar/localization polish; детальный execution plan: docs/plan/strategy_2026/31_project_properties_and_toolchain_ux_v1.md)`
 - `[x]` Linux project export v1 `(главный delivery track закрыт; DeltaQ доведён от build/run внутри IDE до build/export/handoff-ready Linux bundle для пользовательского ПО, включая self-contained desktop export verification; детальный execution plan: docs/plan/strategy_2026/30_linux_project_export_v1.md)`
-- `[ ]` Linux-first release polish `(частично; visual proof и release surface уже доведены, но final release candidate сознательно отложен до закрытия product-maturity блокеров; детальный execution plan: docs/plan/strategy_2026/29_linux_release_polish.md)`
+- `[x]` Linux-first release polish `(закрыт для Linux-only scope; public release surface, screenshots, handoff checklists и отдельный release-framing review теперь сходятся на явном статусе `Linux release candidate`; детальный execution plan: docs/plan/strategy_2026/29_linux_release_polish.md)`
 
 ## Foundation And Governance
 
@@ -285,8 +285,8 @@
 
 ### Release Framing Re-Evaluation
 
-- `[ ]` После закрытия maturity-блокеров выполнен новый state review
-- `[ ]` Принято честное решение: `technical preview` / `early usable Linux release` / `Linux release candidate`
+- `[x]` После закрытия maturity-блокеров выполнен новый state review
+- `[x]` Принято честное решение: `technical preview` / `early usable Linux release` / `Linux release candidate`
 
 ## Delivery And Release
 

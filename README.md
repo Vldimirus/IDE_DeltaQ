@@ -27,6 +27,7 @@ Three product principles define the repository today:
 
 ## Current Scope
 
+- **Current release framing:** Linux release candidate. The repository is ready to be shown and handed to external Linux users, but this claim does not extend to Windows/macOS.
 - **Primary platform:** Linux. The repository already ships Linux CI, Linux release bundles, Linux tarball packaging, and a verified Linux AppImage flow.
 - **Strongest built-in scenarios:** console flow, desktop/UI flow, reusable composition, and imported-pack integration.
 - **Current boundary:** Windows and macOS are roadmap items, not current release claims.
@@ -75,7 +76,7 @@ The full Linux release-facing gallery and handoff context are documented in:
 - **Code Editor** — full-featured C/C++ editor with syntax highlighting, LSP integration (clangd), auto-completion, find & replace, go to definition, and bracket matching
 - **Visual Block Editor** — node-based graph editor where you connect modules to build programs visually; graphs compile down to pure C code via topological sorting and IR generation
 - **UI Designer** — drag & drop interface builder targeting SDL2; design windows visually, bind events to graph handlers, and generate compilable C code
-- **Library Processor** — import existing C/C++ libraries through libclang AST parsing; automatically decompose functions and classes into reusable modules
+- **Library Processor** — Linux-first `v1` imported-pack flow for `C ABI` libraries through libclang AST parsing; broader `C++` wrapper scenarios still require a thin adapter
 - **Module System** — everything is a module (`.dqmod`). Modules nest recursively (matryoshka principle): a graph is a module, a module can contain a graph. The repository currently ships 43 checked-in core modules across 7 categories
 - **Project Templates** — 4 user-facing file-based starter templates plus internal regression fixtures are loaded from `resources/templates/` and copied into new projects as ready source trees
 - **Built-in Debugger** — GDB/MI integration with breakpoints, stepping, variable inspection, call stack, and visual debugging on the graph canvas
