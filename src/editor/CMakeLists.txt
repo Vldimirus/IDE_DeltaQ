@@ -10,7 +10,9 @@ set(EDITOR_SOURCES
     CompilerOutputParser.cpp
     CMakeGenerator.cpp
     AnnotationParser.cpp
+    ModuleSignatureUtils.cpp
     SyntaxHighlighter.cpp
+    ModuleEditorWidget.cpp
     ModuleManagerWidget.cpp
     ModuleTestRunner.cpp
 )

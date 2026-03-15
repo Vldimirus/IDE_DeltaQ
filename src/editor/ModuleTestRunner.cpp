@@ -5,16 +5,104 @@
 #include <QDir>
 #include <QTemporaryDir>
 #include <QFile>
+#include <QFileInfo>
+#include <QJsonArray>
 #include <QTextStream>
 #include <QProcess>
 
 namespace DeltaQ {
+
+namespace {
+
+// Возвращает metadata-массив строк без дублирования однотипного JSON-кода.
+QStringList metadataStringList(const Module &module, const QString &key)
+{
+    QStringList result;
+    const QJsonArray values = module.metadata.value(key).toArray();
+    for (const auto &value : values) {
+        const QString text = value.toString().trimmed();
+        if (!text.isEmpty())
+            result.append(text);
+    }
+    return result;
+}
+
+// Ищет корень imported pack-а по storagePath модуля, чтобы verification path видел local headers.
+QString modulePackRootDir(const Module &module)
+{
+    if (module.storagePath.trimmed().isEmpty())
+        return {};
+
+    QDir dir(QFileInfo(module.storagePath).absolutePath());
+    for (int depth = 0; depth < 6; ++depth) {
+        if (QFileInfo::exists(dir.filePath("pack.json")))
+            return dir.absolutePath();
+        if (!dir.cdUp())
+            break;
+    }
+    return {};
+}
+
+// Возвращает local include-dir imported pack-а, если он лежит рядом с `.dqmod`.
+QString modulePackLocalIncludeDir(const Module &module)
+{
+    const QString packRoot = modulePackRootDir(module);
+    if (packRoot.isEmpty())
+        return {};
+
+    const QString includeDir = QDir(packRoot).filePath("include");
+    return QFileInfo::exists(includeDir) ? includeDir : QString();
+}
+
+// Собирает include-path аргументы для compile/verify path imported pack-а.
+QStringList moduleIncludeArgs(const Module &module)
+{
+    QStringList args;
+    const QString localIncludeDir = modulePackLocalIncludeDir(module);
+    if (!localIncludeDir.isEmpty())
+        args << QString("-I%1").arg(localIncludeDir);
+
+    for (const QString &includePath : metadataStringList(module, "deltaq.import.include_paths"))
+        args << QString("-I%1").arg(includePath);
+    return args;
+}
+
+// Преобразует metadata link requirements в аргументы linker-а для verification harness.
+QStringList moduleLinkArgs(const Module &module)
+{
+    QStringList args;
+    for (const QString &linkValue : metadataStringList(module, "deltaq.import.link_libraries")) {
+        if (linkValue.startsWith('-')) {
+            args << linkValue;
+        } else if (QFileInfo::exists(linkValue) || linkValue.contains('/')) {
+            args << linkValue;
+        } else {
+            args << QString("-l%1").arg(linkValue);
+        }
+    }
+    return args;
+}
+
+// Экранирует строку для безопасной подстановки в generated C string literal.
+QString escapeCStringLiteral(const QString &value)
+{
+    QString escaped = value;
+    escaped.replace("\\", "\\\\");
+    escaped.replace("\"", "\\\"");
+    escaped.replace("\n", "\\n");
+    escaped.replace("\r", "\\r");
+    escaped.replace("\t", "\\t");
+    return escaped;
+}
+
+}
 
 ModuleTestRunner::ModuleTestRunner(QObject *parent)
     : QObject(parent)
 {
 }
 
+// Проверяет, что модуль компилируется сам по себе вместе с imported-pack include path.
 TestResult ModuleTestRunner::compile(const Module &module)
 {
     TestResult result;
@@ -57,7 +145,9 @@ TestResult ModuleTestRunner::compile(const Module &module)
     QProcess gcc;
     QString compiler = (module.language == "cpp") ? "g++" : "gcc";
     QStringList args;
-    args << "-fsyntax-only" << "-Wall" << "-Wextra" << sourceFile;
+    args << "-fsyntax-only" << "-Wall" << "-Wextra";
+    args << moduleIncludeArgs(module);
+    args << sourceFile;
 
     gcc.start(compiler, args);
     gcc.waitForFinished(10000); // 10 секунд таймаут
@@ -73,8 +163,10 @@ TestResult ModuleTestRunner::compile(const Module &module)
     return result;
 }
 
+// Генерирует harness, собирает его с imported-pack requirements и запускает verification scenario.
 TestResult ModuleTestRunner::runTest(const Module &module,
-                                      const QMap<QString, QString> &inputValues)
+                                     const QMap<QString, QString> &inputValues,
+                                     const QMap<QString, QString> &expectedOutputValues)
 {
     TestResult result;
 
@@ -103,6 +195,8 @@ TestResult ModuleTestRunner::runTest(const Module &module,
     QString compiler = (module.language == "cpp") ? "g++" : "gcc";
     QStringList args;
     args << "-o" << binaryFile << sourceFile << "-lm";
+    args << moduleIncludeArgs(module);
+    args << moduleLinkArgs(module);
 
     gcc.start(compiler, args);
     gcc.waitForFinished(10000);
@@ -120,11 +214,14 @@ TestResult ModuleTestRunner::runTest(const Module &module,
     // Запуск
     result = executeTest(binaryFile);
     result.compiled = true;
+    result.expectedOutputValues = expectedOutputValues;
+    applyExpectedOutputs(&result, expectedOutputValues);
 
     emit testFinished(result);
     return result;
 }
 
+// Строит минимальный `main()` для одного атомарного модуля с учётом exec/data contract.
 QString ModuleTestRunner::generateTestHarness(const Module &module,
                                                 const QMap<QString, QString> &inputValues)
 {
@@ -151,7 +248,7 @@ QString ModuleTestRunner::generateTestHarness(const Module &module,
 
     // Подготовка аргументов
     QStringList callArgs;
-    for (const auto &port : module.inputs) {
+    for (const auto &port : module.dataInputs()) {
         QString varName = "input_" + port.name;
         QString value = inputValues.value(port.name, port.defaultValue);
         if (value.isEmpty()) value = "0";
@@ -163,7 +260,7 @@ QString ModuleTestRunner::generateTestHarness(const Module &module,
         } else if (port.type == "double") {
             out << "    double " << varName << " = " << value << ";\n";
         } else if (port.type == "string") {
-            out << "    const char *" << varName << " = \"" << value << "\";\n";
+            out << "    const char *" << varName << " = \"" << escapeCStringLiteral(value) << "\";\n";
         } else if (port.type == "pointer") {
             out << "    void *" << varName << " = NULL;\n";
         } else {
@@ -174,9 +271,10 @@ QString ModuleTestRunner::generateTestHarness(const Module &module,
 
     // Вызов функции
     QString funcName = QString("dq_%1").arg(module.name.toLower().replace(' ', '_'));
+    const QVector<Port> dataOutputs = module.dataOutputs();
 
-    if (!module.outputs.isEmpty()) {
-        const auto &outPort = module.outputs.first();
+    if (!dataOutputs.isEmpty()) {
+        const auto &outPort = dataOutputs.first();
         QString cType = "int";
         if (outPort.type == "float") cType = "float";
         else if (outPort.type == "double") cType = "double";
@@ -207,12 +305,15 @@ QString ModuleTestRunner::generateTestHarness(const Module &module,
     return code;
 }
 
+// Запускает собранный verification binary внутри temp workspace сценария.
 TestResult ModuleTestRunner::executeTest(const QString &binaryPath)
 {
     TestResult result;
     result.compiled = true;
 
     QProcess proc;
+    if (!m_tempDir.trimmed().isEmpty())
+        proc.setWorkingDirectory(m_tempDir);
     proc.start(binaryPath, {});
     bool finished = proc.waitForFinished(5000); // 5 секунд таймаут
 
@@ -242,6 +343,7 @@ TestResult ModuleTestRunner::executeTest(const QString &binaryPath)
     return result;
 }
 
+// Разбирает формат `OUTPUT:port=value`, который генерирует verification harness.
 QMap<QString, QString> ModuleTestRunner::parseOutput(const QString &output)
 {
     QMap<QString, QString> values;
@@ -255,6 +357,36 @@ QMap<QString, QString> ModuleTestRunner::parseOutput(const QString &output)
         }
     }
     return values;
+}
+
+// Сравнивает фактические outputs со сценарием и переводит run-result в verify-result.
+void ModuleTestRunner::applyExpectedOutputs(TestResult *result,
+                                            const QMap<QString, QString> &expectedOutputValues)
+{
+    if (!result)
+        return;
+    if (!result->compiled || !result->ran)
+        return;
+
+    for (auto it = expectedOutputValues.begin(); it != expectedOutputValues.end(); ++it) {
+        const QString expectedValue = it.value().trimmed();
+        if (expectedValue.isEmpty())
+            continue;
+
+        if (!result->outputValues.contains(it.key())) {
+            result->errors.append(tr("Не найден output '%1' для сравнения со сценарием").arg(it.key()));
+            result->passed = false;
+            continue;
+        }
+
+        const QString actualValue = result->outputValues.value(it.key()).trimmed();
+        if (actualValue != expectedValue) {
+            result->errors.append(
+                tr("Output '%1': expected '%2', actual '%3'")
+                    .arg(it.key(), expectedValue, actualValue));
+            result->passed = false;
+        }
+    }
 }
 
 } // namespace DeltaQ

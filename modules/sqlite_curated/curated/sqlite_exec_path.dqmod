@@ -1,0 +1,90 @@
+{
+    "schema_version": 2,
+    "id": "ext.sqlite_curated.sqlite_exec_path",
+    "name": "sqlite_exec_path",
+    "version": "1.0.0",
+    "language": "c",
+    "description": "Curated entry: opens database by path, executes SQL, and closes handle in one step",
+    "category": "sqlite_curated",
+    "origin": "extension",
+    "ports": {
+        "input": [
+            {
+                "name": "flow_in",
+                "type": "exec",
+                "kind": "execution"
+            },
+            {
+                "name": "db_path",
+                "type": "string"
+            },
+            {
+                "name": "sql",
+                "type": "string"
+            }
+        ],
+        "output": [
+            {
+                "name": "flow_out",
+                "type": "exec",
+                "kind": "execution"
+            },
+            {
+                "name": "status",
+                "type": "int"
+            }
+        ]
+    },
+    "source": "",
+    "header": "",
+    "dependencies": [],
+    "includes": [
+        "<sqlite_deltaq_runtime.h>"
+    ],
+    "source_code": "/* Открывает SQLite database по пути, выполняет SQL и закрывает handle в одном шаге. */\nint dq_sqlite_exec_path(const char *db_path, const char *sql) {\n    sqlite3 *database = dq_sqlite_open_database(db_path);\n    int status = -1;\n    if (!database)\n        return -1;\n    status = dq_sqlite_exec_sql(database, sql);\n    dq_sqlite_close_database(database);\n    return status;\n}",
+    "metadata": {
+        "deltaq.import.kind": "library_pack_module",
+        "deltaq.import.pack_name": "sqlite_curated",
+        "deltaq.import.pack_title": "SQLite Curated",
+        "deltaq.import.language": "c",
+        "deltaq.import.standard": "c17",
+        "deltaq.import.original_symbol": "sqlite_exec_path",
+        "deltaq.import.display_name": "SQLite Exec Path",
+        "deltaq.import.curation_role": "curated_entry",
+        "deltaq.import.header_paths": [
+            "sqlite_deltaq_runtime.h"
+        ],
+        "deltaq.import.link_libraries": [
+            "dl"
+        ],
+        "deltaq.doc.when_to_use": "Когда graph должен создать schema или выполнить INSERT/UPDATE SQL по пути к файлу базы без ручного lifecycle SQLite handle.",
+        "deltaq.doc.limitations": "Linux-first curated helper: открывает и закрывает database на каждом вызове, рассчитан на короткие deterministic SQL steps."
+    },
+    "provenance": {
+        "source_kind": "imported_pack",
+        "manifest_id": "sqlite_curated_v1",
+        "source_ref": "sqlite_curated",
+        "symbol": "sqlite_exec_path",
+        "tool_version": "checked_in_v1"
+    },
+    "verification": {
+        "compile_status": "passed",
+        "test_status": "passed",
+        "scenario_refs": [
+            "create_table_smoke"
+        ],
+        "scenarios": [
+            {
+                "id": "scenario_1",
+                "name": "create_table_smoke",
+                "inputs": {
+                    "db_path": "sqlite_exec_path_verify.db",
+                    "sql": "CREATE TABLE IF NOT EXISTS smoke(id INTEGER PRIMARY KEY, value TEXT NOT NULL);"
+                },
+                "expected_outputs": {
+                    "status": "0"
+                }
+            }
+        ]
+    }
+}

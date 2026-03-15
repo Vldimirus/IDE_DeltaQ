@@ -1,0 +1,74 @@
+{
+    "schema_version": 2,
+    "id": "ext.sqlite_curated.sqlite_prepare",
+    "name": "sqlite_prepare",
+    "version": "1.0.0",
+    "language": "c",
+    "description": "Hidden raw wrapper: prepares SQL statement and returns opaque statement handle",
+    "category": "sqlite_raw",
+    "origin": "extension",
+    "ports": {
+        "input": [
+            {
+                "name": "flow_in",
+                "type": "exec",
+                "kind": "execution"
+            },
+            {
+                "name": "db",
+                "type": "pointer"
+            },
+            {
+                "name": "sql",
+                "type": "string"
+            }
+        ],
+        "output": [
+            {
+                "name": "flow_out",
+                "type": "exec",
+                "kind": "execution"
+            },
+            {
+                "name": "statement",
+                "type": "pointer"
+            }
+        ]
+    },
+    "source": "",
+    "header": "",
+    "dependencies": [],
+    "includes": [
+        "<sqlite_deltaq_runtime.h>"
+    ],
+    "source_code": "/* Подготавливает SQL statement и возвращает opaque sqlite3_stmt handle. */\nvoid *dq_sqlite_prepare(void *db, const char *sql) {\n    sqlite3_stmt *statement = NULL;\n    if (dq_sqlite_prepare_statement((sqlite3 *) db, sql, &statement) != DQ_SQLITE_OK)\n        return NULL;\n    return statement;\n}",
+    "metadata": {
+        "deltaq.import.kind": "library_pack_module",
+        "deltaq.import.pack_name": "sqlite_curated",
+        "deltaq.import.pack_title": "SQLite Curated",
+        "deltaq.import.language": "c",
+        "deltaq.import.standard": "c17",
+        "deltaq.import.original_symbol": "sqlite3_prepare_v2",
+        "deltaq.import.display_name": "sqlite_prepare",
+        "deltaq.import.curation_role": "hidden",
+        "deltaq.import.header_paths": [
+            "sqlite_deltaq_runtime.h"
+        ],
+        "deltaq.import.link_libraries": [
+            "dl"
+        ],
+        "deltaq.doc.when_to_use": "Когда custom SQLite flow должен работать через prepared statement и bind/step path.",
+        "deltaq.doc.limitations": "Hidden raw wrapper: при ошибке возвращает NULL и не даёт отдельный status output."
+    },
+    "provenance": {
+        "source_kind": "imported_pack",
+        "manifest_id": "sqlite_curated_v1",
+        "source_ref": "sqlite_curated",
+        "symbol": "sqlite3_prepare_v2",
+        "tool_version": "checked_in_v1"
+    },
+    "verification": {
+        "compile_status": "passed",
+        "test_status": "passed"
+    }
+}

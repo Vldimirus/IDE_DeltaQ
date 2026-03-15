@@ -1037,6 +1037,175 @@ private slots:
         QVERIFY(configText.contains("\"profile\":\"deltaq\""));
     }
 
+    void sqliteSettingsConsoleExampleBuildsAndRunsEndToEnd()
+    {
+        QTemporaryDir tmpDir;
+        QVERIFY(tmpDir.isValid());
+
+        const QString repoRoot = repoRootPath();
+        QVERIFY2(!repoRoot.isEmpty(), "Repository root was not found from test binary location");
+
+        const QString projectDir = tmpDir.path() + "/sqlite_settings_console";
+        QVERIFY(copyDirectory(repoRoot + "/resources/examples/sqlite_settings_console", projectDir));
+
+        ModuleRegistry registry;
+        registry.loadGlobalModules(repoRoot + "/modules");
+
+        GraphStore graphStore;
+        UILayoutStore layoutStore;
+        QVERIFY(graphStore.loadFromDirectory(projectDir));
+        QCOMPARE(graphStore.count(), 1);
+
+        PreBuildProcessor processor(&registry, &graphStore, &layoutStore);
+        const PreBuildResult prebuild = processor.process(projectDir);
+        QVERIFY2(prebuild.success, qPrintable(prebuild.errors.join('\n')));
+        QCOMPARE(prebuild.generatedArtifacts.size(), 1);
+        QCOMPARE(prebuild.generatedArtifacts.first().kind, PreBuildArtifactKind::GraphSource);
+        QVERIFY(prebuild.generatedArtifacts.first().path.endsWith("/src/main.c"));
+
+        QFile mainFile(projectDir + "/src/main.c");
+        QVERIFY(mainFile.open(QIODevice::ReadOnly | QIODevice::Text));
+        const QString mainCode = QString::fromUtf8(mainFile.readAll());
+        QVERIFY(mainCode.contains("#include <sqlite_deltaq_runtime.h>"));
+        QVERIFY(mainCode.contains("dq_sqlite_exec_path"));
+        QVERIFY(mainCode.contains("dq_sqlite_query_scalar_text"));
+        QVERIFY(mainCode.contains("runtime/profile.db"));
+        QVERIFY(mainCode.contains("profile"));
+
+        CMakeGenerator generator;
+        generator.setModuleRegistry(&registry);
+        generator.setGraphStore(&graphStore);
+        const QString targetName = "SQLiteSettingsConsole";
+        generator.generate(projectDir, targetName, "17", "20", {}, "console");
+
+        QFile cmakeFile(projectDir + "/CMakeLists.txt");
+        QVERIFY(cmakeFile.open(QIODevice::ReadOnly | QIODevice::Text));
+        const QString cmakeCode = QString::fromUtf8(cmakeFile.readAll());
+        QVERIFY(cmakeCode.contains("#   - sqlite_curated"));
+        QVERIFY(cmakeCode.contains("target_include_directories(SQLiteSettingsConsole PRIVATE"));
+        QVERIFY(cmakeCode.contains(QDir::fromNativeSeparators(repoRoot + "/modules/sqlite_curated/include")));
+        QVERIFY(cmakeCode.contains("target_link_libraries(SQLiteSettingsConsole PRIVATE"));
+        QVERIFY(cmakeCode.contains("\n    dl\n"));
+
+        QVERIFY2(generator.configure(projectDir), "CMake configure failed for sqlite settings console flow");
+
+        QByteArray buildOut;
+        QByteArray buildErr;
+        QVERIFY2(runProcess("cmake", {"--build", "build", "--parallel"}, projectDir,
+                            &buildOut, &buildErr),
+                 qPrintable(QString::fromUtf8(buildOut + buildErr)));
+
+        const QString executablePath = findBuiltExecutable(projectDir + "/build", targetName);
+        QVERIFY2(!executablePath.isEmpty(), "Built sqlite settings console executable was not found");
+
+        QProcess app;
+        app.setProgram(executablePath);
+        app.setWorkingDirectory(projectDir + "/build");
+        app.start();
+        QVERIFY2(app.waitForStarted(30000), "Built sqlite settings console executable failed to start");
+        QVERIFY2(app.waitForFinished(30000), "Built sqlite settings console executable did not finish in time");
+
+        const QString stdoutText = QString::fromUtf8(app.readAllStandardOutput()).replace("\r\n", "\n");
+        const QString stderrText = QString::fromUtf8(app.readAllStandardError());
+        const QString runtimeLog = QString("STDOUT:\n%1\nSTDERR:\n%2")
+                                       .arg(stdoutText, stderrText);
+        QVERIFY2(app.exitStatus() == QProcess::NormalExit && app.exitCode() == 0,
+                 qPrintable(runtimeLog));
+        QCOMPARE(stdoutText, QString("profile=deltaq\n"));
+        QVERIFY(QFileInfo::exists(projectDir + "/build/runtime/profile.db"));
+    }
+
+    void sqliteNotesDesktopExampleBuildsAndRunsHeadless()
+    {
+        QTemporaryDir tmpDir;
+        QVERIFY(tmpDir.isValid());
+
+        const QString repoRoot = repoRootPath();
+        QVERIFY2(!repoRoot.isEmpty(), "Repository root was not found from test binary location");
+
+        const QString projectDir = tmpDir.path() + "/sqlite_notes_desktop";
+        QVERIFY(copyDirectory(repoRoot + "/resources/examples/sqlite_notes_desktop", projectDir));
+
+        ModuleRegistry registry;
+        registry.loadGlobalModules(repoRoot + "/modules");
+
+        GraphStore graphStore;
+        UILayoutStore layoutStore;
+        QVERIFY(graphStore.loadFromDirectory(projectDir));
+        QVERIFY(layoutStore.loadFromDirectory(projectDir));
+        QCOMPARE(graphStore.count(), 1);
+        QCOMPARE(layoutStore.count(), 1);
+
+        PreBuildProcessor processor(&registry, &graphStore, &layoutStore);
+        const PreBuildResult prebuild = processor.process(projectDir);
+        QVERIFY2(prebuild.success, qPrintable(prebuild.errors.join('\n')));
+        QCOMPARE(prebuild.generatedArtifacts.size(), 5);
+
+        QFile mainFile(projectDir + "/src/main.c");
+        QVERIFY(mainFile.open(QIODevice::ReadOnly | QIODevice::Text));
+        const QString mainCode = QString::fromUtf8(mainFile.readAll());
+        QVERIFY(mainCode.contains("dq_sqlite_exec_path"));
+        QVERIFY(mainCode.contains("dq_sqlite_query_scalar_text"));
+        QVERIFY(mainCode.contains("runtime/notes.db"));
+        QVERIFY(mainCode.contains(expectedInlineDesktopInitCall("SQLite Notes Desktop",
+                                                                960, 640,
+                                                                760, 520,
+                                                                true)));
+
+        QFile eventsSource(projectDir + "/src/ui/window1_events.c");
+        QVERIFY(eventsSource.open(QIODevice::ReadOnly | QIODevice::Text));
+        const QString eventsCode = QString::fromUtf8(eventsSource.readAll());
+        QVERIFY(eventsCode.contains("DQ_SQLITE_NOTES_DESKTOP_AUTOCLOSE_MS"));
+        QVERIFY(eventsCode.contains("SDL_PushEvent"));
+        QVERIFY(!eventsCode.contains("TODO: implement"));
+
+        CMakeGenerator generator;
+        const QString targetName = "SQLiteNotesDesktop";
+        generator.setModuleRegistry(&registry);
+        generator.setGraphStore(&graphStore);
+        generator.generate(projectDir, targetName, "17", "20", {}, "desktop");
+
+        QFile cmakeFile(projectDir + "/CMakeLists.txt");
+        QVERIFY(cmakeFile.open(QIODevice::ReadOnly | QIODevice::Text));
+        const QString cmakeCode = QString::fromUtf8(cmakeFile.readAll());
+        QVERIFY(cmakeCode.contains("#   - sqlite_curated"));
+        QVERIFY(cmakeCode.contains("target_link_libraries(SQLiteNotesDesktop PRIVATE"));
+        QVERIFY(cmakeCode.contains("\n    dl\n"));
+
+        QVERIFY2(generator.configure(projectDir), "CMake configure failed for sqlite desktop flow");
+
+        QByteArray buildOut;
+        QByteArray buildErr;
+        QVERIFY2(runProcess("cmake", {"--build", "build", "--parallel"}, projectDir,
+                            &buildOut, &buildErr),
+                 qPrintable(QString::fromUtf8(buildOut + buildErr)));
+
+        const QString executablePath = findBuiltExecutable(projectDir + "/build", targetName);
+        QVERIFY2(!executablePath.isEmpty(), "Built sqlite desktop executable was not found");
+
+        QProcess app;
+        QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
+        env.insert("SDL_VIDEODRIVER", "dummy");
+        env.insert("SDL_RENDER_DRIVER", "software");
+        env.insert("DQ_SQLITE_NOTES_DESKTOP_AUTOCLOSE_MS", "1200");
+        app.setProcessEnvironment(env);
+        app.setProgram(executablePath);
+        app.setWorkingDirectory(projectDir + "/build");
+        app.start();
+        QVERIFY2(app.waitForStarted(30000), "Built sqlite desktop executable failed to start");
+        QVERIFY2(app.waitForFinished(10000), "Built sqlite desktop executable did not finish in time");
+
+        const QString stdoutText = QString::fromUtf8(app.readAllStandardOutput()).replace("\r\n", "\n");
+        const QString stderrText = QString::fromUtf8(app.readAllStandardError());
+        const QString runtimeLog = QString("STDOUT:\n%1\nSTDERR:\n%2")
+                                       .arg(stdoutText, stderrText);
+        QVERIFY2(app.exitStatus() == QProcess::NormalExit && app.exitCode() == 0,
+                 qPrintable(runtimeLog));
+        QVERIFY2(stdoutText.contains("loaded_note=Persisted from desktop flow\n"),
+                 qPrintable(runtimeLog));
+        QVERIFY(QFileInfo::exists(projectDir + "/build/runtime/notes.db"));
+    }
+
     void processTimerConsoleExampleBuildsAndRunsEndToEnd()
     {
         QTemporaryDir tmpDir;

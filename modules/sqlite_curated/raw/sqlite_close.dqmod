@@ -1,0 +1,70 @@
+{
+    "schema_version": 2,
+    "id": "ext.sqlite_curated.sqlite_close",
+    "name": "sqlite_close",
+    "version": "1.0.0",
+    "language": "c",
+    "description": "Hidden raw wrapper: closes SQLite database handle",
+    "category": "sqlite_raw",
+    "origin": "extension",
+    "ports": {
+        "input": [
+            {
+                "name": "flow_in",
+                "type": "exec",
+                "kind": "execution"
+            },
+            {
+                "name": "db",
+                "type": "pointer"
+            }
+        ],
+        "output": [
+            {
+                "name": "flow_out",
+                "type": "exec",
+                "kind": "execution"
+            },
+            {
+                "name": "status",
+                "type": "int"
+            }
+        ]
+    },
+    "source": "",
+    "header": "",
+    "dependencies": [],
+    "includes": [
+        "<sqlite_deltaq_runtime.h>"
+    ],
+    "source_code": "/* Закрывает SQLite database handle и возвращает raw status code. */\nint dq_sqlite_close(void *db) {\n    return dq_sqlite_close_database((sqlite3 *) db);\n}",
+    "metadata": {
+        "deltaq.import.kind": "library_pack_module",
+        "deltaq.import.pack_name": "sqlite_curated",
+        "deltaq.import.pack_title": "SQLite Curated",
+        "deltaq.import.language": "c",
+        "deltaq.import.standard": "c17",
+        "deltaq.import.original_symbol": "sqlite3_close",
+        "deltaq.import.display_name": "sqlite_close",
+        "deltaq.import.curation_role": "hidden",
+        "deltaq.import.header_paths": [
+            "sqlite_deltaq_runtime.h"
+        ],
+        "deltaq.import.link_libraries": [
+            "dl"
+        ],
+        "deltaq.doc.when_to_use": "Когда custom SQLite pipeline должен явно завершить lifecycle database handle.",
+        "deltaq.doc.limitations": "Hidden raw wrapper: возвращает только SQLite status code без детального error message."
+    },
+    "provenance": {
+        "source_kind": "imported_pack",
+        "manifest_id": "sqlite_curated_v1",
+        "source_ref": "sqlite_curated",
+        "symbol": "sqlite3_close",
+        "tool_version": "checked_in_v1"
+    },
+    "verification": {
+        "compile_status": "passed",
+        "test_status": "passed"
+    }
+}

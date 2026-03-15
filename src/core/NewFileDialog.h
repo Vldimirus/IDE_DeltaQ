@@ -15,7 +15,7 @@ class NewFileDialog : public QDialog {
 public:
     explicit NewFileDialog(const QString &projectDir, QWidget *parent = nullptr);
 
-    // Тип файла: "dqui", "dqgraph", "dqmod", "c", "h"
+    // Тип файла: "dqui", "dqgraph", "scratchpad", "dqmod", "c", "h"
     QString fileType() const;
     // Имя файла (без расширения)
     QString fileName() const;

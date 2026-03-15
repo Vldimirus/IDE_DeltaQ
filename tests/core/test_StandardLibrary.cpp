@@ -240,6 +240,39 @@ private slots:
         QCOMPARE(installedIds, sourceIds);
     }
 
+    void installBundledPacksCopiesOfficialExtensions()
+    {
+        const QString modulesDir = modulesRootDir();
+        QVERIFY2(!modulesDir.isEmpty(), "modules root not found via QFINDTESTDATA");
+        QVERIFY(QFileInfo::exists(modulesDir + "/sqlite_curated/pack.json"));
+
+        QTemporaryDir tempDir;
+        QVERIFY(tempDir.isValid());
+
+        const QString installedModulesRoot = tempDir.path() + "/modules";
+        StandardLibrary::installBundledPacks(installedModulesRoot);
+
+        QVERIFY(QFileInfo::exists(installedModulesRoot + "/core/pack.json"));
+        QVERIFY(QFileInfo::exists(installedModulesRoot + "/sqlite_curated/pack.json"));
+        QVERIFY(QFileInfo::exists(installedModulesRoot + "/sqlite_curated/include/sqlite_deltaq_runtime.h"));
+
+        ModuleRegistry installedRegistry;
+        installedRegistry.loadGlobalModules(installedModulesRoot);
+
+        Module *rawOpen = installedRegistry.findModule("ext.sqlite_curated.sqlite_open");
+        Module *curatedExec = installedRegistry.findModule("ext.sqlite_curated.sqlite_exec_path");
+        Module *curatedScalar = installedRegistry.findModule("ext.sqlite_curated.sqlite_query_scalar_text");
+        QVERIFY(rawOpen != nullptr);
+        QVERIFY(curatedExec != nullptr);
+        QVERIFY(curatedScalar != nullptr);
+        QCOMPARE(rawOpen->metadataString("deltaq.import.curation_role"), QString("hidden"));
+        QCOMPARE(curatedExec->metadataString("deltaq.import.curation_role"), QString("curated_entry"));
+        QCOMPARE(curatedScalar->metadataString("deltaq.import.pack_name"), QString("sqlite_curated"));
+        QCOMPARE(curatedExec->metadataString("deltaq.import.link_libraries"), QString());
+        QCOMPARE(curatedExec->metadata.value("deltaq.import.link_libraries").toArray().first().toString(),
+                 QString("dl"));
+    }
+
     void installedCoreModulesExposeDocumentation()
     {
         const QString modulesDir = modulesRootDir();

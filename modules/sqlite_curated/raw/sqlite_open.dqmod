@@ -1,0 +1,70 @@
+{
+    "schema_version": 2,
+    "id": "ext.sqlite_curated.sqlite_open",
+    "name": "sqlite_open",
+    "version": "1.0.0",
+    "language": "c",
+    "description": "Hidden raw wrapper: opens SQLite database and returns opaque handle",
+    "category": "sqlite_raw",
+    "origin": "extension",
+    "ports": {
+        "input": [
+            {
+                "name": "flow_in",
+                "type": "exec",
+                "kind": "execution"
+            },
+            {
+                "name": "path",
+                "type": "string"
+            }
+        ],
+        "output": [
+            {
+                "name": "flow_out",
+                "type": "exec",
+                "kind": "execution"
+            },
+            {
+                "name": "db",
+                "type": "pointer"
+            }
+        ]
+    },
+    "source": "",
+    "header": "",
+    "dependencies": [],
+    "includes": [
+        "<sqlite_deltaq_runtime.h>"
+    ],
+    "source_code": "/* Открывает SQLite database по пути и возвращает opaque sqlite3 handle. */\nvoid *dq_sqlite_open(const char *path) {\n    return dq_sqlite_open_database(path);\n}",
+    "metadata": {
+        "deltaq.import.kind": "library_pack_module",
+        "deltaq.import.pack_name": "sqlite_curated",
+        "deltaq.import.pack_title": "SQLite Curated",
+        "deltaq.import.language": "c",
+        "deltaq.import.standard": "c17",
+        "deltaq.import.original_symbol": "sqlite3_open",
+        "deltaq.import.display_name": "sqlite_open",
+        "deltaq.import.curation_role": "hidden",
+        "deltaq.import.header_paths": [
+            "sqlite_deltaq_runtime.h"
+        ],
+        "deltaq.import.link_libraries": [
+            "dl"
+        ],
+        "deltaq.doc.when_to_use": "Когда нужен низкоуровневый lifecycle SQLite handle внутри custom graph-пайплайна.",
+        "deltaq.doc.limitations": "Hidden raw wrapper: Linux-first runtime ABI через dlopen, без расширенной диагностики ошибок."
+    },
+    "provenance": {
+        "source_kind": "imported_pack",
+        "manifest_id": "sqlite_curated_v1",
+        "source_ref": "sqlite_curated",
+        "symbol": "sqlite3_open",
+        "tool_version": "checked_in_v1"
+    },
+    "verification": {
+        "compile_status": "passed",
+        "test_status": "passed"
+    }
+}

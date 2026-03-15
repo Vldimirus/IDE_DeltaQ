@@ -33,10 +33,12 @@
 
 ## Active Execution Tracks
 
-- `[x]` Product maturity recovery v1 `(главный maturity-track закрыт: UI Designer, desktop templates, useful core baseline, imported-pack adapter и release framing доведены до explicit product-grade статуса; master plan: docs/plan/strategy_2026/32_product_maturity_recovery_v1.md)`
-- `[x]` Project properties and toolchain UX v1 `(planning/implementation track закрыт; DeltaQ получил явный Project Properties surface, portable/local build settings separation, реальную toolchain-aware build integration, guided diagnostics и top-level toolbar/localization polish; детальный execution plan: docs/plan/strategy_2026/31_project_properties_and_toolchain_ux_v1.md)`
-- `[x]` Linux project export v1 `(главный delivery track закрыт; DeltaQ доведён от build/run внутри IDE до build/export/handoff-ready Linux bundle для пользовательского ПО, включая self-contained desktop export verification; детальный execution plan: docs/plan/strategy_2026/30_linux_project_export_v1.md)`
-- `[x]` Linux-first release polish `(закрыт для Linux-only scope; public release surface, screenshots, handoff checklists и отдельный release-framing review теперь сходятся на явном статусе `Linux release candidate`; детальный execution plan: docs/plan/strategy_2026/29_linux_release_polish.md)`
+- `[x]` Queue position 1: Linux-first release polish `(закрыт для Linux-only scope; public release surface, screenshots, handoff checklists и отдельный release-framing review теперь сходятся на явном статусе `Linux release candidate`; детальный execution plan: docs/plan/strategy_2026/29_linux_release_polish.md)`
+- `[x]` Queue position 2: Linux project export v1 `(главный delivery track закрыт; DeltaQ доведён от build/run внутри IDE до build/export/handoff-ready Linux bundle для пользовательского ПО, включая self-contained desktop export verification; детальный execution plan: docs/plan/strategy_2026/30_linux_project_export_v1.md)`
+- `[x]` Queue position 3: Project properties and toolchain UX v1 `(planning/implementation track закрыт; DeltaQ получил явный Project Properties surface, portable/local build settings separation, реальную toolchain-aware build integration, guided diagnostics и top-level toolbar/localization polish; детальный execution plan: docs/plan/strategy_2026/31_project_properties_and_toolchain_ux_v1.md)`
+- `[x]` Queue position 4: Product maturity recovery v1 `(главный maturity-track закрыт: UI Designer, desktop templates, useful core baseline, imported-pack adapter и release framing доведены до explicit product-grade статуса; master plan: docs/plan/strategy_2026/32_product_maturity_recovery_v1.md)`
+- `[x]` Queue position 5: Bug burn-down shortlist `(shortlist и first trust burn-down cycle зафиксированы; критичный blocker-tail этого цикла закрыт; детальный execution plan: docs/plan/strategy_2026/33_bug_burn_down_shortlist.md)`
+- `[ ]` Queue position 6: Module authoring studio and generation `(текущий активный track; `A0-A5` и `B1-B4` уже закрыты, следующим идёт `Track C / Stage C1.1` про reproducible source intake; execution plan: docs/plan/strategy_2026/34_module_authoring_studio_and_generation_roadmap.md)`
 
 ## Foundation And Governance
 
@@ -287,6 +289,30 @@
 
 - `[x]` После закрытия maturity-блокеров выполнен новый state review
 - `[x]` Принято честное решение: `technical preview` / `early usable Linux release` / `Linux release candidate`
+
+## Module Authoring Studio And Generation
+
+### Track A: Module Authoring Studio
+
+- `[x]` Введён canonical `.dqmod` schema foundation для `provenance / trust_state / verification`
+- `[x]` `.dqmod` открывается в dedicated editor surface, а не через graph redirect
+- `[x]` Новый module editor уже даёт большой source workspace с базовой editor parity
+- `[x]` Есть полноценный rich contract editing flow, а не только source-derived preview
+- `[x]` Есть diagnostics/LSP-grade workflow parity для module authoring
+- `[x]` Есть explicit verification workspace с saved scenarios
+- `[x]` Есть A4.0 trace event schema и saved trace artifact lifecycle
+- `[x]` Есть A4.1 trace viewer поверх saved trace artifacts
+- `[x]` Есть Nursery stepping workflow
+- `[x]` Есть fragment scratchpad
+
+### Track B: Official SQLite Pack
+
+- `[x]` Есть checked-in curated SQLite pack как первый real-world forcing function для Module Studio
+- `[x]` Есть console и desktop checked-in SQLite examples плюс proof reuse Module Studio verification path
+
+### Track C: Automatic Generation Expansion
+
+- `[ ]` Есть reproducible source/library intake `v2` поверх shared manifest model
 
 ## Delivery And Release
 

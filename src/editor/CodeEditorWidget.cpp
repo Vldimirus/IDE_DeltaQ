@@ -4,6 +4,7 @@
 #include "FindReplaceBar.h"
 #include "BuildManager.h"
 #include "AnnotationParser.h"
+#include "ModuleEditorWidget.h"
 #include "../lsp/LSPClient.h"
 #include "../core/ModuleRegistry.h"
 
@@ -61,6 +62,16 @@ GeneratedFileInfo inspectGeneratedFile(const QString &text)
         }
     }
     return info;
+}
+
+// Возвращает LSP language id по файловому расширению исходника.
+QString languageIdForPath(const QString &path)
+{
+    if (path.endsWith(".h") || path.endsWith(".hpp"))
+        return QStringLiteral("cpp");
+    if (path.endsWith(".c"))
+        return QStringLiteral("c");
+    return QStringLiteral("cpp");
 }
 
 // Формирует заголовок вкладки с учётом generated-статуса и модификации.
@@ -133,6 +144,13 @@ void updateTabPresentation(QTabWidget *tabWidget, CodeEditorTab *tab)
         return;
     tabWidget->setTabText(idx, makeTabTitle(tab));
     tabWidget->setTabToolTip(idx, makeTabToolTip(tab));
+}
+
+QString makeCustomTabTitle(QWidget *widget, const QString &fallbackTitle)
+{
+    if (auto *moduleEditor = qobject_cast<ModuleEditorWidget *>(widget))
+        return moduleEditor->tabTitle();
+    return fallbackTitle;
 }
 
 } // namespace
@@ -233,8 +251,7 @@ void CodeEditorWidget::openFile(const QString &path)
     // LSP: уведомляем сервер об открытии файла
     if (m_lspClient && m_lspClient->isRunning()) {
         QString uri = LSPClient::pathToUri(path);
-        QString langId = path.endsWith(".h") || path.endsWith(".hpp") ? "cpp" :
-                          path.endsWith(".c") ? "c" : "cpp";
+        QString langId = languageIdForPath(path);
         m_documentVersions[uri] = 1;
         m_lspClient->didOpen(uri, langId, tab->editor()->toPlainText());
 
@@ -290,6 +307,52 @@ void CodeEditorWidget::connectTabSignals(CodeEditorTab *tab)
             cursor.select(QTextCursor::WordUnderCursor);
             cursor.insertText(text);
         });
+    }
+}
+
+// Подключает dedicated module editor к тем же LSP/document lifecycle, что и обычные code tabs.
+void CodeEditorWidget::connectModuleEditorSignals(ModuleEditorWidget *moduleEditor)
+{
+    if (!moduleEditor)
+        return;
+
+    connect(moduleEditor->editor()->document(), &QTextDocument::contentsChanged, this, [this, moduleEditor]() {
+        if (!m_lspClient || !m_lspClient->isRunning())
+            return;
+
+        const QString documentPath = moduleEditor->lspDocumentPath();
+        if (documentPath.isEmpty())
+            return;
+
+        const QString uri = LSPClient::pathToUri(documentPath);
+        int &version = m_documentVersions[uri];
+        if (version <= 0)
+            version = 1;
+        ++version;
+        m_lspClient->didChange(uri, version, moduleEditor->sourceText());
+    });
+
+    connect(moduleEditor, &ModuleEditorWidget::hoverRequested, this,
+            [this](const QString &documentPath, int line, int character) {
+        if (!m_lspClient || !m_lspClient->isRunning())
+            return;
+        m_lspClient->hover(LSPClient::pathToUri(documentPath), line, character);
+    });
+
+    connect(moduleEditor, &ModuleEditorWidget::completionRequested, this,
+            [this](const QString &documentPath, int line, int character) {
+        if (!m_lspClient || !m_lspClient->isRunning())
+            return;
+        m_lspClient->completion(LSPClient::pathToUri(documentPath), line, character);
+    });
+
+    if (m_lspClient && m_lspClient->isRunning()) {
+        const QString documentPath = moduleEditor->lspDocumentPath();
+        if (!documentPath.isEmpty()) {
+            const QString uri = LSPClient::pathToUri(documentPath);
+            m_documentVersions[uri] = 1;
+            m_lspClient->didOpen(uri, moduleEditor->lspLanguageId(), moduleEditor->sourceText());
+        }
     }
 }
 
@@ -353,6 +416,9 @@ bool CodeEditorWidget::hasUnsavedChanges() const
         auto *tab = qobject_cast<CodeEditorTab *>(m_tabWidget->widget(i));
         if (tab && tab->isModified())
             return true;
+        auto *moduleEditor = qobject_cast<ModuleEditorWidget *>(m_tabWidget->widget(i));
+        if (moduleEditor && moduleEditor->hasUnsavedChanges())
+            return true;
     }
     return false;
 }
@@ -367,10 +433,44 @@ CodeEditorTab *CodeEditorWidget::currentTab() const
     return qobject_cast<CodeEditorTab *>(m_tabWidget->currentWidget());
 }
 
+// Возвращает активный текстовый редактор как для обычных файлов, так и для `.dqmod` surface.
+QPlainTextEdit *CodeEditorWidget::currentPlainTextEditor() const
+{
+    if (auto *tab = currentTab())
+        return tab->editor();
+    if (auto *moduleEditor = qobject_cast<ModuleEditorWidget *>(currentCustomTabWidget()))
+        return moduleEditor->editor();
+    return nullptr;
+}
+
+// Возвращает путь активного документа, независимо от того, это code tab или `.dqmod` editor.
 QString CodeEditorWidget::currentFilePath() const
 {
-    auto *tab = currentTab();
-    return tab ? tab->filePath() : QString();
+    if (auto *tab = currentTab())
+        return tab->filePath();
+    if (auto *moduleEditor = qobject_cast<ModuleEditorWidget *>(currentCustomTabWidget()))
+        return moduleEditor->filePath();
+    return {};
+}
+
+// Возвращает путь документа, который следует использовать для LSP над активной вкладкой.
+QString CodeEditorWidget::currentLspDocumentPath() const
+{
+    if (auto *tab = currentTab())
+        return tab->filePath();
+    if (auto *moduleEditor = qobject_cast<ModuleEditorWidget *>(currentCustomTabWidget()))
+        return moduleEditor->lspDocumentPath();
+    return {};
+}
+
+// Возвращает language id активного документа для LSP document sync.
+QString CodeEditorWidget::currentLspLanguageId() const
+{
+    if (auto *tab = currentTab())
+        return languageIdForPath(tab->filePath());
+    if (auto *moduleEditor = qobject_cast<ModuleEditorWidget *>(currentCustomTabWidget()))
+        return moduleEditor->lspLanguageId();
+    return {};
 }
 
 QStringList CodeEditorWidget::openFilePaths() const
@@ -392,6 +492,29 @@ void CodeEditorWidget::closeTab(int index)
     // Кастомная вкладка (граф, UI-макет)
     auto *tab = qobject_cast<CodeEditorTab *>(widget);
     if (!tab) {
+        if (auto *moduleEditor = qobject_cast<ModuleEditorWidget *>(widget)) {
+            if (moduleEditor->hasUnsavedChanges()) {
+                const auto result = QMessageBox::question(
+                    this,
+                    tr("Save Module"),
+                    tr("Save changes to %1?").arg(QFileInfo(moduleEditor->filePath()).fileName()),
+                    QMessageBox::Save | QMessageBox::Discard | QMessageBox::Cancel);
+                if (result == QMessageBox::Cancel)
+                    return;
+                if (result == QMessageBox::Save && !moduleEditor->saveModule())
+                    return;
+            }
+
+            if (m_lspClient && m_lspClient->isRunning()) {
+                const QString documentPath = moduleEditor->lspDocumentPath();
+                if (!documentPath.isEmpty()) {
+                    const QString uri = LSPClient::pathToUri(documentPath);
+                    m_lspClient->didClose(uri);
+                    m_documentVersions.remove(uri);
+                }
+            }
+        }
+
         // Удаляем из m_customTabs
         for (auto it = m_customTabs.begin(); it != m_customTabs.end(); ++it) {
             if (it.value() == widget) {
@@ -438,8 +561,7 @@ void CodeEditorWidget::closeTab(int index)
 void CodeEditorWidget::onTabChanged(int /*index*/)
 {
     // Обновляем редактор в панели поиска при смене вкладки
-    auto *tab = currentTab();
-    m_findBar->setEditor(tab ? tab->editor() : nullptr);
+    m_findBar->setEditor(currentPlainTextEditor());
     updateGeneratedOriginBanner();
     emit currentTabChanged();
 }
@@ -472,21 +594,26 @@ void CodeEditorWidget::setLSPClient(LSPClient *client)
 
     // Hover-результат → показываем подсказку
     connect(m_lspClient, &LSPClient::hoverResult, this, [this](const HoverInfo &info) {
-        auto *tab = currentTab();
-        if (!tab) return;
         if (info.contents.isEmpty()) return;
 
-        // Показываем tooltip в позиции мыши
-        QPoint globalPos = QCursor::pos();
-        tab->showHoverTooltip(info.contents, globalPos);
+        const QPoint globalPos = QCursor::pos();
+        if (auto *tab = currentTab()) {
+            tab->showHoverTooltip(info.contents, globalPos);
+            return;
+        }
+        if (auto *moduleEditor = qobject_cast<ModuleEditorWidget *>(currentCustomTabWidget()))
+            moduleEditor->showHoverTooltip(info.contents, globalPos);
     });
 
     // Completion-результат → показываем popup
     connect(m_lspClient, &LSPClient::completionResult, this,
             [this](const QVector<CompletionItem> &items) {
-        auto *tab = currentTab();
-        if (!tab) return;
-        tab->showCompletion(items);
+        if (auto *tab = currentTab()) {
+            tab->showCompletion(items);
+            return;
+        }
+        if (auto *moduleEditor = qobject_cast<ModuleEditorWidget *>(currentCustomTabWidget()))
+            moduleEditor->showCompletion(items);
     });
 
     // Rename-результат → применяем правки
@@ -494,90 +621,39 @@ void CodeEditorWidget::setLSPClient(LSPClient *client)
             [this](const WorkspaceEdit &edits) {
         for (auto it = edits.changes.begin(); it != edits.changes.end(); ++it) {
             QString path = LSPClient::uriToPath(it.key());
-            auto *tab = findTabForFile(path);
-            if (!tab) {
+            auto *editor = findOpenPlainTextEditorForDocumentPath(path);
+            if (!editor && findTabForFile(path) == nullptr && findOpenModuleEditorForDocumentPath(path) == nullptr) {
                 openFile(path);
-                tab = findTabForFile(path);
+                editor = findOpenPlainTextEditorForDocumentPath(path);
             }
-            if (!tab) continue;
-
-            auto *editor = tab->editor();
-            QTextCursor cursor(editor->document());
-            cursor.beginEditBlock();
-
-            // Применяем правки в обратном порядке (от конца к началу)
-            QVector<LSPTextEdit> sortedEdits = it.value();
-            std::sort(sortedEdits.begin(), sortedEdits.end(),
-                      [](const LSPTextEdit &a, const LSPTextEdit &b) {
-                if (a.range.start.line != b.range.start.line)
-                    return a.range.start.line > b.range.start.line;
-                return a.range.start.character > b.range.start.character;
-            });
-
-            for (const auto &edit : sortedEdits) {
-                QTextBlock startBlock = editor->document()->findBlockByNumber(edit.range.start.line);
-                QTextBlock endBlock = editor->document()->findBlockByNumber(edit.range.end.line);
-                if (!startBlock.isValid()) continue;
-                if (!endBlock.isValid()) endBlock = startBlock;
-
-                int startPos = startBlock.position() + qMin(edit.range.start.character, startBlock.length() - 1);
-                int endPos = endBlock.position() + qMin(edit.range.end.character, endBlock.length() - 1);
-
-                cursor.setPosition(startPos);
-                cursor.setPosition(endPos, QTextCursor::KeepAnchor);
-                cursor.insertText(edit.newText);
-            }
-
-            cursor.endEditBlock();
+            if (!editor)
+                continue;
+            applyTextEdits(editor, it.value());
         }
     });
 
     // Formatting-результат → применяем правки
     connect(m_lspClient, &LSPClient::formattingResult, this,
             [this](const QVector<LSPTextEdit> &edits) {
-        auto *tab = currentTab();
-        if (!tab) return;
-
-        auto *editor = tab->editor();
-        QTextCursor cursor(editor->document());
-        cursor.beginEditBlock();
-
-        // Применяем правки в обратном порядке
-        QVector<LSPTextEdit> sortedEdits = edits;
-        std::sort(sortedEdits.begin(), sortedEdits.end(),
-                  [](const LSPTextEdit &a, const LSPTextEdit &b) {
-            if (a.range.start.line != b.range.start.line)
-                return a.range.start.line > b.range.start.line;
-            return a.range.start.character > b.range.start.character;
-        });
-
-        for (const auto &edit : sortedEdits) {
-            QTextBlock startBlock = editor->document()->findBlockByNumber(edit.range.start.line);
-            QTextBlock endBlock = editor->document()->findBlockByNumber(edit.range.end.line);
-            if (!startBlock.isValid()) continue;
-            if (!endBlock.isValid()) endBlock = startBlock;
-
-            int startPos = startBlock.position() + qMin(edit.range.start.character, startBlock.length() - 1);
-            int endPos = endBlock.position() + qMin(edit.range.end.character, endBlock.length() - 1);
-
-            cursor.setPosition(startPos);
-            cursor.setPosition(endPos, QTextCursor::KeepAnchor);
-            cursor.insertText(edit.newText);
-        }
-
-        cursor.endEditBlock();
+        applyTextEdits(currentPlainTextEditor(), edits);
     });
+
+    // Diagnostics-уведомления всегда живут в editor layer, а не только в MainWindow wiring.
+    connect(m_lspClient, &LSPClient::diagnosticsReceived,
+            this, &CodeEditorWidget::onDiagnosticsReceived);
 }
 
 void CodeEditorWidget::goToDefinition()
 {
     if (!m_lspClient || !m_lspClient->isRunning())
         return;
-    auto *tab = currentTab();
-    if (!tab) return;
+    auto *editor = currentPlainTextEditor();
+    const QString documentPath = currentLspDocumentPath();
+    if (!editor || documentPath.isEmpty())
+        return;
 
-    auto cursor = tab->editor()->textCursor();
-    QString uri = LSPClient::pathToUri(tab->filePath());
+    auto cursor = editor->textCursor();
+    QString uri = LSPClient::pathToUri(documentPath);
     m_lspClient->definition(uri, cursor.blockNumber(), cursor.columnNumber());
 }
 
@@ -585,11 +661,13 @@ void CodeEditorWidget::findReferences()
 {
     if (!m_lspClient || !m_lspClient->isRunning())
         return;
-    auto *tab = currentTab();
-    if (!tab) return;
+    auto *editor = currentPlainTextEditor();
+    const QString documentPath = currentLspDocumentPath();
+    if (!editor || documentPath.isEmpty())
+        return;
 
-    auto cursor = tab->editor()->textCursor();
-    QString uri = LSPClient::pathToUri(tab->filePath());
+    auto cursor = editor->textCursor();
+    QString uri = LSPClient::pathToUri(documentPath);
     m_lspClient->references(uri, cursor.blockNumber(), cursor.columnNumber());
 }
 
@@ -597,12 +675,14 @@ void CodeEditorWidget::renameSymbol()
 {
     if (!m_lspClient || !m_lspClient->isRunning())
         return;
-    auto *tab = currentTab();
-    if (!tab) return;
-    if (tab->editor()->isReadOnly())
+    auto *editor = currentPlainTextEditor();
+    const QString documentPath = currentLspDocumentPath();
+    if (!editor || documentPath.isEmpty())
+        return;
+    if (editor->isReadOnly())
         return;
 
-    auto cursor = tab->editor()->textCursor();
+    auto cursor = editor->textCursor();
     cursor.select(QTextCursor::WordUnderCursor);
     QString oldName = cursor.selectedText();
 
@@ -613,21 +693,23 @@ void CodeEditorWidget::renameSymbol()
     if (!ok || newName.isEmpty() || newName == oldName)
         return;
 
-    QString uri = LSPClient::pathToUri(tab->filePath());
+    QString uri = LSPClient::pathToUri(documentPath);
     m_lspClient->rename(uri, cursor.blockNumber(),
-                        tab->editor()->textCursor().columnNumber(), newName);
+                        editor->textCursor().columnNumber(), newName);
 }
 
 void CodeEditorWidget::formatDocument()
 {
     if (!m_lspClient || !m_lspClient->isRunning())
         return;
-    auto *tab = currentTab();
-    if (!tab) return;
-    if (tab->editor()->isReadOnly())
+    auto *editor = currentPlainTextEditor();
+    const QString documentPath = currentLspDocumentPath();
+    if (!editor || documentPath.isEmpty())
+        return;
+    if (editor->isReadOnly())
         return;
 
-    QString uri = LSPClient::pathToUri(tab->filePath());
+    QString uri = LSPClient::pathToUri(documentPath);
     m_lspClient->formatting(uri);
 }
 
@@ -638,6 +720,8 @@ void CodeEditorWidget::onDiagnosticsReceived(const QString &uri,
     auto *tab = findTabForFile(path);
     if (tab) {
         tab->setDiagnostics(diagnostics);
+    } else if (auto *moduleEditor = findOpenModuleEditorForDocumentPath(path)) {
+        moduleEditor->setDiagnostics(diagnostics);
     }
 
     // Подсчитываем ошибки/предупреждения для ProjectTreeView
@@ -660,28 +744,25 @@ void CodeEditorWidget::clearDebugLineInAllTabs()
 
 void CodeEditorWidget::showFind()
 {
-    auto *tab = currentTab();
-    if (tab) {
-        m_findBar->setEditor(tab->editor());
+    if (auto *editor = currentPlainTextEditor()) {
+        m_findBar->setEditor(editor);
         m_findBar->showFind();
     }
 }
 
 void CodeEditorWidget::showReplace()
 {
-    auto *tab = currentTab();
-    if (tab) {
-        m_findBar->setEditor(tab->editor());
+    if (auto *editor = currentPlainTextEditor()) {
+        m_findBar->setEditor(editor);
         m_findBar->showReplace();
     }
 }
 
 void CodeEditorWidget::goToLine()
 {
-    auto *tab = currentTab();
-    if (!tab) return;
-
-    auto *editor = tab->editor();
+    auto *editor = currentPlainTextEditor();
+    if (!editor)
+        return;
     int maxLine = editor->blockCount();
     bool ok = false;
     int line = QInputDialog::getInt(this, tr("Go to Line"),
@@ -695,6 +776,65 @@ void CodeEditorWidget::goToLine()
         editor->centerCursor();
         editor->setFocus();
     }
+}
+
+// Ищет уже открытую module-вкладку по document path, через который она синхронизируется с LSP.
+ModuleEditorWidget *CodeEditorWidget::findOpenModuleEditorForDocumentPath(const QString &path) const
+{
+    for (int i = 0; i < m_tabWidget->count(); ++i) {
+        auto *moduleEditor = qobject_cast<ModuleEditorWidget *>(m_tabWidget->widget(i));
+        if (!moduleEditor)
+            continue;
+        if (moduleEditor->lspDocumentPath() == path || moduleEditor->filePath() == path)
+            return moduleEditor;
+    }
+    return nullptr;
+}
+
+// Возвращает текстовый редактор по document path для обычных и module-вкладок.
+QPlainTextEdit *CodeEditorWidget::findOpenPlainTextEditorForDocumentPath(const QString &path) const
+{
+    if (auto *tab = findTabForFile(path))
+        return tab->editor();
+    if (auto *moduleEditor = findOpenModuleEditorForDocumentPath(path))
+        return moduleEditor->editor();
+    return nullptr;
+}
+
+// Применяет набор LSP text edits в обратном порядке, чтобы позиции не сдвигались между вставками.
+void CodeEditorWidget::applyTextEdits(QPlainTextEdit *editor, const QVector<LSPTextEdit> &edits) const
+{
+    if (!editor)
+        return;
+
+    QTextCursor cursor(editor->document());
+    cursor.beginEditBlock();
+
+    QVector<LSPTextEdit> sortedEdits = edits;
+    std::sort(sortedEdits.begin(), sortedEdits.end(),
+              [](const LSPTextEdit &a, const LSPTextEdit &b) {
+        if (a.range.start.line != b.range.start.line)
+            return a.range.start.line > b.range.start.line;
+        return a.range.start.character > b.range.start.character;
+    });
+
+    for (const auto &edit : sortedEdits) {
+        QTextBlock startBlock = editor->document()->findBlockByNumber(edit.range.start.line);
+        QTextBlock endBlock = editor->document()->findBlockByNumber(edit.range.end.line);
+        if (!startBlock.isValid())
+            continue;
+        if (!endBlock.isValid())
+            endBlock = startBlock;
+
+        const int startPos = startBlock.position() + qMin(edit.range.start.character, startBlock.length() - 1);
+        const int endPos = endBlock.position() + qMin(edit.range.end.character, endBlock.length() - 1);
+
+        cursor.setPosition(startPos);
+        cursor.setPosition(endPos, QTextCursor::KeepAnchor);
+        cursor.insertText(edit.newText);
+    }
+
+    cursor.endEditBlock();
 }
 
 CodeEditorTab *CodeEditorWidget::findTabForFile(const QString &path) const
@@ -716,12 +856,38 @@ void CodeEditorWidget::openCustomTab(QWidget *widget, const QString &title, cons
         return;
     }
 
-    int index = m_tabWidget->addTab(widget, title);
+    int index = m_tabWidget->addTab(widget, makeCustomTabTitle(widget, title));
     m_tabWidget->setTabToolTip(index, path);
     m_tabWidget->setCurrentIndex(index);
     m_customTabs[path] = widget;
+
+    if (auto *moduleEditor = qobject_cast<ModuleEditorWidget *>(widget)) {
+        connectModuleEditorSignals(moduleEditor);
+        connect(moduleEditor, &ModuleEditorWidget::modificationChanged, this, [this, widget, title, path](bool) {
+            const int currentIndex = m_tabWidget->indexOf(widget);
+            if (currentIndex < 0)
+                return;
+            m_tabWidget->setTabText(currentIndex, makeCustomTabTitle(widget, title));
+            m_tabWidget->setTabToolTip(currentIndex, path);
+            emit currentTabChanged();
+        });
+        connect(moduleEditor, &ModuleEditorWidget::moduleSaved, this, [this, moduleEditor, widget, title, path](const QString &, const QString &) {
+            const int currentIndex = m_tabWidget->indexOf(widget);
+            if (currentIndex < 0)
+                return;
+            m_tabWidget->setTabText(currentIndex, makeCustomTabTitle(widget, title));
+            m_tabWidget->setTabToolTip(currentIndex, path);
+            if (m_lspClient && m_lspClient->isRunning()) {
+                const QString documentPath = moduleEditor->lspDocumentPath();
+                if (!documentPath.isEmpty())
+                    m_lspClient->didSave(LSPClient::pathToUri(documentPath));
+            }
+            emit currentTabChanged();
+        });
+    }
 }
 
+// Ищет уже открытую custom-вкладку по её файловому пути.
 QWidget *CodeEditorWidget::findCustomTabWidget(const QString &path) const
 {
     auto it = m_customTabs.find(path);
@@ -730,6 +896,7 @@ QWidget *CodeEditorWidget::findCustomTabWidget(const QString &path) const
     return nullptr;
 }
 
+// Возвращает текущую custom-вкладку, если активна не стандартная code-вкладка.
 QWidget *CodeEditorWidget::currentCustomTabWidget() const
 {
     QWidget *w = m_tabWidget->currentWidget();

@@ -1,0 +1,78 @@
+{
+    "schema_version": 2,
+    "id": "ext.sqlite_curated.sqlite_bind_text",
+    "name": "sqlite_bind_text",
+    "version": "1.0.0",
+    "language": "c",
+    "description": "Hidden raw wrapper: binds text value into prepared statement",
+    "category": "sqlite_raw",
+    "origin": "extension",
+    "ports": {
+        "input": [
+            {
+                "name": "flow_in",
+                "type": "exec",
+                "kind": "execution"
+            },
+            {
+                "name": "statement",
+                "type": "pointer"
+            },
+            {
+                "name": "index",
+                "type": "int"
+            },
+            {
+                "name": "value",
+                "type": "string"
+            }
+        ],
+        "output": [
+            {
+                "name": "flow_out",
+                "type": "exec",
+                "kind": "execution"
+            },
+            {
+                "name": "status",
+                "type": "int"
+            }
+        ]
+    },
+    "source": "",
+    "header": "",
+    "dependencies": [],
+    "includes": [
+        "<sqlite_deltaq_runtime.h>"
+    ],
+    "source_code": "/* Привязывает text-параметр к prepared statement и возвращает SQLite status code. */\nint dq_sqlite_bind_text(void *statement, int index, const char *value) {\n    return dq_sqlite_bind_statement_text((sqlite3_stmt *) statement, index, value);\n}",
+    "metadata": {
+        "deltaq.import.kind": "library_pack_module",
+        "deltaq.import.pack_name": "sqlite_curated",
+        "deltaq.import.pack_title": "SQLite Curated",
+        "deltaq.import.language": "c",
+        "deltaq.import.standard": "c17",
+        "deltaq.import.original_symbol": "sqlite3_bind_text",
+        "deltaq.import.display_name": "sqlite_bind_text",
+        "deltaq.import.curation_role": "hidden",
+        "deltaq.import.header_paths": [
+            "sqlite_deltaq_runtime.h"
+        ],
+        "deltaq.import.link_libraries": [
+            "dl"
+        ],
+        "deltaq.doc.when_to_use": "Когда prepared statement должен получить строковый параметр перед sqlite_step.",
+        "deltaq.doc.limitations": "Hidden raw wrapper: использует transient SQLite semantics и возвращает только raw status."
+    },
+    "provenance": {
+        "source_kind": "imported_pack",
+        "manifest_id": "sqlite_curated_v1",
+        "source_ref": "sqlite_curated",
+        "symbol": "sqlite3_bind_text",
+        "tool_version": "checked_in_v1"
+    },
+    "verification": {
+        "compile_status": "passed",
+        "test_status": "passed"
+    }
+}

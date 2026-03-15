@@ -5669,3 +5669,596 @@ fixture:
 - release wording теперь опирается на реально закрытые maturity-blockers, а не на optimism bias;
 - DeltaQ больше не описывается то как "почти polish", то как "implicit RC" в разных местах;
 - maturity recovery track `Stage 1-6` можно считать закрытым целиком.
+
+### Шаг 112 — подготовлен новый planning-track для module authoring и generation
+
+**Фаза:** `post-maturity planning`
+
+**Что сделано:**
+
+- создан новый strategy-doc:
+  - `34_module_authoring_studio_and_generation_roadmap.md`;
+- в одном документе зафиксированы три связанных направления:
+  1. `Module Authoring Studio`
+  2. `Nursery / algorithm trace workspace`
+  3. расширение модульной экосистемы через SQLite pack и auto-generation flow;
+- принято ключевое ordering-решение:
+  - first priority — не новые packs и не reverse/decompiler story,
+    а отдельный полноценный editor/verify/trace surface для `.dqmod`;
+- для database direction зафиксирована граница:
+  - SQLite развивать как official curated pack, а не как раздувание `core`;
+- для generation direction зафиксирована жёсткая развилка:
+  - source/library pipelines — product track;
+  - machine-code -> C -> module — research track;
+- в `00_master_strategy.md` новый план добавлен в список related documents,
+  чтобы он не оставался orphan-plan файлом.
+
+**Итог:**
+
+- следующий execution cycle теперь можно запускать не с абстрактной идеи
+  "усилить модули", а с explicit roadmap;
+- главный первый implementation slice уже определён:
+  - вынести `.dqmod` authoring в отдельный `Module Studio` shell.
+
+### Шаг 113 — roadmap `34_*` ужесточён до execution-grade v2
+
+**Фаза:** `post-maturity planning`
+
+**Что усилено:**
+
+- добавлен cross-cutting stage `A0: Module Metadata / Trust Schema v2`;
+- trust model теперь явно разделяет три оси:
+  - `origin / provenance`
+  - `trust_state`
+  - `verification result`
+- добавлены общие `Definition Of Done Rules` и `Regression And Migration Matrix`
+  по аналогии с более жёсткими execution-plan документами;
+- `Nursery` разбит на меньшие подэтапы:
+  - `A4.0 trace event schema`
+  - `A4.1 trace viewer`
+  - `A4.2 stepping controls`
+- execution order переставлен так, чтобы `Module Studio` сначала доказал ценность
+  на real-world forcing function через SQLite pack, а scratchpad не шёл слишком рано;
+- для `C1.1` и `C2.1` добавлен общий принцип repeatable intake manifest,
+  чтобы source-intake и library-intake не расходились концептуально;
+- immediate first slice теперь выровнен с новым ordering:
+  - сначала schema foundation и dedicated `.dqmod` open path,
+    а не просто ещё один editor shell без trust model.
+
+**Итог:**
+
+- новый roadmap теперь ближе к execution-grade document, а не к просто сильному набору идей;
+- первый implementation slice стал уже не только UX-ориентированным,
+  но и schema-safe.
+
+### Шаг 114 — закрыт первый implementation slice roadmap `34_*`
+
+**Фаза:** `module authoring studio`
+
+**Что сделано:**
+
+- `include/deltaq/Module.h` переведён на canonical `.dqmod` direction `v2`:
+  - `schema_version`
+  - `provenance`
+  - `trust_state`
+  - expanded `verification`
+    с `last_verified_at`, `scenario_refs`, `trace_artifact_refs`;
+- old-style `.dqmod` продолжают загружаться через backward-compatible migration,
+  а trust/provenance теперь выводятся не только из ad-hoc metadata;
+- `.dqmod` open path в `MainWindow` перестал уводить пользователя в graph tab и
+  теперь открывает dedicated `ModuleEditorWidget`;
+- в editor layer добавлен отдельный module authoring surface с большим code area,
+  save/reload flow и shared signature parser;
+- `Module Manager` начал читать те же trust/provenance axes, что и новый module editor.
+
+**Regression proof:**
+
+- `test_Module`
+  - schema v2 round-trip
+  - legacy trust/provenance migration
+  - imported-pack legacy trust derivation;
+- `test_ModuleManagerWidget`
+  - trust/provenance visibility in catalog summary;
+- `test_MainWindowEditorActions`
+  - `.dqmod` opens in dedicated editor
+  - save writes canonical schema v2
+  - graph redirect is gone.
+
+**Проверка:**
+
+- `cmake --build build/qt-dev --target test_Module test_ModuleManagerWidget test_MainWindowEditorActions --parallel`
+- `QT_QPA_PLATFORM=offscreen ./build/qt-dev/tests/test_Module`
+- `QT_QPA_PLATFORM=offscreen ./build/qt-dev/tests/test_ModuleManagerWidget`
+- `QT_QPA_PLATFORM=offscreen ./build/qt-dev/tests/test_MainWindowEditorActions`
+- `git diff --check -- include/deltaq/Module.h src/core/MainWindow.cpp src/editor/CMakeLists.txt src/editor/CodeEditorWidget.cpp src/editor/ModuleEditorWidget.cpp src/editor/ModuleEditorWidget.h src/editor/ModuleManagerWidget.cpp src/editor/ModuleSignatureUtils.cpp src/editor/ModuleSignatureUtils.h tests/core/test_Module.cpp tests/core/test_MainWindowEditorActions.cpp tests/editor/test_ModuleManagerWidget.cpp`
+
+**Итог:**
+
+- roadmap `34_*` вышел из purely planning state и получил реальный first slice;
+- foundation для дальнейших `A1/A2/A3` теперь опирается на отдельный `.dqmod` surface,
+  а не на legacy graph redirect и не на ad-hoc metadata.
+
+### Шаг 115 — `ModuleEditorWidget` доведён до базового source-workspace уровня
+
+**Фаза:** `module authoring studio`
+
+**Что сделано:**
+
+- `ModuleEditorWidget` теперь показывает live contract preview, derived из текущей
+  `dq_*` сигнатуры, а не только lifecycle summary;
+- в `CodeEditorWidget` добавлен shared access к current plain-text editor,
+  поэтому custom `.dqmod` tab теперь участвует в:
+  - `find/replace`
+  - `go to line`
+  - `undo/redo`;
+- custom-tab presentation для `.dqmod` стал ближе к обычному code editor:
+  modified state теперь отражается в заголовке вкладки через `*`.
+
+**Regression proof:**
+
+- `test_MainWindowEditorActions`
+  - live contract preview updates after signature edit
+  - undo/redo works through global editor actions
+  - modified custom-tab title clears after save.
+
+**Проверка:**
+
+- `cmake --build build/qt-dev --target test_MainWindowEditorActions test_ModuleManagerWidget --parallel`
+- `QT_QPA_PLATFORM=offscreen ./build/qt-dev/tests/test_MainWindowEditorActions`
+- `QT_QPA_PLATFORM=offscreen ./build/qt-dev/tests/test_ModuleManagerWidget`
+
+**Итог:**
+
+- dedicated `.dqmod` surface теперь ближе к реальному authoring workspace,
+  а не просто к отдельной read/write форме;
+- следующий logical slice уже не про baseline parity, а про richer contract editing
+  и diagnostics-grade source workflow.
+
+### Шаг 116 — для roadmap `34_*` введён явный checkbox-tracking
+
+**Фаза:** `module authoring studio`
+
+**Что сделано:**
+
+- в `34_module_authoring_studio_and_generation_roadmap.md` добавлен отдельный
+  `Execution Checklist` с checkbox-ами по Tracks `A/B/C`;
+- progress теперь фиксируется не только narrative-статусом и execution-log шагами,
+  но и явным `[x]/[ ]` tracking по stage-пунктам;
+- high-level статус этого же трека добавлен в `98_strategy_checklist.md`,
+  чтобы новый execution-cycle был виден и в общем стратегическом checklist-е.
+
+**Итог:**
+
+- roadmap `34_*` теперь сопровождается тем же типом checkpoint-tracking,
+  который уже оказался полезным для `32_*`;
+- текущий partial progress по Module Studio читается сразу по пунктам,
+  а не только из длинного narrative.
+
+### Шаг 117 — добавлен cross-track механизм позиционирования в общем плане
+
+**Фаза:** `module authoring studio`
+
+**Что сделано:**
+
+- `00_master_strategy.md` получил `Execution Map`, где видно место текущего
+  roadmap-а в общем порядке execution-track-ов;
+- `98_strategy_checklist.md` теперь показывает active-track queue не просто как
+  набор документов, а как упорядоченную очередь с текущей позицией;
+- сам `34_module_authoring_studio_and_generation_roadmap.md` получил section
+  `Position In Overall Strategy`, чтобы читать его можно было сразу в контексте
+  уже закрытых `29-33` и следующего ожидаемого движения.
+
+**Итог:**
+
+- теперь видно не только "какие checkbox-ы закрыты внутри `34_*`", но и
+  "где этот stage находится в общем стратегическом маршруте DeltaQ";
+- progress tracking стал двухуровневым:
+  - локальный stage-by-stage checklist
+  - глобальная позиция track-а в общей execution queue.
+
+### Шаг 118 — `ModuleEditorWidget` получил rich contract editing и diagnostics bridge
+
+**Фаза:** `module authoring studio`
+
+**Что сделано:**
+
+- `ModuleEditorWidget` больше не ограничен source-derived preview:
+  - contract table стала editable;
+  - появились `Add Input / Add Output / Remove Port`;
+  - есть `Sync From Source` и `Apply To Source`;
+  - save path теперь переписывает `dq_*` сигнатуру по текущему contract table;
+- `CodeEditorWidget` перестал считать LSP/document workflow только историей
+  обычных `CodeEditorTab`:
+  - `.dqmod` surface получил resolved document path для embedded source;
+  - diagnostics теперь можно доставить прямо в code area module editor;
+  - rename/format action parity для editable `.dqmod` больше не выключена;
+- `ModuleEditorWidget` теперь хранит и показывает LSP diagnostics поверх embedded source
+  через волнистое подчёркивание.
+
+**Regression proof:**
+
+- `test_MainWindowEditorActions`
+  - `.dqmod` editor keeps rename/format actions enabled
+  - editable contract rewrites source signature and persists through save
+  - diagnostics can be delivered onto embedded module source surface
+- `test_Module`
+- `test_ModuleManagerWidget`
+
+**Проверка:**
+
+- `cmake --build build/qt-dev --target test_MainWindowEditorActions test_ModuleManagerWidget test_Module --parallel`
+- `QT_QPA_PLATFORM=offscreen ./build/qt-dev/tests/test_Module`
+- `QT_QPA_PLATFORM=offscreen ./build/qt-dev/tests/test_ModuleManagerWidget`
+- `QT_QPA_PLATFORM=offscreen ./build/qt-dev/tests/test_MainWindowEditorActions`
+- `git diff --check -- src/editor/ModuleEditorWidget.h src/editor/ModuleEditorWidget.cpp src/editor/CodeEditorWidget.h src/editor/CodeEditorWidget.cpp src/core/MainWindow.cpp tests/core/test_MainWindowEditorActions.cpp AGENTS.md`
+
+**Итог:**
+
+- `A2` больше не выглядит как только foundational editor shell:
+  rich contract editing уже реально работает, а diagnostics bridge для embedded source уже введён;
+- при этом full live-LSP proof для module editor ещё остаётся открытым отдельным хвостом.
+
+### Шаг 119 — для `.dqmod` surface закрыт live LSP proof
+
+**Фаза:** `module authoring studio`
+
+**Что сделано:**
+
+- `CodeEditorWidget` теперь сам владеет diagnostics bridge через `setLSPClient`,
+  а не рассчитывает на отдельную wiring-ветку только в `MainWindow`;
+- для `ModuleEditorWidget` добавлен live regression через локальный fake LSP server:
+  embedded module source проходит через реальный JSON-RPC цикл
+  `didOpen -> didChange -> didSave -> didClose`;
+- тем же тестом закреплено, что formatting response от сервера реально
+  применяется к embedded source code area, а diagnostics доходят до него
+  без special-case обходов.
+
+**Regression proof:**
+
+- `test_MainWindowEditorActions`
+  - `.dqmod` editor participates in live LSP lifecycle
+  - formatting edits are applied through LSP onto embedded source
+  - diagnostics still reach module editor surface
+
+**Проверка:**
+
+- `cmake --build build/qt-dev --target test_MainWindowEditorActions --parallel`
+- `QT_QPA_PLATFORM=offscreen ./build/qt-dev/tests/test_MainWindowEditorActions`
+- `git diff --check -- src/editor/CodeEditorWidget.cpp src/core/MainWindow.cpp tests/core/test_MainWindowEditorActions.cpp`
+
+**Итог:**
+
+- diagnostics/LSP parity для `ModuleEditorWidget` теперь можно считать закрытой;
+- следующий честный stage уже `A3 verification workspace`, а не очередная доводка editor shell.
+
+### Шаг 120 — для `ModuleEditorWidget` закрыт `A3 verification workspace`
+
+**Фаза:** `module authoring studio`
+
+**Что сделано:**
+
+- `.dqmod` schema получила explicit `verification.scenarios`, а не ad-hoc хранение
+  сценариев в свободной metadata;
+- `ModuleEditorWidget` теперь включает полноценный verification workspace:
+  - saved scenarios;
+  - compile-only path;
+  - verify scenario path;
+  - expected-vs-actual table;
+  - inline verification log;
+  - trust/`last_verified_at` refresh после проверки;
+- `ModuleTestRunner` теперь умеет сравнивать actual outputs с expected values сценария,
+  не ломая старый run path без explicit expectations.
+
+**Regression proof:**
+
+- `test_Module`
+  - verification scenarios round-trip
+- `test_MainWindowEditorActions`
+  - verification workspace can save and rerun scenarios after reopen
+  - compile-only and verify paths both work inside module editor
+- `test_ModuleManagerWidget`
+
+**Проверка:**
+
+- `cmake --build build/qt-dev --target test_Module test_MainWindowEditorActions test_ModuleManagerWidget --parallel`
+- `QT_QPA_PLATFORM=offscreen ./build/qt-dev/tests/test_Module`
+- `QT_QPA_PLATFORM=offscreen ./build/qt-dev/tests/test_MainWindowEditorActions`
+- `QT_QPA_PLATFORM=offscreen ./build/qt-dev/tests/test_ModuleManagerWidget`
+- `git diff --check -- include/deltaq/Module.h src/editor/ModuleTestRunner.h src/editor/ModuleTestRunner.cpp src/editor/ModuleEditorWidget.h src/editor/ModuleEditorWidget.cpp tests/core/test_Module.cpp tests/core/test_MainWindowEditorActions.cpp`
+
+**Итог:**
+
+- `A3` можно считать закрытым: verification result теперь остаётся привязан к модулю,
+  сохраняется в `.dqmod` и переиспользуется после reopen;
+- следующий stage уже `A4.0 trace event schema`.
+
+### Шаг 121 — для `ModuleEditorWidget` закрыт `A4.0 trace event schema`
+
+**Фаза:** `module authoring studio`
+
+**Что сделано:**
+
+- `.dqmod` schema теперь хранит explicit `trace_artifacts` вместе с
+  `trace_artifact_refs`, а не только свободные ссылки в metadata;
+- verification-run в `ModuleEditorWidget` теперь создаёт deterministic
+  boundary trace artifact для supported single-return modules:
+  - `enter`
+  - `return`
+  - scenario inputs
+  - final output snapshot;
+- unsupported control-flow не симулируется молча:
+  verification path сохраняет `trace_unavailable` с explicit reason;
+- verification summary внутри editor теперь показывает trace count и
+  последний trace status.
+
+**Regression proof:**
+
+- `test_Module`
+  - trace artifacts round-trip through `.dqmod`
+- `test_MainWindowEditorActions`
+  - verification workspace saves trace artifacts after verify/save/reopen
+  - unsupported branch case is stored as explicit `trace_unavailable`
+- `test_ModuleManagerWidget`
+
+**Проверка:**
+
+- `cmake --build build/qt-dev --target test_Module test_MainWindowEditorActions test_ModuleManagerWidget --parallel`
+- `QT_QPA_PLATFORM=offscreen ./build/qt-dev/tests/test_Module`
+- `QT_QPA_PLATFORM=offscreen ./build/qt-dev/tests/test_ModuleManagerWidget`
+- `QT_QPA_PLATFORM=offscreen ./build/qt-dev/tests/test_MainWindowEditorActions`
+- `git diff --check -- include/deltaq/Module.h src/editor/ModuleEditorWidget.h src/editor/ModuleEditorWidget.cpp tests/core/test_Module.cpp tests/core/test_MainWindowEditorActions.cpp docs/plan/strategy_2026/34_module_authoring_studio_and_generation_roadmap.md docs/plan/strategy_2026/98_strategy_checklist.md docs/plan/strategy_2026/99_execution_log.md`
+
+**Итог:**
+
+- `A4.0` можно считать закрытым: trace event model уже не висит отдельно от
+  verify-path, а живёт как saved artifact в `.dqmod`;
+- следующий stage уже `A4.1 trace viewer`.
+
+### Шаг 122 — для `ModuleEditorWidget` закрыт `A4.1 trace viewer`
+
+**Фаза:** `module authoring studio`
+
+**Что сделано:**
+
+- в `Verification Workspace` появился отдельный `Trace Viewer` поверх уже
+  сохранённых trace artifacts;
+- viewer показывает:
+  - список шагов trace;
+  - current step;
+  - current flow / branch summary;
+  - source snippet;
+  - trace inputs;
+  - accumulated locals;
+  - outputs/return;
+- trace viewer поднимает сохранённый artifact после reopen и при переключении
+  active verification scenario, а не только сразу после verify-run;
+- `trace_unavailable` path теперь виден не только в summary/log, но и как
+  явный viewer-state без фальшивых шагов.
+
+**Regression proof:**
+
+- `test_MainWindowEditorActions`
+  - trace viewer is populated after verify
+  - trace viewer survives save/reopen
+  - unsupported trace case shows explicit unavailable viewer state
+- `test_Module`
+- `test_ModuleManagerWidget`
+
+**Проверка:**
+
+- `cmake --build build/qt-dev --target test_Module test_MainWindowEditorActions test_ModuleManagerWidget --parallel`
+- `QT_QPA_PLATFORM=offscreen ./build/qt-dev/tests/test_Module`
+- `QT_QPA_PLATFORM=offscreen ./build/qt-dev/tests/test_ModuleManagerWidget`
+- `QT_QPA_PLATFORM=offscreen ./build/qt-dev/tests/test_MainWindowEditorActions`
+- `git diff --check -- src/editor/ModuleEditorWidget.h src/editor/ModuleEditorWidget.cpp tests/core/test_MainWindowEditorActions.cpp docs/plan/strategy_2026/34_module_authoring_studio_and_generation_roadmap.md docs/plan/strategy_2026/98_strategy_checklist.md docs/plan/strategy_2026/99_execution_log.md`
+
+**Итог:**
+
+- `A4.1` можно считать закрытым: trace artifacts уже не только сохраняются, но
+  и реально читаются внутри отдельного explanatory surface;
+- следующий stage уже `A4.2 stepping controls`.
+
+### Шаг 123 — для `ModuleEditorWidget` закрыт `A4.2 stepping controls`
+
+**Фаза:** `module authoring studio`
+
+**Что сделано:**
+
+- trace viewer получил explicit playback-controls:
+  - `Restart`
+  - `Step`
+  - `Step Over`
+  - `Run To End`;
+- controls теперь двигают selection внутри уже сохранённого trace artifact-а,
+  поэтому current step, flow, locals и outputs меняются синхронно, а не как
+  отдельный ad-hoc state;
+- для `trace_unavailable` controls честно выключаются и не создают ложного
+  впечатления, будто trace можно шагать.
+
+**Regression proof:**
+
+- `test_MainWindowEditorActions`
+  - restart / step / step-over / run-to-end move the trace viewer state
+  - stepping controls survive reopen together with saved trace
+  - unavailable trace disables stepping controls
+- `test_Module`
+- `test_ModuleManagerWidget`
+
+**Проверка:**
+
+- `cmake --build build/qt-dev --target test_Module test_MainWindowEditorActions test_ModuleManagerWidget --parallel`
+- `QT_QPA_PLATFORM=offscreen ./build/qt-dev/tests/test_Module`
+- `QT_QPA_PLATFORM=offscreen ./build/qt-dev/tests/test_ModuleManagerWidget`
+- `QT_QPA_PLATFORM=offscreen ./build/qt-dev/tests/test_MainWindowEditorActions`
+- `git diff --check -- src/editor/ModuleEditorWidget.h src/editor/ModuleEditorWidget.cpp tests/core/test_MainWindowEditorActions.cpp docs/plan/strategy_2026/34_module_authoring_studio_and_generation_roadmap.md docs/plan/strategy_2026/98_strategy_checklist.md docs/plan/strategy_2026/99_execution_log.md`
+
+**Итог:**
+
+- `A4.2` можно считать закрытым: `Nursery v1` уже даёт не только trace schema и
+  viewer, но и usable playback-controls;
+- следующий реальный forcing function по plan — `Track B / Stage B1-B2 SQLite`.
+
+### Шаг 124 — закрыты `Track B / Stage B1-B2` для official SQLite pack
+
+**Фаза:** `module authoring studio / official sqlite pack`
+
+**Что сделано:**
+
+- добавлен checked-in official pack `modules/sqlite_curated`;
+- pack получил self-contained runtime header `sqlite_deltaq_runtime.h`, который
+  работает через `dlopen("libsqlite3.so.0")` и не требует system `sqlite3.h`
+  dev headers;
+- добавлен minimum useful raw wrapper set:
+  - `sqlite_open`
+  - `sqlite_close`
+  - `sqlite_exec`
+  - `sqlite_prepare`
+  - `sqlite_bind_int`
+  - `sqlite_bind_text`
+  - `sqlite_step`
+  - `sqlite_column_int`
+  - `sqlite_column_text`
+  - `sqlite_finalize`;
+- добавлен curated user-facing surface:
+  - `sqlite_exec_path`
+  - `sqlite_query_scalar_text`
+  - `sqlite_query_scalar_int`;
+- `CMakeGenerator` теперь автоматически подхватывает local `pack/include` по
+  `module.storagePath`, а `StandardLibrary::installBundledPacks(...)`
+  синхронизирует official non-core pack-и в writable global root;
+- добавлен первый forcing-function example
+  `resources/examples/sqlite_settings_console`.
+
+**Regression proof:**
+
+- `test_CMakeGenerator`
+  - imported pack может получить include-dir из checked-in `pack/include`,
+    даже если metadata не несёт explicit `include_paths`;
+- `test_StandardLibrary`
+  - official bundled pack install копирует и `sqlite_curated`, а не только `core`;
+- `test_PreBuildProcessor`
+  - `sqliteSettingsConsoleExampleBuildsAndRunsEndToEnd`
+    подтверждает `pre-build -> CMake -> build -> run`.
+
+**Docs sync:**
+
+- `docs/library/imported_packs/sqlite_curated.md`
+- `resources/examples/README.md`
+- `resources/examples/README_RU.md`
+- `docs/library/README.md`
+- `34_module_authoring_studio_and_generation_roadmap.md`
+- `98_strategy_checklist.md`
+
+**Проверка:**
+
+- `cmake --build build/qt-dev --target test_CMakeGenerator test_StandardLibrary test_PreBuildProcessor --parallel`
+- `QT_QPA_PLATFORM=offscreen ./build/qt-dev/tests/test_CMakeGenerator`
+- `QT_QPA_PLATFORM=offscreen ./build/qt-dev/tests/test_StandardLibrary`
+- `QT_QPA_PLATFORM=offscreen ./build/qt-dev/tests/test_PreBuildProcessor sqliteSettingsConsoleExampleBuildsAndRunsEndToEnd`
+- `git diff --check -- modules/sqlite_curated resources/examples/sqlite_settings_console src/core/StandardLibrary.cpp src/core/StandardLibrary.h src/core/MainWindow.cpp src/editor/CMakeGenerator.cpp tests/editor/test_CMakeGenerator.cpp tests/core/test_StandardLibrary.cpp tests/codegen/test_PreBuildProcessor.cpp docs/library/imported_packs/sqlite_curated.md resources/examples/README.md resources/examples/README_RU.md docs/library/README.md docs/plan/strategy_2026/34_module_authoring_studio_and_generation_roadmap.md docs/plan/strategy_2026/98_strategy_checklist.md docs/plan/strategy_2026/99_execution_log.md`
+
+**Итог:**
+
+- `B1` закрыт: minimum useful SQLite baseline теперь есть в checked-in pack-е;
+- `B2` закрыт: raw noise скрыт, curated entry modules и docs оформлены;
+- `B3` начат, но не закрыт: console example уже есть, desktop SQLite flow ещё
+  остаётся следующим slice.
+
+### Шаг 125 — закрыты `Track B / Stage B3-B4` для SQLite desktop flow и Module Studio reuse
+
+**Фаза:** `module authoring studio / official sqlite pack`
+
+**Что сделано:**
+
+- добавлен checked-in desktop example `resources/examples/sqlite_notes_desktop`;
+- example доказывает `SQLite curated pack -> desktop graph -> generated SDL2 runtime -> build -> headless run`;
+- `ModuleEditorWidget` и `ModuleSignatureUtils` теперь корректно поддерживают mixed
+  `exec + data` contract для imported pack modules:
+  - execution-порты не теряются при save/reload;
+  - verification scenarios и expected-vs-actual остаются только data-level;
+  - `dq_*` source signature переписывается только по data-портам, без ложного
+    протаскивания `flow_in/flow_out` в C function signature;
+- `Module Studio` verification path теперь реально используется для curated SQLite
+  adapter-а `sqlite_exec_path` со saved scenario `create_table_smoke`.
+
+**Regression proof:**
+
+- `test_PreBuildProcessor`
+  - `sqliteNotesDesktopExampleBuildsAndRunsHeadless`
+    подтверждает desktop-side SQLite forcing function;
+- `test_MainWindowEditorActions`
+  - `sqliteImportedModuleCanRunSavedVerificationScenario`
+    подтверждает `open -> compile -> verify -> save` для imported SQLite module;
+- тот же UI regression дополнительно проверяет, что сохранённый `.dqmod`:
+  - сохраняет `flow_in/flow_out` как execution-порты;
+  - не загрязняет saved scenario execution-портами;
+  - не переписывает C source signature ложными exec-аргументами.
+
+**Docs sync:**
+
+- `resources/examples/README.md`
+- `resources/examples/README_RU.md`
+- `docs/library/imported_packs/sqlite_curated.md`
+- `docs/library/README.md`
+- `34_module_authoring_studio_and_generation_roadmap.md`
+- `98_strategy_checklist.md`
+
+**Проверка:**
+
+- `cmake --build build/qt-dev --target test_MainWindowEditorActions test_Module test_ModuleManagerWidget --parallel`
+- `QT_QPA_PLATFORM=offscreen ./build/qt-dev/tests/test_Module`
+- `QT_QPA_PLATFORM=offscreen ./build/qt-dev/tests/test_ModuleManagerWidget`
+- `QT_QPA_PLATFORM=offscreen ./build/qt-dev/tests/test_MainWindowEditorActions`
+- `QT_QPA_PLATFORM=offscreen ./build/qt-dev/tests/test_PreBuildProcessor sqliteNotesDesktopExampleBuildsAndRunsHeadless`
+- `git diff --check -- src/editor/ModuleSignatureUtils.cpp src/editor/ModuleEditorWidget.cpp src/editor/ModuleTestRunner.cpp tests/core/test_MainWindowEditorActions.cpp tests/codegen/test_PreBuildProcessor.cpp modules/sqlite_curated/curated/sqlite_exec_path.dqmod resources/examples/sqlite_notes_desktop resources/examples/README.md resources/examples/README_RU.md docs/library/imported_packs/sqlite_curated.md docs/library/README.md docs/plan/strategy_2026/34_module_authoring_studio_and_generation_roadmap.md docs/plan/strategy_2026/98_strategy_checklist.md docs/plan/strategy_2026/99_execution_log.md`
+
+**Итог:**
+
+- `B3` закрыт: SQLite forcing function теперь покрыт и console-, и desktop-side examples;
+- `B4` закрыт: Module Studio verification path реально используется для SQLite authoring;
+- следующий открытый этап текущего track-а — `A5 fragment scratchpad`.
+
+### Шаг 126 — закрыт `Track A / Stage A5` для fragment scratchpad
+
+**Фаза:** `module authoring studio / fragment scratchpad`
+
+**Что сделано:**
+
+- `ModuleEditorWidget` получил transient scratchpad mode без немедленного создания `.dqmod` на диске;
+- `Save` в scratchpad mode теперь работает как promotion:
+  - до первой записи fragment живёт как временный authoring surface;
+  - после первой записи превращается в normal `.dqmod`;
+- `New File...` получил отдельный тип `Fragment Scratchpad`;
+- scratchpad target-path теперь сразу ведёт в project `dqmods/`, а не в несогласованный `modules/`;
+- для scratchpad используется тот же verification/trace engine, что и для обычных `.dqmod`;
+- добавлен end-to-end flow:
+  - `project open -> open scratchpad -> verify -> trace -> promote -> reopen`.
+
+**Regression proof:**
+
+- `test_MainWindowEditorActions`
+  - `fragmentScratchpadCanVerifyTraceAndPromoteToModule`
+    подтверждает:
+    - scratchpad открывается как dedicated Module Studio surface;
+    - verification scenario и trace работают до создания файла;
+    - `Save` создаёт `.dqmod` в `dqmods/`;
+    - promoted module потом можно reopen-ить как обычный `.dqmod`.
+
+**Docs sync:**
+
+- `34_module_authoring_studio_and_generation_roadmap.md`
+- `98_strategy_checklist.md`
+- `99_execution_log.md`
+
+**Проверка:**
+
+- `cmake --build build/qt-dev --target test_MainWindowEditorActions test_ModuleManagerWidget --parallel`
+- `QT_QPA_PLATFORM=offscreen ./build/qt-dev/tests/test_MainWindowEditorActions`
+- `QT_QPA_PLATFORM=offscreen ./build/qt-dev/tests/test_ModuleManagerWidget`
+- `git diff --check -- src/editor/ModuleEditorWidget.h src/editor/ModuleEditorWidget.cpp src/core/MainWindow.h src/core/MainWindow.cpp src/core/NewFileDialog.h src/core/NewFileDialog.cpp tests/core/test_MainWindowEditorActions.cpp`
+
+**Итог:**
+
+- `A5` закрыт: engineering sketch-mode теперь существует как product surface, а не только как roadmap idea;
+- fragment действительно использует тот же verification/trace path, что и обычный `.dqmod`;
+- следующий открытый этап текущего track-а — `Track C / Stage C1.1`.

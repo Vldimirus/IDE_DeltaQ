@@ -512,10 +512,10 @@ static QSet<QString> reviewedCoreModuleIds()
     return reviewed;
 }
 
-// Читает версию pack.json для конкретной директории core pack-а.
-static QString packVersionForCoreDir(const QString &coreDir)
+// Читает manifest pack.json для конкретной директории checked-in pack-а.
+static QJsonObject packManifestForDir(const QString &packDir)
 {
-    QFile packFile(QDir(coreDir).filePath("pack.json"));
+    QFile packFile(QDir(packDir).filePath("pack.json"));
     if (!packFile.open(QIODevice::ReadOnly))
         return {};
 
@@ -524,7 +524,19 @@ static QString packVersionForCoreDir(const QString &coreDir)
     if (err.error != QJsonParseError::NoError)
         return {};
 
-    return doc.object()["version"].toString();
+    return doc.object();
+}
+
+// Читает version из pack.json для произвольной директории checked-in pack-а.
+static QString packVersionForDir(const QString &packDir)
+{
+    return packManifestForDir(packDir)["version"].toString();
+}
+
+// Определяет, должен ли checked-in pack синхронизироваться как official surface.
+static bool isOfficialPackDir(const QString &packDir)
+{
+    return packManifestForDir(packDir)["official"].toBool(false);
 }
 
 // Ищет source-of-truth core pack на диске: сначала рядом с приложением, затем от cwd вверх по дереву.
@@ -560,6 +572,41 @@ static QString discoverCoreSourceOfTruthDir()
     }
 
     return {};
+}
+
+// Возвращает source-of-truth root для всех checked-in pack-ов, а не только для core.
+static QString discoverBundledModulesSourceOfTruthDir()
+{
+    const QString coreDir = discoverCoreSourceOfTruthDir();
+    if (coreDir.isEmpty())
+        return {};
+    QDir modulesDir(coreDir);
+    if (!modulesDir.cdUp())
+        return {};
+    return modulesDir.absolutePath();
+}
+
+// Копирует pack directory целиком, сохраняя структуру подкаталогов и headers.
+static void copyPackDirectory(const QString &sourcePackDir, const QString &targetPackDir)
+{
+    QDir().mkpath(targetPackDir);
+
+    const QString sourceCanonical = QFileInfo(sourcePackDir).canonicalFilePath();
+    const QString targetCanonical = QFileInfo(targetPackDir).canonicalFilePath();
+    if (!sourceCanonical.isEmpty() && !targetCanonical.isEmpty() && sourceCanonical == targetCanonical)
+        return;
+
+    const QDir sourceDir(sourcePackDir);
+    QDirIterator it(sourcePackDir, QDir::Files, QDirIterator::Subdirectories);
+    while (it.hasNext()) {
+        const QString sourcePath = it.next();
+        const QString relativePath = sourceDir.relativeFilePath(sourcePath);
+        const QString targetPath = QDir(targetPackDir).filePath(relativePath);
+
+        QDir().mkpath(QFileInfo(targetPath).absolutePath());
+        QFile::remove(targetPath);
+        QFile::copy(sourcePath, targetPath);
+    }
 }
 
 // Загружает checked-in core pack как набор Module, сохраняя файловую source-of-truth семантику.
@@ -842,27 +889,44 @@ void StandardLibrary::install(const QString &coreDir)
         return;
 
     QDir().mkpath(coreDir);
+    copyPackDirectory(sourceCoreDir, coreDir);
+}
 
-    const QDir sourceDir(sourceCoreDir);
-    QDirIterator it(sourceCoreDir, QDir::Files, QDirIterator::Subdirectories);
-    while (it.hasNext()) {
-        const QString sourcePath = it.next();
-        const QString relativePath = sourceDir.relativeFilePath(sourcePath);
-        const QString targetPath = QDir(coreDir).filePath(relativePath);
+void StandardLibrary::installBundledPacks(const QString &modulesRootDir)
+{
+    const QString sourceModulesRoot = discoverBundledModulesSourceOfTruthDir();
+    if (sourceModulesRoot.isEmpty())
+        return;
 
-        QDir().mkpath(QFileInfo(targetPath).absolutePath());
-        QFile::remove(targetPath);
-        QFile::copy(sourcePath, targetPath);
+    QDir().mkpath(modulesRootDir);
+
+    const QDir sourceRoot(sourceModulesRoot);
+    const QStringList packDirs = sourceRoot.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
+    for (const QString &packDirName : packDirs) {
+        const QString sourcePackDir = sourceRoot.filePath(packDirName);
+        if (!isOfficialPackDir(sourcePackDir))
+            continue;
+
+        const QString targetPackDir = QDir(modulesRootDir).filePath(packDirName);
+        const QString sourceCanonical = QFileInfo(sourcePackDir).canonicalFilePath();
+        const QString targetCanonical = QFileInfo(targetPackDir).canonicalFilePath();
+        if (!sourceCanonical.isEmpty() && !targetCanonical.isEmpty() && sourceCanonical == targetCanonical)
+            continue;
+
+        if (packVersionForDir(sourcePackDir) == packVersionForDir(targetPackDir))
+            continue;
+
+        copyPackDirectory(sourcePackDir, targetPackDir);
     }
 }
 
 bool StandardLibrary::isUpToDate(const QString &coreDir)
 {
-    const QString sourceVersion = packVersionForCoreDir(discoverCoreSourceOfTruthDir());
+    const QString sourceVersion = packVersionForDir(discoverCoreSourceOfTruthDir());
     if (sourceVersion.isEmpty())
         return false;
 
-    const QString installedVersion = packVersionForCoreDir(coreDir);
+    const QString installedVersion = packVersionForDir(coreDir);
     return !installedVersion.isEmpty() && installedVersion == sourceVersion;
 }
 

@@ -118,6 +118,8 @@ private slots:
         QCOMPARE(layer->text(), QString("Проектный модуль"));
         QVERIFY(role->text().contains(QString::fromUtf8("локальный атомарный")));
         QVERIFY(quality->text().contains(QString("staged verification")));
+        QVERIFY(quality->text().contains(QString("Trust: draft")));
+        QVERIFY(quality->text().contains(QString("Provenance: manual")));
     }
 
     void coreModuleShowsLibraryState()
@@ -149,6 +151,8 @@ private slots:
         QCOMPARE(layer->text(), QString("Стандартная библиотека"));
         QVERIFY(role->text().contains(QString::fromUtf8("Опорный модуль v1")));
         QVERIFY(quality->text().contains(QString("explicit curation review")));
+        QVERIFY(quality->text().contains(QString("Trust: verified")));
+        QVERIFY(quality->text().contains(QString("Provenance: core")));
 
         auto *tree = widget.findChild<QTreeWidget *>();
         QVERIFY(tree != nullptr);

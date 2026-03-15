@@ -13,6 +13,7 @@
 
 namespace DeltaQ {
 
+// Строит диалог выбора типа файла и целевого имени внутри текущего проекта.
 NewFileDialog::NewFileDialog(const QString &projectDir, QWidget *parent)
     : QDialog(parent)
     , m_projectDir(projectDir)
@@ -27,6 +28,7 @@ NewFileDialog::NewFileDialog(const QString &projectDir, QWidget *parent)
     m_typeList = new QListWidget(this);
     m_typeList->addItem(tr("UI Window (.dqui)"));
     m_typeList->addItem(tr("Graph (.dqgraph)"));
+    m_typeList->addItem(tr("Fragment Scratchpad"));
     m_typeList->addItem(tr("Module (.dqmod)"));
     m_typeList->addItem(tr("C Source (.c)"));
     m_typeList->addItem(tr("C Header (.h)"));
@@ -66,23 +68,27 @@ NewFileDialog::NewFileDialog(const QString &projectDir, QWidget *parent)
     updatePreview();
 }
 
+// Возвращает выбранный логический тип файла, включая transient scratchpad.
 QString NewFileDialog::fileType() const
 {
     switch (m_typeList->currentRow()) {
     case 0: return "dqui";
     case 1: return "dqgraph";
-    case 2: return "dqmod";
-    case 3: return "c";
-    case 4: return "h";
+    case 2: return "scratchpad";
+    case 3: return "dqmod";
+    case 4: return "c";
+    case 5: return "h";
     default: return "c";
     }
 }
 
+// Возвращает имя файла или scratchpad без расширения.
 QString NewFileDialog::fileName() const
 {
     return m_nameEdit->text().trimmed();
 }
 
+// Возвращает будущий путь файла или target-path для первого promotion scratchpad-а.
 QString NewFileDialog::fullPath() const
 {
     QString name = fileName();
@@ -92,17 +98,21 @@ QString NewFileDialog::fullPath() const
     QString subDir;
     if (type == "dqui")         subDir = "ui";
     else if (type == "dqgraph") subDir = "graphs";
-    else if (type == "dqmod")   subDir = "modules";
+    else if (type == "dqmod" || type == "scratchpad") subDir = "dqmods";
     else                        subDir = "src";
 
-    return m_projectDir + "/" + subDir + "/" + name + "." + type;
+    const QString extension = (type == "scratchpad") ? QStringLiteral("dqmod") : type;
+    return m_projectDir + "/" + subDir + "/" + name + "." + extension;
 }
 
+// Обновляет preview-path и явно показывает, что scratchpad не создаёт файл до первого Save.
 void NewFileDialog::updatePreview()
 {
     QString path = fullPath();
     if (path.isEmpty())
         m_pathLabel->setText(tr("Enter a file name"));
+    else if (fileType() == "scratchpad")
+        m_pathLabel->setText(tr("Scratchpad target: %1\nThe file will be created only on first Save.").arg(path));
     else
         m_pathLabel->setText(tr("Path: %1").arg(path));
 }

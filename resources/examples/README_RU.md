@@ -10,25 +10,31 @@
 2. [settings_file_console](settings_file_console/)
    Первый file-backed useful baseline: `filesystem + config_json` в реальном `build -> run` flow.
 
-3. [process_timer_console](process_timer_console/)
+3. [sqlite_settings_console](sqlite_settings_console/)
+   Первый SQLite forcing-function: curated database pack в реальном `build -> run` flow со schema creation, insert/update и scalar select.
+
+4. [sqlite_notes_desktop](sqlite_notes_desktop/)
+   Desktop-side SQLite forcing-function: curated database pack внутри generated SDL2 desktop flow с загрузкой сохранённой заметки и headless autoclose.
+
+5. [process_timer_console](process_timer_console/)
    Второй useful baseline: `process + timers` в реальном `build -> run` flow с stdout, exit code и проверками лимита времени.
 
-4. [transport_probe_console](transport_probe_console/)
+6. [transport_probe_console](transport_probe_console/)
    Третий useful baseline: `tcp_udp + timers` как loopback datagram probe в реальном `build -> run` flow.
 
-5. [serial_probe_console](serial_probe_console/)
+7. [serial_probe_console](serial_probe_console/)
    Четвёртый useful baseline: `serial + timers` как self-contained PTY loopback probe в реальном `build -> run` flow.
 
-6. [desktop_ui_flow](desktop_ui_flow/)
+8. [desktop_ui_flow](desktop_ui_flow/)
    Самый сильный desktop/UI showcase: graph, `.dqui`, generated SDL2 runtime-файлы и живые event handlers.
 
-7. [reusable_composition_console](reusable_composition_console/)
+9. [reusable_composition_console](reusable_composition_console/)
    История про reuse: составные подмодули, отдельные generated units и повторное использование из одного корневого графа.
 
-8. [imported_pack_sensor_console](imported_pack_sensor_console/)
+10. [imported_pack_sensor_console](imported_pack_sensor_console/)
    Первый reference path для imported pack: от внешней библиотеки к curated pack и рабочему graph runtime.
 
-9. [imported_pack_checksum_console](imported_pack_checksum_console/)
+11. [imported_pack_checksum_console](imported_pack_checksum_console/)
    Второй reference path для imported pack из другой доменной зоны, показывающий, что imported pack-и являются главным каналом роста экосистемы, а не ещё одним раздуванием `core`.
 
 ## Fixture SDK Trees
@@ -42,6 +48,8 @@
 
 - "Что такое DeltaQ за 5 минут?" -> [minimal_console_flow](minimal_console_flow/)
 - "Как выглядит file-backed settings path в DeltaQ?" -> [settings_file_console](settings_file_console/)
+- "Как выглядит SQLite в DeltaQ без раздувания `core`?" -> [sqlite_settings_console](sqlite_settings_console/)
+- "Как выглядит SQLite внутри desktop runtime path?" -> [sqlite_notes_desktop](sqlite_notes_desktop/)
 - "Как выглядят subprocess и проверки лимита времени в DeltaQ?" -> [process_timer_console](process_timer_console/)
 - "Как выглядят локальные transport probes в DeltaQ?" -> [transport_probe_console](transport_probe_console/)
 - "Как выглядят serial probes в DeltaQ без реального железа?" -> [serial_probe_console](serial_probe_console/)

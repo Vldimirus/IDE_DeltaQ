@@ -100,6 +100,7 @@ private slots:
     void updateStatusBar(const QString &message);
     void updateCursorPosition();
     void onFileActivated(const QString &path);
+    void openModuleScratchpad(const QString &name);
     void navigateBuildOutputLine(const QString &lineText);
     void onOpenGeneratedOrigin();
     void connectBlockEditorSignals(BlockEditorWidget *editor);

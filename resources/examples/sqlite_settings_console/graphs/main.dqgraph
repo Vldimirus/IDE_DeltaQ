@@ -1,0 +1,288 @@
+{
+    "id": "56000000-0000-0000-0000-000000000001",
+    "name": "main",
+    "nodes": [
+        {
+            "id": "56000000-0000-0000-0000-000000000101",
+            "module_id": "core.filesystem.ensure_dir",
+            "position": {
+                "x": 80.0,
+                "y": 80.0
+            }
+        },
+        {
+            "id": "56000000-0000-0000-0000-000000000102",
+            "module_id": "core.io.string_constant",
+            "position": {
+                "x": 80.0,
+                "y": 220.0
+            },
+            "properties": {
+                "value": "\"runtime\""
+            }
+        },
+        {
+            "id": "56000000-0000-0000-0000-000000000103",
+            "module_id": "core.io.string_constant",
+            "position": {
+                "x": 360.0,
+                "y": 80.0
+            },
+            "properties": {
+                "value": "\"runtime/profile.db\""
+            }
+        },
+        {
+            "id": "56000000-0000-0000-0000-000000000104",
+            "module_id": "core.io.string_constant",
+            "position": {
+                "x": 360.0,
+                "y": 220.0
+            },
+            "properties": {
+                "value": "\"CREATE TABLE IF NOT EXISTS kv (key TEXT PRIMARY KEY, value TEXT NOT NULL);\""
+            }
+        },
+        {
+            "id": "56000000-0000-0000-0000-000000000105",
+            "module_id": "ext.sqlite_curated.sqlite_exec_path",
+            "position": {
+                "x": 680.0,
+                "y": 80.0
+            }
+        },
+        {
+            "id": "56000000-0000-0000-0000-000000000106",
+            "module_id": "core.io.string_constant",
+            "position": {
+                "x": 680.0,
+                "y": 240.0
+            },
+            "properties": {
+                "value": "\"INSERT OR REPLACE INTO kv(key, value) VALUES('profile', 'deltaq');\""
+            }
+        },
+        {
+            "id": "56000000-0000-0000-0000-000000000107",
+            "module_id": "ext.sqlite_curated.sqlite_exec_path",
+            "position": {
+                "x": 1000.0,
+                "y": 80.0
+            }
+        },
+        {
+            "id": "56000000-0000-0000-0000-000000000108",
+            "module_id": "core.io.string_constant",
+            "position": {
+                "x": 1000.0,
+                "y": 240.0
+            },
+            "properties": {
+                "value": "\"SELECT value FROM kv WHERE key='profile' LIMIT 1;\""
+            }
+        },
+        {
+            "id": "56000000-0000-0000-0000-000000000109",
+            "module_id": "core.io.string_constant",
+            "position": {
+                "x": 1000.0,
+                "y": 380.0
+            },
+            "properties": {
+                "value": "\"missing\""
+            }
+        },
+        {
+            "id": "56000000-0000-0000-0000-000000000110",
+            "module_id": "ext.sqlite_curated.sqlite_query_scalar_text",
+            "position": {
+                "x": 1320.0,
+                "y": 80.0
+            }
+        },
+        {
+            "id": "56000000-0000-0000-0000-000000000111",
+            "module_id": "core.io.string_constant",
+            "position": {
+                "x": 1320.0,
+                "y": 260.0
+            },
+            "properties": {
+                "value": "\"profile=\""
+            }
+        },
+        {
+            "id": "56000000-0000-0000-0000-000000000112",
+            "module_id": "core.io.print",
+            "position": {
+                "x": 1640.0,
+                "y": 80.0
+            }
+        },
+        {
+            "id": "56000000-0000-0000-0000-000000000113",
+            "module_id": "core.io.println",
+            "position": {
+                "x": 1960.0,
+                "y": 80.0
+            }
+        }
+    ],
+    "connections": [
+        {
+            "from": {
+                "node": "56000000-0000-0000-0000-000000000102",
+                "port": "out"
+            },
+            "to": {
+                "node": "56000000-0000-0000-0000-000000000101",
+                "port": "path"
+            }
+        },
+        {
+            "from": {
+                "node": "56000000-0000-0000-0000-000000000101",
+                "port": "flow_out"
+            },
+            "to": {
+                "node": "56000000-0000-0000-0000-000000000105",
+                "port": "flow_in"
+            },
+            "kind": "execution"
+        },
+        {
+            "from": {
+                "node": "56000000-0000-0000-0000-000000000103",
+                "port": "out"
+            },
+            "to": {
+                "node": "56000000-0000-0000-0000-000000000105",
+                "port": "db_path"
+            }
+        },
+        {
+            "from": {
+                "node": "56000000-0000-0000-0000-000000000104",
+                "port": "out"
+            },
+            "to": {
+                "node": "56000000-0000-0000-0000-000000000105",
+                "port": "sql"
+            }
+        },
+        {
+            "from": {
+                "node": "56000000-0000-0000-0000-000000000105",
+                "port": "flow_out"
+            },
+            "to": {
+                "node": "56000000-0000-0000-0000-000000000107",
+                "port": "flow_in"
+            },
+            "kind": "execution"
+        },
+        {
+            "from": {
+                "node": "56000000-0000-0000-0000-000000000103",
+                "port": "out"
+            },
+            "to": {
+                "node": "56000000-0000-0000-0000-000000000107",
+                "port": "db_path"
+            }
+        },
+        {
+            "from": {
+                "node": "56000000-0000-0000-0000-000000000106",
+                "port": "out"
+            },
+            "to": {
+                "node": "56000000-0000-0000-0000-000000000107",
+                "port": "sql"
+            }
+        },
+        {
+            "from": {
+                "node": "56000000-0000-0000-0000-000000000107",
+                "port": "flow_out"
+            },
+            "to": {
+                "node": "56000000-0000-0000-0000-000000000110",
+                "port": "flow_in"
+            },
+            "kind": "execution"
+        },
+        {
+            "from": {
+                "node": "56000000-0000-0000-0000-000000000103",
+                "port": "out"
+            },
+            "to": {
+                "node": "56000000-0000-0000-0000-000000000110",
+                "port": "db_path"
+            }
+        },
+        {
+            "from": {
+                "node": "56000000-0000-0000-0000-000000000108",
+                "port": "out"
+            },
+            "to": {
+                "node": "56000000-0000-0000-0000-000000000110",
+                "port": "sql"
+            }
+        },
+        {
+            "from": {
+                "node": "56000000-0000-0000-0000-000000000109",
+                "port": "out"
+            },
+            "to": {
+                "node": "56000000-0000-0000-0000-000000000110",
+                "port": "fallback"
+            }
+        },
+        {
+            "from": {
+                "node": "56000000-0000-0000-0000-000000000110",
+                "port": "flow_out"
+            },
+            "to": {
+                "node": "56000000-0000-0000-0000-000000000112",
+                "port": "flow_in"
+            },
+            "kind": "execution"
+        },
+        {
+            "from": {
+                "node": "56000000-0000-0000-0000-000000000111",
+                "port": "out"
+            },
+            "to": {
+                "node": "56000000-0000-0000-0000-000000000112",
+                "port": "text"
+            }
+        },
+        {
+            "from": {
+                "node": "56000000-0000-0000-0000-000000000112",
+                "port": "flow_out"
+            },
+            "to": {
+                "node": "56000000-0000-0000-0000-000000000113",
+                "port": "flow_in"
+            },
+            "kind": "execution"
+        },
+        {
+            "from": {
+                "node": "56000000-0000-0000-0000-000000000110",
+                "port": "value"
+            },
+            "to": {
+                "node": "56000000-0000-0000-0000-000000000113",
+                "port": "text"
+            }
+        }
+    ]
+}

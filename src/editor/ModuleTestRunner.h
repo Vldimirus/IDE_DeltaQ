@@ -18,6 +18,7 @@ struct TestResult {
     QString compilerOutput;
     QString runOutput;
     QMap<QString, QString> outputValues; // порт → значение
+    QMap<QString, QString> expectedOutputValues; // порт → ожидаемое значение
     QStringList errors;
 };
 
@@ -31,7 +32,9 @@ public:
     TestResult compile(const Module &module);
 
     // Генерация тестовой обвязки + компиляция + запуск
-    TestResult runTest(const Module &module, const QMap<QString, QString> &inputValues);
+    TestResult runTest(const Module &module,
+                       const QMap<QString, QString> &inputValues,
+                       const QMap<QString, QString> &expectedOutputValues = {});
 
 signals:
     void compilationFinished(bool success, const QString &output);
@@ -47,6 +50,9 @@ private:
 
     // Парсинг вывода: OUTPUT:port=value
     QMap<QString, QString> parseOutput(const QString &output);
+    // Сверяет фактические output values с ожидаемыми значениями сценария.
+    void applyExpectedOutputs(TestResult *result,
+                              const QMap<QString, QString> &expectedOutputValues);
 
     QString m_tempDir;
 };

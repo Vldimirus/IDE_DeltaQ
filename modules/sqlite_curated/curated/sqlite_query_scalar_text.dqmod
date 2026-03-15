@@ -1,0 +1,79 @@
+{
+    "schema_version": 2,
+    "id": "ext.sqlite_curated.sqlite_query_scalar_text",
+    "name": "sqlite_query_scalar_text",
+    "version": "1.0.0",
+    "language": "c",
+    "description": "Curated entry: executes scalar SELECT and returns first text value",
+    "category": "sqlite_curated",
+    "origin": "extension",
+    "ports": {
+        "input": [
+            {
+                "name": "flow_in",
+                "type": "exec",
+                "kind": "execution"
+            },
+            {
+                "name": "db_path",
+                "type": "string"
+            },
+            {
+                "name": "sql",
+                "type": "string"
+            },
+            {
+                "name": "fallback",
+                "type": "string",
+                "default": "\"\""
+            }
+        ],
+        "output": [
+            {
+                "name": "flow_out",
+                "type": "exec",
+                "kind": "execution"
+            },
+            {
+                "name": "value",
+                "type": "string"
+            }
+        ]
+    },
+    "source": "",
+    "header": "",
+    "dependencies": [],
+    "includes": [
+        "<sqlite_deltaq_runtime.h>"
+    ],
+    "source_code": "/* Выполняет scalar SELECT и возвращает первую текстовую колонку или fallback. */\nconst char *dq_sqlite_query_scalar_text(const char *db_path, const char *sql, const char *fallback) {\n    static char buffer[1024];\n    sqlite3 *database = NULL;\n    sqlite3_stmt *statement = NULL;\n    int step_status = -1;\n    buffer[0] = '\\0';\n    snprintf(buffer, sizeof(buffer), \"%s\", fallback ? fallback : \"\");\n    database = dq_sqlite_open_database(db_path);\n    if (!database)\n        return buffer;\n    if (dq_sqlite_prepare_statement(database, sql, &statement) != DQ_SQLITE_OK) {\n        dq_sqlite_close_database(database);\n        return buffer;\n    }\n    step_status = dq_sqlite_step_statement(statement);\n    if (step_status == DQ_SQLITE_ROW)\n        snprintf(buffer, sizeof(buffer), \"%s\", dq_sqlite_column_text_value(statement, 0));\n    dq_sqlite_finalize_statement(statement);\n    dq_sqlite_close_database(database);\n    return buffer;\n}",
+    "metadata": {
+        "deltaq.import.kind": "library_pack_module",
+        "deltaq.import.pack_name": "sqlite_curated",
+        "deltaq.import.pack_title": "SQLite Curated",
+        "deltaq.import.language": "c",
+        "deltaq.import.standard": "c17",
+        "deltaq.import.original_symbol": "sqlite_query_scalar_text",
+        "deltaq.import.display_name": "SQLite Query Scalar Text",
+        "deltaq.import.curation_role": "curated_entry",
+        "deltaq.import.header_paths": [
+            "sqlite_deltaq_runtime.h"
+        ],
+        "deltaq.import.link_libraries": [
+            "dl"
+        ],
+        "deltaq.doc.when_to_use": "Когда graph должен получить одно строковое значение из SQLite без ручного prepared-statement lifecycle.",
+        "deltaq.doc.limitations": "Linux-first curated helper: читает только первую колонку первой строки и возвращает fallback, если row не получен."
+    },
+    "provenance": {
+        "source_kind": "imported_pack",
+        "manifest_id": "sqlite_curated_v1",
+        "source_ref": "sqlite_curated",
+        "symbol": "sqlite_query_scalar_text",
+        "tool_version": "checked_in_v1"
+    },
+    "verification": {
+        "compile_status": "passed",
+        "test_status": "passed"
+    }
+}

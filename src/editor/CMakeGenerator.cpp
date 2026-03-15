@@ -55,6 +55,33 @@ QString formatCMakeValue(const QString &value)
     return escaped;
 }
 
+// Ищет корень pack-а по storagePath модуля, чтобы build мог использовать checked-in headers pack-а.
+QString modulePackRootDir(const Module &module)
+{
+    if (module.storagePath.trimmed().isEmpty())
+        return {};
+
+    QDir dir(QFileInfo(module.storagePath).absolutePath());
+    for (int depth = 0; depth < 6; ++depth) {
+        if (QFileInfo::exists(dir.filePath("pack.json")))
+            return dir.absolutePath();
+        if (!dir.cdUp())
+            break;
+    }
+    return {};
+}
+
+// Возвращает локальный include-dir pack-а, если он лежит рядом с checked-in `.dqmod`.
+QString modulePackLocalIncludeDir(const Module &module)
+{
+    const QString packRoot = modulePackRootDir(module);
+    if (packRoot.isEmpty())
+        return {};
+
+    const QString includeDir = QDir(packRoot).filePath("include");
+    return QFileInfo::exists(includeDir) ? includeDir : QString();
+}
+
 // Нормализует project-facing dialect label (`c17`, `gnu17`, `c++20`) к числу,
 // которое ожидает CMake в `CMAKE_<LANG>_STANDARD`.
 QString normalizeCMakeStandardValue(const QString &value)
@@ -192,6 +219,9 @@ void CMakeGenerator::collectImportedPackRequirementsFromModule(
         requirement.packName = packName;
         appendUnique(requirement.includePaths,
                      metadataStringList(module, "deltaq.import.include_paths"));
+        const QString localIncludeDir = modulePackLocalIncludeDir(module);
+        if (!localIncludeDir.trimmed().isEmpty())
+            appendUnique(requirement.includePaths, QStringList{localIncludeDir});
         appendUnique(requirement.defines,
                      metadataStringList(module, "deltaq.import.defines"));
         appendUnique(requirement.linkLibraries,

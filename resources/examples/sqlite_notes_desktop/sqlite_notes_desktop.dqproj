@@ -1,0 +1,20 @@
+{
+    "name": "SQLiteNotesDesktop",
+    "version": "1.0.0",
+    "modules": [
+        "dqmods/*.dqmod"
+    ],
+    "graphs": [
+        "graphs/*.dqgraph"
+    ],
+    "ui_layouts": [
+        "ui/*.dqui"
+    ],
+    "type": "desktop",
+    "build": {
+        "compiler": "auto",
+        "standard": "c17",
+        "output": "build/",
+        "flags": []
+    }
+}

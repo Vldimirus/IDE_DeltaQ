@@ -343,6 +343,69 @@ private slots:
         QVERIFY(content.contains("target_link_libraries(CompositeImportedPackApp PRIVATE"));
         QVERIFY(content.contains("\n    m\n"));
     }
+
+    void testImportedPackUsesLocalPackIncludeDirFromStoragePath()
+    {
+        QTemporaryDir tmpDir;
+        QVERIFY(tmpDir.isValid());
+
+        QFile mainFile(tmpDir.path() + "/main.c");
+        QVERIFY(mainFile.open(QIODevice::WriteOnly));
+        mainFile.write("int main(void) { return 0; }\n");
+        mainFile.close();
+
+        const QString packRoot = tmpDir.path() + "/sqlite_curated";
+        QVERIFY(QDir().mkpath(packRoot + "/include"));
+        QVERIFY(QDir().mkpath(packRoot + "/curated"));
+
+        QFile packFile(packRoot + "/pack.json");
+        QVERIFY(packFile.open(QIODevice::WriteOnly | QIODevice::Text));
+        packFile.write("{\"name\":\"SQLite Curated\",\"version\":\"1.0\",\"official\":true}\n");
+        packFile.close();
+
+        ModuleRegistry registry;
+        GraphStore graphStore;
+        registry.setGraphStore(&graphStore);
+
+        Module imported;
+        imported.id = "ext.sqlite_curated.sqlite_exec_path";
+        imported.name = "sqlite_exec_path";
+        imported.language = "c";
+        imported.version = "1.0";
+        imported.origin = "extension";
+        imported.compileStatus = "passed";
+        imported.testStatus = "passed";
+        imported.storagePath = packRoot + "/curated/sqlite_exec_path.dqmod";
+        imported.inputs = {Port::exec("flow_in"), {"db_path", "string", "\"runtime/profile.db\""}, {"sql", "string", "\"SELECT 1;\""}};
+        imported.outputs = {Port::exec("flow_out"), {"status", "int", ""}};
+        imported.sourceCode = "/* Выполняет SQL по пути к базе и закрывает handle. */\nint dq_sqlite_exec_path(const char *db_path, const char *sql) {\n    (void) db_path;\n    (void) sql;\n    return 0;\n}";
+        imported.metadata["deltaq.import.kind"] = "library_pack_module";
+        imported.metadata["deltaq.import.pack_name"] = "sqlite_curated";
+        imported.metadata["deltaq.import.link_libraries"] = QJsonArray{"dl"};
+        QVERIFY(registry.registerModule(imported));
+
+        Graph root = Graph::create("main");
+        GraphNode node;
+        node.id = "sqlite_exec";
+        node.moduleId = imported.id;
+        QVERIFY(root.addNode(node));
+        QVERIFY(graphStore.registerGraph(root));
+
+        CMakeGenerator gen;
+        gen.setModuleRegistry(&registry);
+        gen.setGraphStore(&graphStore);
+        gen.generate(tmpDir.path(), "LocalPackIncludeApp");
+
+        QFile cmake(tmpDir.path() + "/CMakeLists.txt");
+        QVERIFY(cmake.open(QIODevice::ReadOnly));
+        const QString content = QString::fromUtf8(cmake.readAll());
+
+        QVERIFY(content.contains("#   - sqlite_curated"));
+        QVERIFY(content.contains("target_include_directories(LocalPackIncludeApp PRIVATE"));
+        QVERIFY(content.contains(QDir::fromNativeSeparators(packRoot + "/include")));
+        QVERIFY(content.contains("target_link_libraries(LocalPackIncludeApp PRIVATE"));
+        QVERIFY(content.contains("\n    dl\n"));
+    }
 };
 
 QTEST_MAIN(TestCMakeGenerator)

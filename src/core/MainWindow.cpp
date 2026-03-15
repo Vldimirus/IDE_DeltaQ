@@ -17,6 +17,7 @@
 
 #include "../editor/CodeEditorWidget.h"
 #include "../editor/CodeEditorTab.h"
+#include "../editor/ModuleEditorWidget.h"
 #include "../editor/ProjectTreeView.h"
 #include "../editor/BuildManager.h"
 #include "../editor/LinuxProjectExporter.h"
@@ -124,6 +125,30 @@ QString buildDiagnosticLocationText(const QString &filePath, int line, int colum
     return text;
 }
 
+// Создаёт стартовый transient fragment, который можно сразу прогнать через verification и trace.
+Module makeDefaultScratchpadModule(const QString &name)
+{
+    Module module = Module::create(name, "c");
+    module.category = "custom";
+    module.description = QObject::tr("Transient fragment scratchpad for algorithm sketching");
+    module.inputs = {{"value", "int", "2"}};
+    module.outputs = {{"result", "int", ""}};
+    module.sourceCode =
+        QStringLiteral("int dq_%1(int value) {\n"
+                       "    return value + 1;\n"
+                       "}")
+            .arg(name);
+
+    ModuleVerificationScenario scenario;
+    scenario.id = QStringLiteral("scenario_1");
+    scenario.name = QObject::tr("quick_check");
+    scenario.inputValues.insert(QStringLiteral("value"), QStringLiteral("2"));
+    scenario.expectedOutputValues.insert(QStringLiteral("result"), QStringLiteral("3"));
+    module.verificationScenarios.append(scenario);
+    module.verificationScenarioRefs.append(scenario.displayName());
+    return module;
+}
+
 } // namespace
 
 MainWindow::MainWindow(QWidget *parent)
@@ -186,8 +211,8 @@ void MainWindow::setupCoreServices()
     // 1. Убедиться, что директория модулей существует
     m_sessionManager->ensureGlobalDirs();
 
-    // 2. Синхронизировать bundled core pack в writable global root.
-    StandardLibrary::install(m_sessionManager->coreModulesDir());
+    // 2. Синхронизировать bundled official pack-и в writable global root.
+    StandardLibrary::installBundledPacks(m_sessionManager->globalModulesDir());
 
     // 3. Регистрация UI-модулей (фиксированные виджеты)
     UIModuleFactory::registerAll(m_moduleRegistry);
@@ -451,9 +476,8 @@ void MainWindow::setupConnections()
     // Undo/redo: если фокус в редакторе кода — делегируем QPlainTextEdit, иначе — UndoManager
     connect(am->undoAction(), &QAction::triggered, this, [this]() {
         if (m_centralStack->currentWidget() == m_codeEditor) {
-            auto *tab = m_codeEditor->currentTab();
-            if (tab && tab->editor()) {
-                tab->editor()->undo();
+            if (auto *editor = m_codeEditor->currentPlainTextEditor()) {
+                editor->undo();
                 return;
             }
         }
@@ -461,9 +485,8 @@ void MainWindow::setupConnections()
     });
     connect(am->redoAction(), &QAction::triggered, this, [this]() {
         if (m_centralStack->currentWidget() == m_codeEditor) {
-            auto *tab = m_codeEditor->currentTab();
-            if (tab && tab->editor()) {
-                tab->editor()->redo();
+            if (auto *editor = m_codeEditor->currentPlainTextEditor()) {
+                editor->redo();
                 return;
             }
         }
@@ -751,6 +774,10 @@ void MainWindow::setupConnections()
 
     // LSP: запуск при открытии проекта
     connect(m_projectManager, &ProjectManager::projectOpened, this, [this]() {
+        // Automation/regression-тесты могут отключить auto-start LSP, если текущий slice не про clangd.
+        if (qEnvironmentVariableIsSet("DQ_DISABLE_AUTOSTART_LSP"))
+            return;
+
         // Ищем clangd в PATH
         QString clangd = "clangd";
         m_lspClient->start(clangd, {"--background-index"});
@@ -782,9 +809,6 @@ void MainWindow::setupConnections()
         }
     });
 
-    // LSP: диагностика → подчёркивание ошибок в редакторе
-    connect(m_lspClient, &LSPClient::diagnosticsReceived,
-            m_codeEditor, &CodeEditorWidget::onDiagnosticsReceived);
     connect(m_codeEditor, &CodeEditorWidget::diagnosticsUpdated, this,
             [this](const QString &path, int errors, int warnings) {
         // Обновляем бейджи в дереве проекта
@@ -1010,7 +1034,7 @@ void MainWindow::onOpenProject()
 
 void MainWindow::onSaveFile()
 {
-    // Проверяем, является ли текущая вкладка кастомной (UIDesigner или BlockEditor)
+    // Проверяем, является ли текущая вкладка кастомной (UIDesigner, BlockEditor, ModuleEditor)
     QWidget *currentWidget = m_codeEditor->currentCustomTabWidget();
     if (auto *uiDesigner = qobject_cast<UIDesignerWidget *>(currentWidget)) {
         uiDesigner->saveLayout(m_uiLayoutStore);
@@ -1027,6 +1051,13 @@ void MainWindow::onSaveFile()
             m_graphStore->saveAll(m_projectManager->projectDir());
         }
         statusBar()->showMessage(tr("Graph saved"), 3000);
+        return;
+    }
+    if (auto *moduleEditor = qobject_cast<ModuleEditorWidget *>(currentWidget)) {
+        if (moduleEditor->saveModule())
+            statusBar()->showMessage(tr("Module saved"), 3000);
+        else
+            statusBar()->showMessage(tr("Failed to save module"), 3000);
         return;
     }
     // Обычный текстовый файл
@@ -1186,32 +1217,20 @@ void MainWindow::onFileActivated(const QString &path)
         return;
     }
 
-    // Модуль — ищем граф с этим модулем и открываем как вкладку
+    // Модуль — открываем в dedicated Module Editor, а не уводим в graph tab.
     if (ext == "dqmod") {
-        QFile f(path);
-        if (f.open(QIODevice::ReadOnly)) {
-            QString moduleId = QJsonDocument::fromJson(f.readAll()).object()["id"].toString();
-            if (!moduleId.isEmpty() && m_graphStore) {
-                for (auto *graph : m_graphStore->allGraphs()) {
-                    for (const auto &node : graph->nodes) {
-                        if (node.moduleId == moduleId) {
-                            // Ищем файл графа, чтобы использовать как ключ вкладки
-                            QString graphPath = m_projectManager->currentProject().projectDir
-                                + "/graphs/" + graph->name + ".dqgraph";
-                            if (m_codeEditor->findCustomTabWidget(graphPath)) {
-                                m_codeEditor->openCustomTab(nullptr, {}, graphPath);
-                            } else {
-                                auto *editor = new BlockEditorWidget(m_moduleRegistry, m_commandBus);
-                                editor->loadGraph(graph->id, m_graphStore);
-                                connectBlockEditorSignals(editor);
-                                m_codeEditor->openCustomTab(editor,
-                                    graph->name + ".dqgraph", graphPath);
-                            }
-                            return;
-                        }
-                    }
-                }
-            }
+        if (m_codeEditor->findCustomTabWidget(path)) {
+            m_codeEditor->openCustomTab(nullptr, {}, path);
+            return;
+        }
+
+        auto *editor = new ModuleEditorWidget(m_moduleRegistry, m_codeEditor);
+        if (editor->loadFromFile(path)) {
+            m_codeEditor->openCustomTab(editor, name, path);
+        } else {
+            delete editor;
+            m_codeEditor->openFile(path);
+            statusBar()->showMessage(tr("Invalid .dqmod file opened as text"), 3000);
         }
         return;
     }
@@ -1277,8 +1296,11 @@ void MainWindow::updateEditorActions()
 
     if (codeEditorActive) {
         if (auto *customTab = m_codeEditor->currentCustomTabWidget()) {
+            auto *moduleEditor = qobject_cast<ModuleEditorWidget *>(customTab);
             canSave = qobject_cast<UIDesignerWidget *>(customTab)
-                || qobject_cast<BlockEditorWidget *>(customTab);
+                || qobject_cast<BlockEditorWidget *>(customTab)
+                || (moduleEditor && moduleEditor->isEditable());
+            canEditText = moduleEditor && moduleEditor->isEditable();
         } else if (auto *tab = m_codeEditor->currentTab()) {
             canEditText = tab->editor() && !tab->editor()->isReadOnly();
             canSave = canEditText;
@@ -1723,6 +1745,7 @@ void MainWindow::onOpenDistDirectory()
     openProjectSubdirectory("dist", tr("Dist directory is not available yet"));
 }
 
+// Создаёт новый файл проекта или открывает transient scratchpad без немедленной записи `.dqmod`.
 void MainWindow::onNewFile()
 {
     if (!m_projectManager->isProjectOpen()) {
@@ -1738,6 +1761,11 @@ void MainWindow::onNewFile()
     QString name = dlg.fileName();
     QString path = dlg.fullPath();
     if (name.isEmpty() || path.isEmpty()) return;
+
+    if (type == "scratchpad") {
+        openModuleScratchpad(name);
+        return;
+    }
 
     // Создаём директорию
     QDir().mkpath(QFileInfo(path).absolutePath());
@@ -1790,6 +1818,43 @@ void MainWindow::onNewFile()
     // Открыть файл во вкладке
     onFileActivated(path);
     statusBar()->showMessage(tr("File '%1' created").arg(QFileInfo(path).fileName()), 3000);
+}
+
+// Открывает transient Module Studio scratchpad, который можно проверить и потом promoted в `.dqmod`.
+void MainWindow::openModuleScratchpad(const QString &name)
+{
+    if (!m_projectManager->isProjectOpen()) {
+        statusBar()->showMessage(tr("No project open"), 3000);
+        return;
+    }
+
+    const QString trimmedName = name.trimmed();
+    if (trimmedName.isEmpty()) {
+        statusBar()->showMessage(tr("Scratchpad name is empty"), 3000);
+        return;
+    }
+
+    const QString targetPath =
+        m_projectManager->projectDir() + "/dqmods/" + trimmedName + ".dqmod";
+    if (QFile::exists(targetPath)) {
+        onFileActivated(targetPath);
+        statusBar()->showMessage(
+            tr("Scratchpad target already exists; opened saved module instead."),
+            3000);
+        return;
+    }
+
+    switchToCodeEditor();
+    if (m_codeEditor->findCustomTabWidget(targetPath)) {
+        m_codeEditor->openCustomTab(nullptr, {}, targetPath);
+        statusBar()->showMessage(tr("Scratchpad already open"), 3000);
+        return;
+    }
+
+    auto *editor = new ModuleEditorWidget(m_moduleRegistry, m_codeEditor);
+    editor->startScratchpad(makeDefaultScratchpadModule(trimmedName), targetPath);
+    m_codeEditor->openCustomTab(editor, trimmedName, targetPath);
+    statusBar()->showMessage(tr("Fragment scratchpad opened"), 3000);
 }
 
 void MainWindow::updateRecentProjectsMenu()

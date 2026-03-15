@@ -180,6 +180,127 @@ private slots:
         QCOMPARE(restored.testStatus, QString("modified"));
     }
 
+    void schemaV2RoundtripSeparatesTrustAndVerification()
+    {
+        Module m = Module::create("Traceable");
+        m.origin = "local";
+        m.sourcePath = "src/traceable.c";
+        m.provenance.sourceKind = "manual";
+        m.provenance.sourceRef = "src/traceable.c";
+        m.provenance.manifestId = "manual-seed";
+        m.trustState = "curated";
+        m.compileStatus = "passed";
+        m.testStatus = "modified";
+        m.lastVerifiedAt = "2026-03-15T14:20:00Z";
+        m.verificationScenarioRefs = {"smoke/basic", "smoke/edge"};
+        m.verificationTraceArtifactRefs = {"trace://traceable/basic"};
+
+        const QJsonObject json = m.toJson();
+        QCOMPARE(json["schema_version"].toInt(), Module::SchemaVersion);
+        QCOMPARE(json["trust_state"].toString(), QString("curated"));
+        QCOMPARE(json["provenance"].toObject()["source_kind"].toString(), QString("manual"));
+        QCOMPARE(json["verification"].toObject()["last_verified_at"].toString(),
+                 QString("2026-03-15T14:20:00Z"));
+        QCOMPARE(json["verification"].toObject()["scenario_refs"].toArray().size(), 2);
+        QCOMPARE(json["verification"].toObject()["trace_artifact_refs"].toArray().size(), 1);
+
+        const Module restored = Module::fromJson(json);
+        QCOMPARE(restored.trustState, QString("curated"));
+        QCOMPARE(restored.provenance.sourceKind, QString("manual"));
+        QCOMPARE(restored.provenance.sourceRef, QString("src/traceable.c"));
+        QCOMPARE(restored.lastVerifiedAt, QString("2026-03-15T14:20:00Z"));
+        QCOMPARE(restored.verificationScenarioRefs, QStringList({"smoke/basic", "smoke/edge"}));
+        QCOMPARE(restored.verificationTraceArtifactRefs, QStringList({"trace://traceable/basic"}));
+        QCOMPARE(restored.compileStatus, QString("passed"));
+        QCOMPARE(restored.testStatus, QString("modified"));
+    }
+
+    void verificationScenariosRoundtrip()
+    {
+        Module m = Module::create("ScenarioCarrier");
+        m.inputs = {{"value", "int", "1"}};
+        m.outputs = {{"result", "int", ""}};
+
+        ModuleVerificationScenario scenario;
+        scenario.id = "scenario_1";
+        scenario.name = "basic";
+        scenario.inputValues["value"] = "2";
+        scenario.expectedOutputValues["result"] = "3";
+        m.verificationScenarios.append(scenario);
+
+        const QJsonObject json = m.toJson();
+        QCOMPARE(json["verification"].toObject()["scenarios"].toArray().size(), 1);
+        QCOMPARE(json["verification"].toObject()["scenario_refs"].toArray().at(0).toString(),
+                 QString("basic"));
+
+        const Module restored = Module::fromJson(json);
+        QCOMPARE(restored.verificationScenarios.size(), 1);
+        QCOMPARE(restored.verificationScenarios.first().id, QString("scenario_1"));
+        QCOMPARE(restored.verificationScenarios.first().name, QString("basic"));
+        QCOMPARE(restored.verificationScenarios.first().inputValues.value("value"), QString("2"));
+        QCOMPARE(restored.verificationScenarios.first().expectedOutputValues.value("result"),
+                 QString("3"));
+        QCOMPARE(restored.verificationScenarioRefs, QStringList({"basic"}));
+    }
+
+    // Проверяет, что trace artifacts и step events проходят стабильный schema-backed round-trip.
+    void verificationTraceArtifactsRoundtrip()
+    {
+        Module m = Module::create("TraceCarrier");
+        m.inputs = {{"value", "int", "1"}};
+        m.outputs = {{"result", "int", ""}};
+
+        ModuleVerificationScenario scenario;
+        scenario.id = "scenario_1";
+        scenario.name = "basic";
+        scenario.inputValues["value"] = "2";
+        scenario.expectedOutputValues["result"] = "3";
+        m.verificationScenarios.append(scenario);
+
+        ModuleTraceArtifact artifact;
+        artifact.id = "trace://TraceCarrier/scenario_1";
+        artifact.scenarioId = "scenario_1";
+        artifact.createdAt = "2026-03-15T15:30:00Z";
+        artifact.status = "captured";
+
+        ModuleTraceEvent enterEvent;
+        enterEvent.stepIndex = 0;
+        enterEvent.eventKind = "enter";
+        enterEvent.sourceLine = 1;
+        enterEvent.sourceSnippet = "int dq_trace_carrier(int value) {";
+        enterEvent.variableSnapshotDelta["value"] = "2";
+        artifact.events.append(enterEvent);
+
+        ModuleTraceEvent returnEvent;
+        returnEvent.stepIndex = 1;
+        returnEvent.eventKind = "return";
+        returnEvent.sourceLine = 2;
+        returnEvent.sourceSnippet = "return value + 1;";
+        returnEvent.outputSnapshot["result"] = "3";
+        artifact.events.append(returnEvent);
+
+        m.verificationTraceArtifacts.append(artifact);
+
+        const QJsonObject json = m.toJson();
+        const QJsonObject verification = json["verification"].toObject();
+        QCOMPARE(verification["trace_artifact_refs"].toArray().size(), 1);
+        QCOMPARE(verification["trace_artifact_refs"].toArray().at(0).toString(),
+                 QString("trace://TraceCarrier/scenario_1"));
+        QCOMPARE(verification["trace_artifacts"].toArray().size(), 1);
+
+        const Module restored = Module::fromJson(json);
+        QCOMPARE(restored.verificationTraceArtifactRefs,
+                 QStringList({"trace://TraceCarrier/scenario_1"}));
+        QCOMPARE(restored.verificationTraceArtifacts.size(), 1);
+        QCOMPARE(restored.verificationTraceArtifacts.first().scenarioId, QString("scenario_1"));
+        QCOMPARE(restored.verificationTraceArtifacts.first().status, QString("captured"));
+        QCOMPARE(restored.verificationTraceArtifacts.first().events.size(), 2);
+        QCOMPARE(restored.verificationTraceArtifacts.first().events.first().eventKind,
+                 QString("enter"));
+        QCOMPARE(restored.verificationTraceArtifacts.first().events.last().outputSnapshot.value("result"),
+                 QString("3"));
+    }
+
     void metadataRoundtrip()
     {
         Module m = Module::create("UiContract");
@@ -212,6 +333,58 @@ private slots:
         const Module restored = Module::fromJson(json);
         QCOMPARE(restored.testStatus, QString("passed"));
         QCOMPARE(restored.compileStatus, QString("passed"));
+    }
+
+    void legacyModulesDeriveCanonicalTrustAndProvenance()
+    {
+        QJsonObject json;
+        json["id"] = "legacy-verified";
+        json["name"] = "LegacyVerified";
+        json["language"] = "c";
+        json["origin"] = "local";
+        json["source"] = "src/legacy_verified.c";
+
+        QJsonObject ports;
+        ports["input"] = QJsonArray{};
+        ports["output"] = QJsonArray{};
+        json["ports"] = ports;
+
+        QJsonObject verification;
+        verification["compile_status"] = "passed";
+        verification["test_status"] = "passed";
+        json["verification"] = verification;
+
+        const Module restored = Module::fromJson(json);
+        QCOMPARE(restored.provenance.sourceKind, QString("manual"));
+        QCOMPARE(restored.provenance.sourceRef, QString("src/legacy_verified.c"));
+        QCOMPARE(restored.trustState, QString("smoke_passed"));
+    }
+
+    void importedPackLegacyModulesDeriveImportedTrust()
+    {
+        QJsonObject json;
+        json["id"] = "sensor-read";
+        json["name"] = "sensor_read";
+        json["language"] = "c";
+        json["origin"] = "extension";
+
+        QJsonObject ports;
+        ports["input"] = QJsonArray{};
+        ports["output"] = QJsonArray{};
+        json["ports"] = ports;
+
+        QJsonObject metadata;
+        metadata["deltaq.import.kind"] = "library_pack_module";
+        metadata["deltaq.import.pack_name"] = "sensor_sdk";
+        metadata["deltaq.import.original_symbol"] = "sensor_read";
+        metadata["deltaq.import.curation_role"] = "curated_entry";
+        json["metadata"] = metadata;
+
+        const Module restored = Module::fromJson(json);
+        QCOMPARE(restored.provenance.sourceKind, QString("imported_pack"));
+        QCOMPARE(restored.provenance.sourceRef, QString("sensor_sdk"));
+        QCOMPARE(restored.provenance.symbol, QString("sensor_read"));
+        QCOMPARE(restored.trustState, QString("curated"));
     }
 
     void isCompositeDependsOnGraphId()

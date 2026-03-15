@@ -1,5 +1,6 @@
 // Менеджер модулей — реализация
 #include "ModuleManagerWidget.h"
+#include "ModuleSignatureUtils.h"
 #include "ModuleTestRunner.h"
 #include "../core/ModuleRegistry.h"
 #include "../core/StandardLibrary.h"
@@ -17,7 +18,6 @@
 #include <QMessageBox>
 #include <QInputDialog>
 #include <QPlainTextEdit>
-#include <QRegularExpression>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -45,6 +45,12 @@ struct ModuleEcosystemSummary {
     QString roleText;
     QString qualityText;
 };
+
+QString lifecycleAxisSummary(const Module &module)
+{
+    return QObject::tr("Trust: %1 | Provenance: %2")
+        .arg(module.effectiveTrustState(), module.effectiveProvenance().sourceKind);
+}
 
 // Человекочитаемое название роли imported-модуля внутри v1 curation flow.
 QString importedCurationRoleTitle(const Module &module)
@@ -278,6 +284,7 @@ ModuleEcosystemSummary buildModuleEcosystemSummary(const ModuleRegistry *registr
         summary.qualityText = curation.isKnown()
             ? QObject::tr("Quality bar: explicit curation review для checked-in core.")
             : QObject::tr("Quality bar: checked-in core ещё не прошёл explicit curation review.");
+        summary.qualityText += QObject::tr(" | %1").arg(lifecycleAxisSummary(module));
         return summary;
     }
 
@@ -286,6 +293,7 @@ ModuleEcosystemSummary buildModuleEcosystemSummary(const ModuleRegistry *registr
         summary.roleText = QObject::tr("backend-agnostic contract");
         summary.qualityText = QObject::tr(
             "Quality bar: read-only UI contract layer, runtime приходит из backend codegen.");
+        summary.qualityText += QObject::tr(" | %1").arg(lifecycleAxisSummary(module));
         return summary;
     }
 
@@ -297,6 +305,7 @@ ModuleEcosystemSummary buildModuleEcosystemSummary(const ModuleRegistry *registr
             .arg(module.importedOriginalSymbol(),
                  moduleCompileStatusText(module.compileStatus),
                  moduleTestStatusText(module.testStatus));
+        summary.qualityText += QObject::tr(" | %1").arg(lifecycleAxisSummary(module));
         return summary;
     }
 
@@ -304,6 +313,7 @@ ModuleEcosystemSummary buildModuleEcosystemSummary(const ModuleRegistry *registr
         summary.layerText = QObject::tr("Проектный модуль");
         summary.roleText = QObject::tr("составной reusable module");
         summary.qualityText = QObject::tr("Quality bar: inner graph admission внутри текущего проекта.");
+        summary.qualityText += QObject::tr(" | %1").arg(lifecycleAxisSummary(module));
         return summary;
     }
 
@@ -311,6 +321,7 @@ ModuleEcosystemSummary buildModuleEcosystemSummary(const ModuleRegistry *registr
         summary.layerText = QObject::tr("Проектный модуль");
         summary.roleText = QObject::tr("локальный атомарный модуль");
         summary.qualityText = QObject::tr("Quality bar: staged verification внутри текущего проекта.");
+        summary.qualityText += QObject::tr(" | %1").arg(lifecycleAxisSummary(module));
         return summary;
     }
 
@@ -320,6 +331,7 @@ ModuleEcosystemSummary buildModuleEcosystemSummary(const ModuleRegistry *registr
         .arg(contractValid ? QObject::tr("корректен") : QObject::tr("ошибка"))
         .arg(hasImplementation ? QObject::tr("есть") : QObject::tr("отсутствует"))
         .arg(admitted ? QObject::tr("есть") : QObject::tr("нет"));
+    summary.qualityText += QObject::tr(" | %1").arg(lifecycleAxisSummary(module));
     return summary;
 }
 
@@ -1567,62 +1579,11 @@ void ModuleManagerWidget::onCodeChanged()
 
 void ModuleManagerWidget::parseSignature(const QString &code)
 {
-    // Ищем сигнатуру: тип dq_name(аргументы)
-    QRegularExpression re(
-        R"((\w+)\s+dq_(\w+)\s*\(([^)]*)\))");
-    auto match = re.match(code);
-    if (!match.hasMatch()) return;
-
-    QString returnType = match.captured(1);
-    QString argsStr = match.captured(3);
-
     Module *mod = m_registry->findModule(m_currentModuleId);
-    if (!mod) return;
+    if (!mod)
+        return;
 
-    // Очищаем и перестраиваем порты
-    mod->inputs.clear();
-    mod->outputs.clear();
-
-    // Парсим аргументы
-    if (!argsStr.trimmed().isEmpty() && argsStr.trimmed() != "void") {
-        QStringList args = argsStr.split(',');
-        for (const auto &arg : args) {
-            QString trimmed = arg.trimmed();
-            // Ищем последний пробел — перед ним тип, после — имя
-            int lastSpace = trimmed.lastIndexOf(' ');
-            if (lastSpace > 0) {
-                QString type = trimmed.left(lastSpace).trimmed();
-                QString name = trimmed.mid(lastSpace + 1).trimmed();
-                // Убираем указатели/ссылки из имени
-                name.remove('*');
-                name.remove('&');
-
-                Port p;
-                p.name = name;
-                // Маппинг C-типов на типы портов
-                if (type == "int" || type == "long") p.type = "int";
-                else if (type == "float") p.type = "float";
-                else if (type == "double") p.type = "double";
-                else if (type == "const char*" || type == "char*") p.type = "string";
-                else p.type = "int";
-
-                mod->inputs.append(p);
-            }
-        }
-    }
-
-    // Возвращаемый тип → выходной порт
-    if (returnType != "void") {
-        Port outPort;
-        outPort.name = "result";
-        if (returnType == "int" || returnType == "long") outPort.type = "int";
-        else if (returnType == "float") outPort.type = "float";
-        else if (returnType == "double") outPort.type = "double";
-        else if (returnType == "const char*" || returnType == "char*") outPort.type = "string";
-        else outPort.type = "int";
-        mod->outputs.append(outPort);
-    }
-
+    parseModuleSignatureIntoContract(mod, code);
     updatePortTable(*mod);
 }
 

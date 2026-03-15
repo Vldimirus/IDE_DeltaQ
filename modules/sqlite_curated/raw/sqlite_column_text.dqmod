@@ -1,0 +1,64 @@
+{
+    "schema_version": 2,
+    "id": "ext.sqlite_curated.sqlite_column_text",
+    "name": "sqlite_column_text",
+    "version": "1.0.0",
+    "language": "c",
+    "description": "Hidden raw wrapper: reads text column from current row",
+    "category": "sqlite_raw",
+    "origin": "extension",
+    "ports": {
+        "input": [
+            {
+                "name": "statement",
+                "type": "pointer"
+            },
+            {
+                "name": "column_index",
+                "type": "int"
+            }
+        ],
+        "output": [
+            {
+                "name": "value",
+                "type": "string"
+            }
+        ]
+    },
+    "source": "",
+    "header": "",
+    "dependencies": [],
+    "includes": [
+        "<sqlite_deltaq_runtime.h>"
+    ],
+    "source_code": "/* Читает text-колонку из текущей строки prepared statement. */\nconst char *dq_sqlite_column_text(void *statement, int column_index) {\n    return dq_sqlite_column_text_value((sqlite3_stmt *) statement, column_index);\n}",
+    "metadata": {
+        "deltaq.import.kind": "library_pack_module",
+        "deltaq.import.pack_name": "sqlite_curated",
+        "deltaq.import.pack_title": "SQLite Curated",
+        "deltaq.import.language": "c",
+        "deltaq.import.standard": "c17",
+        "deltaq.import.original_symbol": "sqlite3_column_text",
+        "deltaq.import.display_name": "sqlite_column_text",
+        "deltaq.import.curation_role": "hidden",
+        "deltaq.import.header_paths": [
+            "sqlite_deltaq_runtime.h"
+        ],
+        "deltaq.import.link_libraries": [
+            "dl"
+        ],
+        "deltaq.doc.when_to_use": "Когда custom SQLite pipeline уже дошёл до SQLITE_ROW и должен забрать строковое значение.",
+        "deltaq.doc.limitations": "Hidden raw wrapper: копирует колонку во внутренний буфер и не хранит multiple-column snapshots."
+    },
+    "provenance": {
+        "source_kind": "imported_pack",
+        "manifest_id": "sqlite_curated_v1",
+        "source_ref": "sqlite_curated",
+        "symbol": "sqlite3_column_text",
+        "tool_version": "checked_in_v1"
+    },
+    "verification": {
+        "compile_status": "passed",
+        "test_status": "passed"
+    }
+}

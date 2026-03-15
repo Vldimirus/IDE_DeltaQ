@@ -106,6 +106,38 @@ DeltaQ — это среда, в которой программа собира�
 
 То, что не помогает этим пунктам, не должно становиться главным направлением разработки.
 
+## Execution Map
+
+Этот раздел фиксирует **порядок крупных execution-track-ов** и помогает понимать,
+где текущая работа находится в общем плане, а не только внутри одного roadmap-документа.
+
+### Current Queue
+
+1. `[x]` `29_linux_release_polish.md`
+   Linux-first release polish закрыт.
+2. `[x]` `30_linux_project_export_v1.md`
+   Linux project export v1 закрыт.
+3. `[x]` `31_project_properties_and_toolchain_ux_v1.md`
+   Project properties and toolchain UX v1 закрыт.
+4. `[x]` `32_product_maturity_recovery_v1.md`
+   Главный maturity-recovery track закрыт.
+5. `[x]` `33_bug_burn_down_shortlist.md`
+   First trust burn-down slice и shortlist зафиксированы; critical blocker tail для этого цикла закрыт.
+6. `[ ]` `34_module_authoring_studio_and_generation_roadmap.md`
+   **Текущий активный execution-track**.
+   Текущее положение: `A0` и базовый `A1/A2-lite` уже закрыты, дальше идут richer contract editing, diagnostics-grade module workflow, verification workspace и затем SQLite forcing function.
+7. `[ ]` `next major delivery/research track`
+   Будет уточнён после закрытия `34_*`.
+
+### Tracking Rule
+
+Для каждого нового крупного track-а должны одновременно существовать:
+
+- roadmap с execution-order и acceptance;
+- checkbox-tracking в `98_strategy_checklist.md`;
+- хронология шагов в `99_execution_log.md`;
+- явное место в этом `Execution Map`.
+
 ## Dependencies Between Documents
 
 Порядок чтения и использования:
@@ -148,5 +180,11 @@ DeltaQ — это среда, в которой программа собира�
 - `26_ui_contract_and_backends.md`
 - `27_library_converter_and_module_packs.md`
 - `28_imported_pack_showcase_and_curation.md`
+- `29_linux_release_polish.md`
+- `30_linux_project_export_v1.md`
+- `31_project_properties_and_toolchain_ux_v1.md`
+- `32_product_maturity_recovery_v1.md`
+- `33_bug_burn_down_shortlist.md`
+- `34_module_authoring_studio_and_generation_roadmap.md`
 - `98_strategy_checklist.md`
 - `99_execution_log.md`

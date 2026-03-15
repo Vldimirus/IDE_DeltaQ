@@ -1,0 +1,67 @@
+{
+    "id": "57000000-0000-0000-0000-000000000010",
+    "name": "window1",
+    "version": "1.0.0",
+    "window": {
+        "id": "57000000-0000-0000-0000-000000000011",
+        "type": "Window",
+        "name": "window1",
+        "x": 0.0,
+        "y": 0.0,
+        "width": 960.0,
+        "height": 640.0,
+        "properties": {
+            "title": "SQLite Notes Desktop",
+            "min_width": 760,
+            "min_height": 520,
+            "resizable": true
+        },
+        "children": [
+            {
+                "id": "57000000-0000-0000-0000-000000000012",
+                "type": "Label",
+                "name": "lblTitle",
+                "x": 20.0,
+                "y": 20.0,
+                "width": 320.0,
+                "height": 32.0,
+                "properties": {
+                    "text": "SQLite Notes Desktop"
+                }
+            },
+            {
+                "id": "57000000-0000-0000-0000-000000000013",
+                "type": "Label",
+                "name": "lblHint",
+                "x": 20.0,
+                "y": 56.0,
+                "width": 760.0,
+                "height": 24.0,
+                "properties": {
+                    "text": "Graph bootstraps SQLite state before the desktop runtime enters the event loop"
+                }
+            },
+            {
+                "id": "57000000-0000-0000-0000-000000000014",
+                "type": "TextArea",
+                "name": "txtNote",
+                "x": 20.0,
+                "y": 100.0,
+                "width": 920.0,
+                "height": 480.0
+            },
+            {
+                "id": "57000000-0000-0000-0000-000000000015",
+                "type": "Label",
+                "name": "lblStatus",
+                "x": 20.0,
+                "y": 592.0,
+                "width": 920.0,
+                "height": 24.0,
+                "properties": {
+                    "text": "Waiting for runtime bootstrap..."
+                }
+            }
+        ]
+    }
+}

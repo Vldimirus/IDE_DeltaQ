@@ -82,6 +82,7 @@
 
 - [imported_packs/mini_sensor_sdk.md](./imported_packs/mini_sensor_sdk.md) — первый полный curated imported-pack walkthrough
 - [imported_packs/mini_checksum_sdk.md](./imported_packs/mini_checksum_sdk.md) — второй imported-pack walkthrough для algorithmic/text-processing case
+- [imported_packs/sqlite_curated.md](./imported_packs/sqlite_curated.md) — первый official database pack, который расширяет vocabulary через curated pack, а не через `core`
 
 Для `v1` imported pack path заявляется честно:
 
@@ -95,6 +96,8 @@
 
 - `resources/examples/minimal_console_flow` — базовый `module -> graph -> generated C -> build -> run`
 - `resources/examples/settings_file_console` — первый useful Stage 4 path для `filesystem + config_json`
+- `resources/examples/sqlite_settings_console` — первый SQLite forcing-function для curated official database pack
+- `resources/examples/sqlite_notes_desktop` — desktop-side SQLite forcing-function для того же curated pack
 - `resources/examples/process_timer_console` — второй useful Stage 4 path для `process + timers`
 - `resources/examples/transport_probe_console` — datagram-first Stage 4 path для `tcp_udp + timers`
 - `resources/examples/serial_probe_console` — device-bridge Stage 4 path для `serial + timers`

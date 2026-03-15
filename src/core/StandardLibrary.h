@@ -62,6 +62,9 @@ public:
     // Копирует source-of-truth core pack в целевую директорию.
     static void install(const QString &coreDir);
 
+    // Копирует все checked-in official pack-и в writable modules root.
+    static void installBundledPacks(const QString &modulesRootDir);
+
     // Проверяет, совпадает ли версия установленного pack-а с source-of-truth pack-ом.
     static bool isUpToDate(const QString &coreDir);
 };
