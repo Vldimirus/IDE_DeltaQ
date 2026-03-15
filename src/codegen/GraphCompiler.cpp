@@ -6,6 +6,7 @@
 #include "../uiDesigner/UIModuleFactory.h"
 #include <deltaq/Graph.h>
 #include <deltaq/Module.h>
+#include <deltaq/UILayout.h>
 
 #include <QTextStream>
 #include <QSet>
@@ -82,11 +83,34 @@ QString joinFunctionArguments(const QStringList &args)
     return args.isEmpty() ? QString("void") : args.join(", ");
 }
 
+QString cStringLiteral(const QString &value)
+{
+    QString escaped = value;
+    escaped.replace("\\", "\\\\");
+    escaped.replace("\"", "\\\"");
+    escaped.replace("\n", "\\n");
+    escaped.replace("\r", "\\r");
+    escaped.replace("\t", "\\t");
+    return "\"" + escaped + "\"";
+}
+
 } // namespace
 
 GraphCompiler::GraphCompiler(ModuleRegistry *registry)
     : m_registry(registry)
 {
+}
+
+void GraphCompiler::setInlineDesktopWindowContract(const InlineDesktopWindowContract &contract)
+{
+    m_inlineDesktopWindowContract = contract;
+    m_hasInlineDesktopWindowContract = true;
+}
+
+void GraphCompiler::clearInlineDesktopWindowContract()
+{
+    m_inlineDesktopWindowContract = {};
+    m_hasInlineDesktopWindowContract = false;
 }
 
 // Формирует стабильное имя файлов generated подмодуля, чтобы root graph мог
@@ -879,20 +903,42 @@ bool GraphCompiler::emitInlineDesktopModuleIR(const GraphNode &node, const Modul
             return false;
         }
 
+        const QString title = m_hasInlineDesktopWindowContract
+            ? cStringLiteral(m_inlineDesktopWindowContract.title)
+            : callArgs.value(0, "\"window1\"");
+        const QString width = m_hasInlineDesktopWindowContract
+            ? QString::number(m_inlineDesktopWindowContract.width)
+            : callArgs.value(1, "640");
+        const QString height = m_hasInlineDesktopWindowContract
+            ? QString::number(m_inlineDesktopWindowContract.height)
+            : callArgs.value(2, "480");
+        const QString minWidth = m_hasInlineDesktopWindowContract
+            ? QString::number(m_inlineDesktopWindowContract.minWidth)
+            : QString::number(DQ_UIWindowDefaultMinWidth);
+        const QString minHeight = m_hasInlineDesktopWindowContract
+            ? QString::number(m_inlineDesktopWindowContract.minHeight)
+            : QString::number(DQ_UIWindowDefaultMinHeight);
+        const QString resizable = m_hasInlineDesktopWindowContract
+            ? (m_inlineDesktopWindowContract.resizable ? "true" : "false")
+            : (DQ_UIWindowDefaultResizable ? "true" : "false");
+
         ir.addInstruction(IRInstruction::makeRawCode(
             QString(
-                "if (!dq_ui_backend_init(&%1, %2, %3, %4)) {\n"
+                "if (!dq_ui_backend_init(&%1, %2, %3, %4, %5, %6, %7)) {\n"
                 "    return 1;\n"
                 "}\n"
-                "SDL_Window *%5 = dq_ui_backend_window(&%1);\n"
-                "if (!%5) {\n"
+                "SDL_Window *%8 = dq_ui_backend_window(&%1);\n"
+                "if (!%8) {\n"
                 "    dq_ui_backend_shutdown(&%1);\n"
                 "    return 1;\n"
                 "}")
                 .arg(backendCtx,
-                     callArgs.value(0, "\"window1\""),
-                     callArgs.value(1, "640"),
-                     callArgs.value(2, "480"),
+                     title,
+                     width,
+                     height,
+                     minWidth,
+                     minHeight,
+                     resizable,
                      windowVar),
             node.id));
         return true;

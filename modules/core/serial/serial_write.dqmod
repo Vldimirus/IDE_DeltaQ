@@ -1,0 +1,51 @@
+{
+    "category": "serial",
+    "dependencies": [],
+    "description": "Запись текста в serial-порт",
+    "header": "",
+    "id": "core.serial.serial_write",
+    "includes": [
+        "string.h",
+        "termios.h",
+        "unistd.h"
+    ],
+    "language": "c",
+    "name": "serial_write",
+    "origin": "core",
+    "ports": {
+        "input": [
+            {
+                "kind": "execution",
+                "name": "flow_in",
+                "type": "exec"
+            },
+            {
+                "name": "serial_fd",
+                "type": "int"
+            },
+            {
+                "default": "\"\"",
+                "name": "text",
+                "type": "string"
+            }
+        ],
+        "output": [
+            {
+                "kind": "execution",
+                "name": "flow_out",
+                "type": "exec"
+            },
+            {
+                "name": "bytes_written",
+                "type": "int"
+            }
+        ]
+    },
+    "source": "",
+    "source_code": "int dq_serial_write(int serial_fd, const char *text) {\n    const char *payload = text ? text : \"\";\n    ssize_t written = 0;\n    if (serial_fd < 0)\n        return -1;\n    written = write(serial_fd, payload, strlen(payload));\n    if (written > 0)\n        tcdrain(serial_fd);\n    return (int) written;\n}",
+    "version": "1.0",
+    "metadata": {
+        "deltaq.doc.when_to_use": "Когда graph должен отправить небольшой текстовый payload в serial device bridge/probe flow.",
+        "deltaq.doc.limitations": "Пишет только text payload за один вызов и не строит поверх serial fd полноценный framed protocol layer."
+    }
+}

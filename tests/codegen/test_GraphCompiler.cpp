@@ -175,6 +175,80 @@ private:
                               {"SDL2/SDL.h"});
     }
 
+    Graph createDesktopRuntimeGraph(const QString &titleValue = "\"window1\"",
+                                    const QString &widthValue = "640",
+                                    const QString &heightValue = "480")
+    {
+        Graph g = Graph::create("main");
+
+        GraphNode title; title.id = "n_title"; title.moduleId = "core.io.string_constant";
+        title.properties["value"] = titleValue;
+        GraphNode width; width.id = "n_width"; width.moduleId = "core.io.int_constant";
+        width.properties["value"] = widthValue;
+        GraphNode height; height.id = "n_height"; height.moduleId = "core.io.int_constant";
+        height.properties["value"] = heightValue;
+        GraphNode sdl; sdl.id = "n_sdl"; sdl.moduleId = "core.desktop.sdl_init";
+        GraphNode ttf; ttf.id = "n_ttf"; ttf.moduleId = "core.desktop.ttf_init";
+        GraphNode window; window.id = "n_window"; window.moduleId = "core.desktop.create_window";
+        GraphNode renderer; renderer.id = "n_renderer"; renderer.moduleId = "core.desktop.create_renderer";
+        GraphNode uiInit; uiInit.id = "n_ui"; uiInit.moduleId = "core.desktop.ui_init";
+        GraphNode loop; loop.id = "n_loop"; loop.moduleId = "core.desktop.event_loop";
+        GraphNode cleanupFont; cleanupFont.id = "n_font"; cleanupFont.moduleId = "core.desktop.ui_cleanup_font";
+        GraphNode destroyRenderer; destroyRenderer.id = "n_dr"; destroyRenderer.moduleId = "core.desktop.destroy_renderer";
+        GraphNode destroyWindow; destroyWindow.id = "n_dw"; destroyWindow.moduleId = "core.desktop.destroy_window";
+        GraphNode ttfQuit; ttfQuit.id = "n_ttf_quit"; ttfQuit.moduleId = "core.desktop.ttf_quit";
+        GraphNode sdlQuit; sdlQuit.id = "n_sdl_quit"; sdlQuit.moduleId = "core.desktop.sdl_quit";
+
+        g.addNode(title);
+        g.addNode(width);
+        g.addNode(height);
+        g.addNode(sdl);
+        g.addNode(ttf);
+        g.addNode(window);
+        g.addNode(renderer);
+        g.addNode(uiInit);
+        g.addNode(loop);
+        g.addNode(cleanupFont);
+        g.addNode(destroyRenderer);
+        g.addNode(destroyWindow);
+        g.addNode(ttfQuit);
+        g.addNode(sdlQuit);
+
+        g.addConnection({{"n_title", "out"}, {"n_window", "title"}});
+        g.addConnection({{"n_width", "out"}, {"n_window", "width"}});
+        g.addConnection({{"n_height", "out"}, {"n_window", "height"}});
+        g.addConnection({{"n_sdl", "flow_out"}, {"n_ttf", "flow_in"}, PortKind::Execution});
+        g.addConnection({{"n_ttf", "flow_out"}, {"n_window", "flow_in"}, PortKind::Execution});
+        g.addConnection({{"n_window", "window"}, {"n_renderer", "window"}});
+        g.addConnection({{"n_window", "window"}, {"n_dw", "window"}});
+        g.addConnection({{"n_window", "flow_out"}, {"n_renderer", "flow_in"}, PortKind::Execution});
+        g.addConnection({{"n_renderer", "renderer"}, {"n_loop", "renderer"}});
+        g.addConnection({{"n_renderer", "renderer"}, {"n_dr", "renderer"}});
+        g.addConnection({{"n_renderer", "flow_out"}, {"n_ui", "flow_in"}, PortKind::Execution});
+        g.addConnection({{"n_ui", "ui_state"}, {"n_loop", "ui_state"}});
+        g.addConnection({{"n_ui", "ui_state"}, {"n_font", "ui_state"}});
+        g.addConnection({{"n_ui", "flow_out"}, {"n_loop", "flow_in"}, PortKind::Execution});
+        g.addConnection({{"n_loop", "flow_out"}, {"n_font", "flow_in"}, PortKind::Execution});
+        g.addConnection({{"n_font", "flow_out"}, {"n_dr", "flow_in"}, PortKind::Execution});
+        g.addConnection({{"n_dr", "flow_out"}, {"n_dw", "flow_in"}, PortKind::Execution});
+        g.addConnection({{"n_dw", "flow_out"}, {"n_ttf_quit", "flow_in"}, PortKind::Execution});
+        g.addConnection({{"n_ttf_quit", "flow_out"}, {"n_sdl_quit", "flow_in"}, PortKind::Execution});
+
+        return g;
+    }
+
+    QString expectedInlineDesktopInitCall(const QString &title, int width, int height,
+                                          int minWidth, int minHeight, bool resizable) const
+    {
+        return QString("dq_ui_backend_init(&dq_ui_backend_ctx, \"%1\", %2, %3, %4, %5, %6)")
+            .arg(title)
+            .arg(width)
+            .arg(height)
+            .arg(minWidth)
+            .arg(minHeight)
+            .arg(resizable ? "true" : "false");
+    }
+
 private slots:
     void init()
     {
@@ -682,68 +756,15 @@ private slots:
     void desktopRuntimeGraphGeneratesSDLMain()
     {
         registerDesktopRuntimeModules();
-
-        Graph g = Graph::create("main");
-
-        GraphNode title; title.id = "n_title"; title.moduleId = "core.io.string_constant";
-        title.properties["value"] = "\"window1\"";
-        GraphNode width; width.id = "n_width"; width.moduleId = "core.io.int_constant";
-        width.properties["value"] = "640";
-        GraphNode height; height.id = "n_height"; height.moduleId = "core.io.int_constant";
-        height.properties["value"] = "480";
-        GraphNode sdl; sdl.id = "n_sdl"; sdl.moduleId = "core.desktop.sdl_init";
-        GraphNode ttf; ttf.id = "n_ttf"; ttf.moduleId = "core.desktop.ttf_init";
-        GraphNode window; window.id = "n_window"; window.moduleId = "core.desktop.create_window";
-        GraphNode renderer; renderer.id = "n_renderer"; renderer.moduleId = "core.desktop.create_renderer";
-        GraphNode uiInit; uiInit.id = "n_ui"; uiInit.moduleId = "core.desktop.ui_init";
-        GraphNode loop; loop.id = "n_loop"; loop.moduleId = "core.desktop.event_loop";
-        GraphNode cleanupFont; cleanupFont.id = "n_font"; cleanupFont.moduleId = "core.desktop.ui_cleanup_font";
-        GraphNode destroyRenderer; destroyRenderer.id = "n_dr"; destroyRenderer.moduleId = "core.desktop.destroy_renderer";
-        GraphNode destroyWindow; destroyWindow.id = "n_dw"; destroyWindow.moduleId = "core.desktop.destroy_window";
-        GraphNode ttfQuit; ttfQuit.id = "n_ttf_quit"; ttfQuit.moduleId = "core.desktop.ttf_quit";
-        GraphNode sdlQuit; sdlQuit.id = "n_sdl_quit"; sdlQuit.moduleId = "core.desktop.sdl_quit";
-
-        g.addNode(title);
-        g.addNode(width);
-        g.addNode(height);
-        g.addNode(sdl);
-        g.addNode(ttf);
-        g.addNode(window);
-        g.addNode(renderer);
-        g.addNode(uiInit);
-        g.addNode(loop);
-        g.addNode(cleanupFont);
-        g.addNode(destroyRenderer);
-        g.addNode(destroyWindow);
-        g.addNode(ttfQuit);
-        g.addNode(sdlQuit);
-
-        g.addConnection({{"n_title", "out"}, {"n_window", "title"}});
-        g.addConnection({{"n_width", "out"}, {"n_window", "width"}});
-        g.addConnection({{"n_height", "out"}, {"n_window", "height"}});
-        g.addConnection({{"n_sdl", "flow_out"}, {"n_ttf", "flow_in"}, PortKind::Execution});
-        g.addConnection({{"n_ttf", "flow_out"}, {"n_window", "flow_in"}, PortKind::Execution});
-        g.addConnection({{"n_window", "window"}, {"n_renderer", "window"}});
-        g.addConnection({{"n_window", "window"}, {"n_dw", "window"}});
-        g.addConnection({{"n_window", "flow_out"}, {"n_renderer", "flow_in"}, PortKind::Execution});
-        g.addConnection({{"n_renderer", "renderer"}, {"n_loop", "renderer"}});
-        g.addConnection({{"n_renderer", "renderer"}, {"n_dr", "renderer"}});
-        g.addConnection({{"n_renderer", "flow_out"}, {"n_ui", "flow_in"}, PortKind::Execution});
-        g.addConnection({{"n_ui", "ui_state"}, {"n_loop", "ui_state"}});
-        g.addConnection({{"n_ui", "ui_state"}, {"n_font", "ui_state"}});
-        g.addConnection({{"n_ui", "flow_out"}, {"n_loop", "flow_in"}, PortKind::Execution});
-        g.addConnection({{"n_loop", "flow_out"}, {"n_font", "flow_in"}, PortKind::Execution});
-        g.addConnection({{"n_font", "flow_out"}, {"n_dr", "flow_in"}, PortKind::Execution});
-        g.addConnection({{"n_dr", "flow_out"}, {"n_dw", "flow_in"}, PortKind::Execution});
-        g.addConnection({{"n_dw", "flow_out"}, {"n_ttf_quit", "flow_in"}, PortKind::Execution});
-        g.addConnection({{"n_ttf_quit", "flow_out"}, {"n_sdl_quit", "flow_in"}, PortKind::Execution});
+        Graph g = createDesktopRuntimeGraph();
 
         GraphCompiler compiler(m_registry);
         auto result = compiler.compile(g);
 
         QVERIFY(result.success);
         QVERIFY(result.generatedCode.contains("DQ_UIBackendContext dq_ui_backend_ctx = {0};"));
-        QVERIFY(result.generatedCode.contains("if (!dq_ui_backend_init(&dq_ui_backend_ctx"));
+        QVERIFY(result.generatedCode.contains(
+            "dq_ui_backend_init(&dq_ui_backend_ctx, var_n_title_out, var_n_width_out, var_n_height_out, 240, 180, true)"));
         QVERIFY(result.generatedCode.contains("var_n_window_window = dq_ui_backend_window(&dq_ui_backend_ctx);"));
         QVERIFY(result.generatedCode.contains("var_n_renderer_renderer = dq_ui_backend_renderer(&dq_ui_backend_ctx);"));
         QVERIFY(result.generatedCode.contains("DQ_UIBackendEvent event;"));
@@ -762,6 +783,34 @@ private slots:
         QVERIFY(result.generatedCode.contains("#include \"ui/window1_events.h\""));
         QVERIFY(result.generatedCode.contains("Source: graph 'main'"));
         QVERIFY(!result.generatedCode.contains("SDL_CreateWindow("));
+    }
+
+    void desktopRuntimeGraphCanUseInjectedWindowContract()
+    {
+        registerDesktopRuntimeModules();
+
+        Graph g = createDesktopRuntimeGraph("\"graph-window\"", "320", "240");
+
+        GraphCompiler compiler(m_registry);
+        compiler.setInlineDesktopWindowContract({
+            "Desktop UI Baseline",
+            640,
+            480,
+            480,
+            360,
+            true
+        });
+        auto result = compiler.compile(g);
+
+        QVERIFY(result.success);
+        QVERIFY(result.generatedCode.contains(expectedInlineDesktopInitCall("Desktop UI Baseline",
+                                                                            640, 480,
+                                                                            480, 360,
+                                                                            true)));
+        QVERIFY(!result.generatedCode.contains(expectedInlineDesktopInitCall("graph-window",
+                                                                             320, 240,
+                                                                             240, 180,
+                                                                             true)));
     }
 
     void execAndDataOutputs()

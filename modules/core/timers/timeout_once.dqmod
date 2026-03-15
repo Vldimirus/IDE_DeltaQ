@@ -1,0 +1,49 @@
+{
+    "category": "timers",
+    "dependencies": [],
+    "description": "Проверка, истёк ли timeout с момента start_ms",
+    "header": "",
+    "id": "core.timers.timeout_once",
+    "includes": [
+        "time.h"
+    ],
+    "language": "c",
+    "name": "timeout_once",
+    "origin": "core",
+    "ports": {
+        "input": [
+            {
+                "kind": "execution",
+                "name": "flow_in",
+                "type": "exec"
+            },
+            {
+                "name": "start_ms",
+                "type": "int"
+            },
+            {
+                "default": "100",
+                "name": "timeout_ms",
+                "type": "int"
+            }
+        ],
+        "output": [
+            {
+                "kind": "execution",
+                "name": "flow_out",
+                "type": "exec"
+            },
+            {
+                "name": "result",
+                "type": "bool"
+            }
+        ]
+    },
+    "source": "",
+    "source_code": "static int dq_timeout_once_now_ms(void) {\n    struct timespec ts;\n    long long value = 0;\n    if (clock_gettime(CLOCK_MONOTONIC, &ts) != 0)\n        return 0;\n    value = (long long) ts.tv_sec * 1000LL + (long long) (ts.tv_nsec / 1000000L);\n    return (int) (value % 2147483647LL);\n}\n\nint dq_timeout_once(int start_ms, int timeout_ms) {\n    const int current_ms = dq_timeout_once_now_ms();\n    if (timeout_ms <= 0)\n        return 1;\n    if (current_ms < start_ms)\n        return 1;\n    return (current_ms - start_ms) >= timeout_ms;\n}",
+    "version": "1.0",
+    "metadata": {
+        "deltaq.doc.when_to_use": "Когда после синхронного шага нужно один раз проверить, выбрался ли runtime за допустимый budget без блокирующей задержки.",
+        "deltaq.doc.limitations": "Linux-first helper для коротких monotonic interval checks; не является scheduler-ом, recurring timer-ом или полноценным event-loop API."
+    }
+}

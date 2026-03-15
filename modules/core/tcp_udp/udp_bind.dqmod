@@ -1,0 +1,49 @@
+{
+    "category": "tcp_udp",
+    "dependencies": [],
+    "description": "Открытие UDP-сокета и bind на локальный порт",
+    "header": "",
+    "id": "core.tcp_udp.udp_bind",
+    "includes": [
+        "arpa/inet.h",
+        "netinet/in.h",
+        "string.h",
+        "sys/socket.h",
+        "unistd.h"
+    ],
+    "language": "c",
+    "name": "udp_bind",
+    "origin": "core",
+    "ports": {
+        "input": [
+            {
+                "kind": "execution",
+                "name": "flow_in",
+                "type": "exec"
+            },
+            {
+                "default": "0",
+                "name": "local_port",
+                "type": "int"
+            }
+        ],
+        "output": [
+            {
+                "kind": "execution",
+                "name": "flow_out",
+                "type": "exec"
+            },
+            {
+                "name": "socket_fd",
+                "type": "int"
+            }
+        ]
+    },
+    "source": "",
+    "source_code": "int dq_udp_bind(int local_port) {\n    int socket_fd = socket(AF_INET, SOCK_DGRAM, 0);\n    int reuse = 1;\n    struct sockaddr_in addr;\n    if (socket_fd < 0)\n        return -1;\n    setsockopt(socket_fd, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse));\n    memset(&addr, 0, sizeof(addr));\n    addr.sin_family = AF_INET;\n    addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);\n    addr.sin_port = htons((unsigned short) ((local_port < 0) ? 0 : local_port));\n    if (bind(socket_fd, (struct sockaddr *) &addr, sizeof(addr)) != 0) {\n        close(socket_fd);\n        return -1;\n    }\n    return socket_fd;\n}",
+    "version": "1.0",
+    "metadata": {
+        "deltaq.doc.when_to_use": "Когда graph должен открыть локальный UDP datagram endpoint для probe/integration сценария без отдельного server framework.",
+        "deltaq.doc.limitations": "Linux-first POSIX helper: bind-ится только на loopback, не настраивает multicast/broadcast и при ошибке возвращает `-1` без richer diagnostics."
+    }
+}

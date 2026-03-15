@@ -1,5 +1,6 @@
 // Тесты выравнивания UI contract vocabulary в дизайнере.
 #include <QApplication>
+#include <QDoubleSpinBox>
 #include <QLabel>
 #include <QTest>
 #include <QTreeWidget>
@@ -60,6 +61,37 @@ private slots:
         auto *root = treeWidget->topLevelItem(0);
         QVERIFY(root->childCount() > 0);
         QCOMPARE(root->child(0)->text(0), QString("combo1 (Combo Box) [combo_box]"));
+    }
+
+    void windowPropertyEditorsStayInSyncAfterMinimumSizeClamp()
+    {
+        DesignScene scene;
+        scene.setWindowRect(QRectF(0, 0, 320, 240));
+
+        PropertyEditor editor;
+        editor.setWindowProperties(&scene);
+        QCoreApplication::processEvents();
+
+        auto *widthSpin = editor.findChild<QDoubleSpinBox *>(QStringLiteral("windowWidthSpinBox"));
+        auto *heightSpin = editor.findChild<QDoubleSpinBox *>(QStringLiteral("windowHeightSpinBox"));
+        auto *minWidthSpin = editor.findChild<QDoubleSpinBox *>(QStringLiteral("windowMinWidthSpinBox"));
+        auto *minHeightSpin = editor.findChild<QDoubleSpinBox *>(QStringLiteral("windowMinHeightSpinBox"));
+
+        QVERIFY(widthSpin != nullptr);
+        QVERIFY(heightSpin != nullptr);
+        QVERIFY(minWidthSpin != nullptr);
+        QVERIFY(minHeightSpin != nullptr);
+
+        minWidthSpin->setValue(480);
+        minHeightSpin->setValue(360);
+        QCoreApplication::processEvents();
+
+        QCOMPARE(scene.windowMinimumSize(), QSizeF(480, 360));
+        QCOMPARE(scene.windowRect(), QRectF(0, 0, 480, 360));
+        QCOMPARE(widthSpin->minimum(), 480.0);
+        QCOMPARE(heightSpin->minimum(), 360.0);
+        QCOMPARE(widthSpin->value(), 480.0);
+        QCOMPARE(heightSpin->value(), 360.0);
     }
 };
 

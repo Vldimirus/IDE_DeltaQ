@@ -8,109 +8,201 @@
         "name": "window1",
         "x": 0.0,
         "y": 0.0,
-        "width": 900.0,
-        "height": 620.0,
+        "width": 1080.0,
+        "height": 720.0,
+        "properties": {
+            "title": "Workspace Notes",
+            "min_width": 900,
+            "min_height": 620,
+            "resizable": true
+        },
         "children": [
             {
                 "id": "50000000-0000-0000-0000-000000000012",
-                "type": "Label",
-                "name": "lblDocName",
-                "x": 20.0,
-                "y": 20.0,
-                "width": 260.0,
-                "height": 30.0,
-                "properties": {
-                    "text": "untitled.txt"
-                }
+                "type": "MenuBar",
+                "name": "menuMain",
+                "x": 0.0,
+                "y": 0.0,
+                "width": 1080.0,
+                "height": 28.0
             },
             {
                 "id": "50000000-0000-0000-0000-000000000013",
-                "type": "Label",
-                "name": "lblSubtitle",
-                "x": 20.0,
-                "y": 50.0,
-                "width": 420.0,
-                "height": 24.0,
-                "properties": {
-                    "text": "Quick text pad starter for DeltaQ desktop projects"
-                }
+                "type": "ToolBar",
+                "name": "toolsMain",
+                "x": 0.0,
+                "y": 32.0,
+                "width": 1080.0,
+                "height": 32.0
             },
             {
                 "id": "50000000-0000-0000-0000-000000000014",
-                "type": "Button",
-                "name": "btnNewDocument",
+                "type": "Label",
+                "name": "lblWorkspaceTitle",
                 "x": 20.0,
-                "y": 92.0,
-                "width": 120.0,
-                "height": 36.0,
+                "y": 82.0,
+                "width": 260.0,
+                "height": 30.0,
                 "properties": {
-                    "text": "New"
-                },
-                "events": {
-                    "onClick": "on_btnNewDocument_click"
+                    "text": "Workspace Notes"
                 }
             },
             {
                 "id": "50000000-0000-0000-0000-000000000015",
-                "type": "Button",
-                "name": "btnInsertSample",
-                "x": 156.0,
-                "y": 92.0,
-                "width": 160.0,
-                "height": 36.0,
+                "type": "Label",
+                "name": "lblWorkspaceHint",
+                "x": 20.0,
+                "y": 112.0,
+                "width": 620.0,
+                "height": 24.0,
                 "properties": {
-                    "text": "Insert Sample"
-                },
-                "events": {
-                    "onClick": "on_btnInsertSample_click"
+                    "text": "Starter: menu bar, toolbar, tab strip, and notes workflow"
                 }
             },
             {
                 "id": "50000000-0000-0000-0000-000000000016",
-                "type": "Button",
-                "name": "btnAppendLine",
-                "x": 332.0,
-                "y": 92.0,
-                "width": 150.0,
-                "height": 36.0,
-                "properties": {
-                    "text": "Append Line"
-                },
-                "events": {
-                    "onClick": "on_btnAppendLine_click"
-                }
-            },
-            {
-                "id": "50000000-0000-0000-0000-000000000017",
-                "type": "TextField",
-                "name": "editInput",
+                "type": "TabPanel",
+                "name": "tabsWorkspace",
                 "x": 20.0,
-                "y": 146.0,
-                "width": 860.0,
-                "height": 32.0,
-                "properties": {
-                    "placeholder": "Type a line to append to the document"
-                }
+                "y": 148.0,
+                "width": 1040.0,
+                "height": 516.0,
+                "children": [
+                    {
+                        "id": "50000000-0000-0000-0000-000000000017",
+                        "type": "Label",
+                        "name": "lblDocName",
+                        "x": 24.0,
+                        "y": 52.0,
+                        "width": 260.0,
+                        "height": 30.0,
+                        "properties": {
+                            "text": "release_notes.md"
+                        }
+                    },
+                    {
+                        "id": "50000000-0000-0000-0000-000000000018",
+                        "type": "Label",
+                        "name": "lblSessionState",
+                        "x": 24.0,
+                        "y": 82.0,
+                        "width": 520.0,
+                        "height": 24.0,
+                        "properties": {
+                            "text": "Ready starter: sample document + append workflow"
+                        }
+                    },
+                    {
+                        "id": "50000000-0000-0000-0000-000000000019",
+                        "type": "Button",
+                        "name": "btnNewDocument",
+                        "x": 24.0,
+                        "y": 118.0,
+                        "width": 148.0,
+                        "height": 36.0,
+                        "properties": {
+                            "text": "New Draft"
+                        },
+                        "events": {
+                            "onClick": "on_btnNewDocument_click"
+                        }
+                    },
+                    {
+                        "id": "50000000-0000-0000-0000-000000000020",
+                        "type": "Button",
+                        "name": "btnInsertSample",
+                        "x": 188.0,
+                        "y": 118.0,
+                        "width": 176.0,
+                        "height": 36.0,
+                        "properties": {
+                            "text": "Load Sample"
+                        },
+                        "events": {
+                            "onClick": "on_btnInsertSample_click"
+                        }
+                    },
+                    {
+                        "id": "50000000-0000-0000-0000-000000000021",
+                        "type": "Button",
+                        "name": "btnAppendLine",
+                        "x": 380.0,
+                        "y": 118.0,
+                        "width": 176.0,
+                        "height": 36.0,
+                        "properties": {
+                            "text": "Append Note"
+                        },
+                        "events": {
+                            "onClick": "on_btnAppendLine_click"
+                        }
+                    },
+                    {
+                        "id": "50000000-0000-0000-0000-000000000022",
+                        "type": "TextField",
+                        "name": "editInput",
+                        "x": 24.0,
+                        "y": 168.0,
+                        "width": 992.0,
+                        "height": 32.0,
+                        "properties": {
+                            "placeholder": "Type a note or task to append to the active draft"
+                        }
+                    },
+                    {
+                        "id": "50000000-0000-0000-0000-000000000023",
+                        "type": "TextArea",
+                        "name": "txtDocument",
+                        "x": 24.0,
+                        "y": 216.0,
+                        "width": 992.0,
+                        "height": 214.0
+                    },
+                    {
+                        "id": "50000000-0000-0000-0000-000000000024",
+                        "type": "Label",
+                        "name": "lblDocumentStats",
+                        "x": 24.0,
+                        "y": 446.0,
+                        "width": 420.0,
+                        "height": 24.0,
+                        "properties": {
+                            "text": "Words: 0 | Lines: 0 | Characters: 0"
+                        }
+                    },
+                    {
+                        "id": "50000000-0000-0000-0000-000000000025",
+                        "type": "Label",
+                        "name": "lblStatus",
+                        "x": 24.0,
+                        "y": 474.0,
+                        "width": 520.0,
+                        "height": 24.0,
+                        "properties": {
+                            "text": "Ready for edits"
+                        }
+                    }
+                ]
             },
             {
-                "id": "50000000-0000-0000-0000-000000000018",
-                "type": "TextArea",
-                "name": "txtDocument",
-                "x": 20.0,
-                "y": 196.0,
-                "width": 860.0,
-                "height": 340.0
+                "id": "50000000-0000-0000-0000-000000000026",
+                "type": "StatusBar",
+                "name": "statusMain",
+                "x": 0.0,
+                "y": 688.0,
+                "width": 1080.0,
+                "height": 24.0
             },
             {
-                "id": "50000000-0000-0000-0000-000000000019",
+                "id": "50000000-0000-0000-0000-000000000027",
                 "type": "Label",
-                "name": "lblStatus",
+                "name": "lblStatusHint",
                 "x": 20.0,
-                "y": 554.0,
+                "y": 668.0,
                 "width": 420.0,
                 "height": 24.0,
                 "properties": {
-                    "text": "Lines: 0 | Characters: 0"
+                    "text": "Status bar below is part of the checked-in starter shell"
                 }
             }
         ]

@@ -10,6 +10,12 @@
         "y": 0.0,
         "width": 640.0,
         "height": 480.0,
+        "properties": {
+            "title": "Desktop UI Flow",
+            "min_width": 480,
+            "min_height": 360,
+            "resizable": true
+        },
         "children": [
             {
                 "id": "00000000-0000-0000-0000-000000000012",

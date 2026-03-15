@@ -1157,8 +1157,6 @@ QString SDL2CodeGenerator::generateUISource(const UILayout &layout, const QStrin
             out << "    case DQ_UIWidget_" << sanitizeName(w->name) << ":\n";
             if (w->events.contains("onClick")) {
                 out << "        " << sanitizeName(w->events["onClick"]) << "(ui);\n";
-            } else {
-                out << "        /* TODO: onClick handler */\n";
             }
             out << "        break;\n";
         }
@@ -2003,10 +2001,28 @@ QString SDL2CodeGenerator::generateEventsSource(const UILayout &layout, const QS
     out << "#include \"" << baseName << "_events.h\"\n";
     out << "#include <stdio.h>\n\n";
 
+    if (!events.isEmpty()) {
+        out << "static void dq_ui_generated_event_stub_once(const char *handler_name,\n";
+        out << "                                            const char *event_name,\n";
+        out << "                                            int *did_log) {\n";
+        out << "    if (!did_log || *did_log)\n";
+        out << "        return;\n\n";
+        out << "    *did_log = 1;\n";
+        out << "    fprintf(stderr,\n";
+        out << "            \"[DeltaQ] Generated SDL2 event stub invoked: %s (%s). Replace this scaffold with project logic.\\n\",\n";
+        out << "            handler_name,\n";
+        out << "            event_name);\n";
+        out << "}\n\n";
+    }
+
     for (auto it = events.begin(); it != events.end(); ++it) {
         out << "void " << sanitizeName(it.key()) << "(UIState *ui) {\n";
+        out << "    static int did_log = 0;\n";
         out << "    (void)ui;\n";
-        out << "    /* TODO: implement " << it.key() << " handler for event '" << it.value() << "' */\n";
+        out << "    dq_ui_generated_event_stub_once("
+            << cStringLiteral(sanitizeName(it.key())) << ", "
+            << cStringLiteral(it.value()) << ", "
+            << "&did_log);\n";
         out << "}\n\n";
     }
 

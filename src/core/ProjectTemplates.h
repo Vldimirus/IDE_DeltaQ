@@ -14,6 +14,8 @@ struct ProjectTemplateInfo {
     QString projectType;
     QString path;
     QStringList summaryFiles;
+    QString catalogRole = QStringLiteral("recommended_starter");
+    QString hiddenReason;
     int sortOrder = 0;
 
     bool isValid() const
@@ -23,11 +25,16 @@ struct ProjectTemplateInfo {
             && !projectType.isEmpty()
             && !path.isEmpty();
     }
+
+    bool isUserVisible() const
+    {
+        return catalogRole != QStringLiteral("internal_only");
+    }
 };
 
 class ProjectTemplates {
 public:
-    static QVector<ProjectTemplateInfo> availableTemplates();
+    static QVector<ProjectTemplateInfo> availableTemplates(bool includeHidden = false);
     static bool templateInfo(const QString &id, ProjectTemplateInfo *info);
     static QStringList summaryFiles(const QString &id, const QString &projectName);
 

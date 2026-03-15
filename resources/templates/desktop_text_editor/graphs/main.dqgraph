@@ -10,7 +10,7 @@
                 "y": 40.0
             },
             "properties": {
-                "value": "\"Text Pad\""
+                "value": "\"Workspace Notes\""
             }
         },
         {
@@ -21,7 +21,7 @@
                 "y": 140.0
             },
             "properties": {
-                "value": "720"
+                "value": "1080"
             }
         },
         {
@@ -32,7 +32,7 @@
                 "y": 240.0
             },
             "properties": {
-                "value": "520"
+                "value": "720"
             }
         },
         {

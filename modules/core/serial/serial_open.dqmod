@@ -1,0 +1,45 @@
+{
+    "category": "serial",
+    "dependencies": [],
+    "description": "Открытие serial-порта",
+    "header": "",
+    "id": "core.serial.serial_open",
+    "includes": [
+        "fcntl.h",
+        "unistd.h"
+    ],
+    "language": "c",
+    "name": "serial_open",
+    "origin": "core",
+    "ports": {
+        "input": [
+            {
+                "kind": "execution",
+                "name": "flow_in",
+                "type": "exec"
+            },
+            {
+                "name": "path",
+                "type": "string"
+            }
+        ],
+        "output": [
+            {
+                "kind": "execution",
+                "name": "flow_out",
+                "type": "exec"
+            },
+            {
+                "name": "serial_fd",
+                "type": "int"
+            }
+        ]
+    },
+    "source": "",
+    "source_code": "int dq_serial_open(const char *path) {\n    if (!path || !*path)\n        return -1;\n    return open(path, O_RDWR | O_NOCTTY | O_SYNC);\n}",
+    "version": "1.0",
+    "metadata": {
+        "deltaq.doc.when_to_use": "Когда graph должен открыть serial device path и превратить его в рабочий file descriptor для дальнейшего exchange.",
+        "deltaq.doc.limitations": "Linux-first helper: открывает только уже известный path и при ошибке возвращает `-1` без richer diagnostics."
+    }
+}

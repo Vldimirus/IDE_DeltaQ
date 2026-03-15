@@ -25,6 +25,8 @@
 3. если проверяете packaged build, используйте Linux artifact checklist.
 4. если передаёте приложение, собранное внутри DeltaQ, используйте checklist для project export.
 
+Если вместо checked-in example вы хотите создать новый desktop-проект, начинайте в `New Project` с `Desktop Text Editor`. Вариант `Desktop UI Baseline` стоит брать только тогда, когда вам нужен более тонкий advanced desktop baseline.
+
 ## Связанные документы
 
 - [Центр library docs](../library/README.md)

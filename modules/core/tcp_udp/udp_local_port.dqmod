@@ -1,0 +1,36 @@
+{
+    "category": "tcp_udp",
+    "dependencies": [],
+    "description": "Получение фактического локального UDP-порта",
+    "header": "",
+    "id": "core.tcp_udp.udp_local_port",
+    "includes": [
+        "arpa/inet.h",
+        "netinet/in.h",
+        "sys/socket.h"
+    ],
+    "language": "c",
+    "name": "udp_local_port",
+    "origin": "core",
+    "ports": {
+        "input": [
+            {
+                "name": "socket_fd",
+                "type": "int"
+            }
+        ],
+        "output": [
+            {
+                "name": "port",
+                "type": "int"
+            }
+        ]
+    },
+    "source": "",
+    "source_code": "int dq_udp_local_port(int socket_fd) {\n    struct sockaddr_in addr;\n    socklen_t addr_len = (socklen_t) sizeof(addr);\n    if (socket_fd < 0)\n        return 0;\n    if (getsockname(socket_fd, (struct sockaddr *) &addr, &addr_len) != 0)\n        return 0;\n    return (int) ntohs(addr.sin_port);\n}",
+    "version": "1.0",
+    "metadata": {
+        "deltaq.doc.when_to_use": "Когда после bind на `0` нужно узнать реальный loopback UDP-порт и использовать его в следующем transport шаге.",
+        "deltaq.doc.limitations": "Работает только с уже открытым UDP socket fd и не делает дополнительной валидации типа сокета."
+    }
+}

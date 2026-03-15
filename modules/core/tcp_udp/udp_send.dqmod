@@ -1,0 +1,62 @@
+{
+    "category": "tcp_udp",
+    "dependencies": [],
+    "description": "Отправка UDP datagram",
+    "header": "",
+    "id": "core.tcp_udp.udp_send",
+    "includes": [
+        "arpa/inet.h",
+        "netinet/in.h",
+        "string.h",
+        "sys/socket.h"
+    ],
+    "language": "c",
+    "name": "udp_send",
+    "origin": "core",
+    "ports": {
+        "input": [
+            {
+                "kind": "execution",
+                "name": "flow_in",
+                "type": "exec"
+            },
+            {
+                "name": "socket_fd",
+                "type": "int"
+            },
+            {
+                "default": "\"127.0.0.1\"",
+                "name": "host",
+                "type": "string"
+            },
+            {
+                "default": "0",
+                "name": "port",
+                "type": "int"
+            },
+            {
+                "default": "\"\"",
+                "name": "text",
+                "type": "string"
+            }
+        ],
+        "output": [
+            {
+                "kind": "execution",
+                "name": "flow_out",
+                "type": "exec"
+            },
+            {
+                "name": "bytes_sent",
+                "type": "int"
+            }
+        ]
+    },
+    "source": "",
+    "source_code": "int dq_udp_send(int socket_fd, const char *host, int port, const char *text) {\n    struct sockaddr_in addr;\n    const char *payload = text ? text : \"\";\n    if (socket_fd < 0 || !host || !*host || port <= 0)\n        return -1;\n    memset(&addr, 0, sizeof(addr));\n    addr.sin_family = AF_INET;\n    addr.sin_port = htons((unsigned short) port);\n    if (inet_pton(AF_INET, host, &addr.sin_addr) != 1)\n        return -1;\n    return (int) sendto(socket_fd,\n                        payload,\n                        strlen(payload),\n                        0,\n                        (struct sockaddr *) &addr,\n                        (socklen_t) sizeof(addr));\n}",
+    "version": "1.0",
+    "metadata": {
+        "deltaq.doc.when_to_use": "Когда graph должен отправить небольшой текстовый UDP payload в loopback/integration probe сценарии.",
+        "deltaq.doc.limitations": "Linux-first helper: поддерживает только IPv4 text payload, не разбирает partial sends и не покрывает multicast/broadcast/TLS-подобные сценарии."
+    }
+}

@@ -68,10 +68,21 @@
 
 Подробная матрица текущих решений хранится в [audit_matrix.md](./audit_matrix.md).
 
+Stage 4 useful-category audit хранится отдельно в
+[useful_baseline_audit.md](./useful_baseline_audit.md), чтобы execution-plan по
+`filesystem / timers / config-json / process / tcp-udp / serial` не смешивался
+с уже существующей reviewed-матрицей checked-in `core`.
+
 Первые category guides:
 
 - [io.md](./io.md)
 - [control.md](./control.md)
+- [filesystem.md](./filesystem.md)
+- [config_json.md](./config_json.md)
+- [process.md](./process.md)
+- [serial.md](./serial.md)
+- [tcp_udp.md](./tcp_udp.md)
+- [timers.md](./timers.md)
 - [conversion.md](./conversion.md)
 - [math.md](./math.md)
 - [desktop.md](./desktop.md)

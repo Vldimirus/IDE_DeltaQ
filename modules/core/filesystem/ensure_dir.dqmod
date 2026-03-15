@@ -1,0 +1,44 @@
+{
+    "category": "filesystem",
+    "dependencies": [],
+    "description": "Создание директории",
+    "header": "",
+    "id": "core.filesystem.ensure_dir",
+    "includes": [
+        "errno.h",
+        "stdio.h",
+        "string.h",
+        "sys/stat.h",
+        "sys/types.h"
+    ],
+    "language": "c",
+    "name": "ensure_dir",
+    "origin": "core",
+    "ports": {
+        "input": [
+            {
+                "kind": "execution",
+                "name": "flow_in",
+                "type": "exec"
+            },
+            {
+                "name": "path",
+                "type": "string"
+            }
+        ],
+        "output": [
+            {
+                "kind": "execution",
+                "name": "flow_out",
+                "type": "exec"
+            }
+        ]
+    },
+    "source": "",
+    "source_code": "static int dq_ensure_dir_make_one(const char *path) {\n    struct stat st;\n    if (!path || !*path)\n        return 0;\n    if (stat(path, &st) == 0)\n        return S_ISDIR(st.st_mode);\n    if (mkdir(path, 0777) == 0)\n        return 1;\n    return errno == EEXIST;\n}\n\nvoid dq_ensure_dir(const char *path) {\n    char buffer[1024];\n    size_t i = 0;\n    size_t length = 0;\n    if (!path || !*path)\n        return;\n    snprintf(buffer, sizeof(buffer), \"%s\", path);\n    length = strlen(buffer);\n    if (length == 0 || length >= sizeof(buffer))\n        return;\n    for (i = 1; i < length; ++i) {\n        if (buffer[i] == '/') {\n            const char saved = buffer[i];\n            buffer[i] = '\\0';\n            dq_ensure_dir_make_one(buffer);\n            buffer[i] = saved;\n        }\n    }\n    dq_ensure_dir_make_one(buffer);\n}",
+    "version": "1.0",
+    "metadata": {
+        "deltaq.doc.when_to_use": "Когда workflow должен подготовить директорию перед сохранением файлов или runtime state.",
+        "deltaq.doc.limitations": "Ориентирован на Linux-first path, молча пропускает ошибки и не возвращает диагностический payload."
+    }
+}

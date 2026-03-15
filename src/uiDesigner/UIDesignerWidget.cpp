@@ -137,8 +137,7 @@ UIDesignerWidget::UIDesignerWidget(ModuleRegistry *registry, CommandBus *bus,
         if (parentWidget)
             parentSize = QSizeF(parentWidget->widgetWidth(), parentWidget->widgetHeight());
         else
-            parentSize = QSizeF(m_scene->windowRect().width(),
-                                m_scene->windowRect().height() - 30.0);
+            parentSize = m_scene->windowRect().size();
         LayoutEngine::applyAnchors(item, parentSize);
     });
 
@@ -478,7 +477,7 @@ void UIDesignerWidget::showEvent(QShowEvent *event)
 
 void UIDesignerWidget::centerOnWindow()
 {
-    QRectF windowRect = m_scene->windowRect();
+    QRectF windowRect = m_scene->windowFrameRect();
     // Добавляем отступ вокруг рамки окна для комфортного обзора
     QRectF viewRect = windowRect.adjusted(-40, -40, 40, 40);
     m_view->fitInView(viewRect, Qt::KeepAspectRatio);

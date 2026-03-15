@@ -32,6 +32,15 @@ struct SubmoduleUnitResult {
     QStringList warnings;
 };
 
+struct InlineDesktopWindowContract {
+    QString title;
+    int width = 640;
+    int height = 480;
+    int minWidth = 240;
+    int minHeight = 180;
+    bool resizable = true;
+};
+
 class GraphStore;
 
 class GraphCompiler {
@@ -40,6 +49,8 @@ public:
 
     // Установить GraphStore для рекурсивной компиляции подмодулей
     void setGraphStore(GraphStore *store) { m_graphStore = store; }
+    void setInlineDesktopWindowContract(const InlineDesktopWindowContract &contract);
+    void clearInlineDesktopWindowContract();
 
     // Компиляция графа в C-код
     CompilationResult compile(const Graph &graph);
@@ -94,6 +105,8 @@ private:
     GraphStore *m_graphStore = nullptr;
     QSet<QString> m_compiledSubModules; // Отслеживание уже скомпилированных подмодулей
     bool m_inlineDesktopBackendDeclared = false; // Backend context для inline desktop runtime
+    bool m_hasInlineDesktopWindowContract = false;
+    InlineDesktopWindowContract m_inlineDesktopWindowContract;
 };
 
 } // namespace DeltaQ

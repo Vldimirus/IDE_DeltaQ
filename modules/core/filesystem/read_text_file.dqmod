@@ -1,0 +1,44 @@
+{
+    "category": "filesystem",
+    "dependencies": [],
+    "description": "Чтение текстового файла",
+    "header": "",
+    "id": "core.filesystem.read_text_file",
+    "includes": [
+        "stdio.h"
+    ],
+    "language": "c",
+    "name": "read_text_file",
+    "origin": "core",
+    "ports": {
+        "input": [
+            {
+                "kind": "execution",
+                "name": "flow_in",
+                "type": "exec"
+            },
+            {
+                "name": "path",
+                "type": "string"
+            }
+        ],
+        "output": [
+            {
+                "kind": "execution",
+                "name": "flow_out",
+                "type": "exec"
+            },
+            {
+                "name": "text",
+                "type": "string"
+            }
+        ]
+    },
+    "source": "",
+    "source_code": "const char *dq_read_text_file(const char *path) {\n    static char buffer[8192];\n    FILE *file = NULL;\n    size_t bytes_read = 0;\n    buffer[0] = '\\0';\n    if (!path || !*path)\n        return \"\";\n    file = fopen(path, \"rb\");\n    if (!file)\n        return \"\";\n    bytes_read = fread(buffer, 1, sizeof(buffer) - 1U, file);\n    buffer[bytes_read] = '\\0';\n    fclose(file);\n    return buffer;\n}",
+    "version": "1.0",
+    "metadata": {
+        "deltaq.doc.when_to_use": "Когда нужно загрузить небольшой текстовый payload, например config JSON, template text или сохранённое состояние.",
+        "deltaq.doc.limitations": "Использует фиксированный внутренний буфер 8 KB, читает только текст и при отсутствии файла возвращает пустую строку."
+    }
+}

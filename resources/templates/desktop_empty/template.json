@@ -3,6 +3,8 @@
     "name": "Desktop Empty Window",
     "description": "SDL2 desktop project that opens an empty window, renders a clean background, and closes normally.",
     "project_type": "desktop",
+    "catalog_role": "internal_only",
+    "hidden_reason": "Legacy raw SDL fixture without graph/UI starter assets; kept only as an internal baseline.",
     "sort_order": 30,
     "summary_files": [
         "__PROJECT_NAME__.dqproj",

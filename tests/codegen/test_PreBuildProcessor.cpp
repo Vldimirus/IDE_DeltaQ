@@ -6,6 +6,7 @@
 #include <QJsonArray>
 #include <QProcess>
 #include <QProcessEnvironment>
+#include <QRegularExpression>
 #include <QTemporaryDir>
 #include <QTest>
 
@@ -15,6 +16,7 @@
 #include "../../src/codegen/PreBuildProcessor.h"
 #include "../../src/core/GraphStore.h"
 #include "../../src/core/ModuleRegistry.h"
+#include "../../src/core/ProjectTemplates.h"
 #include "../../src/core/UILayoutStore.h"
 #include "../../src/editor/CMakeGenerator.h"
 #include "../../src/libProcessor/LibraryDecomposer.h"
@@ -117,6 +119,18 @@ private:
         if (stderrData)
             *stderrData = process.readAllStandardError();
         return process.exitStatus() == QProcess::NormalExit && process.exitCode() == 0;
+    }
+
+    static QString expectedInlineDesktopInitCall(const QString &title, int width, int height,
+                                                 int minWidth, int minHeight, bool resizable)
+    {
+        return QString("dq_ui_backend_init(&dq_ui_backend_ctx, \"%1\", %2, %3, %4, %5, %6)")
+            .arg(title)
+            .arg(width)
+            .arg(height)
+            .arg(minWidth)
+            .arg(minHeight)
+            .arg(resizable ? "true" : "false");
     }
 
     // Собирает фиксированный ParseResult для fixture SDK, чтобы curated pack verification
@@ -488,7 +502,10 @@ private slots:
         const QString mainCode = QString::fromUtf8(mainFile.readAll());
         QVERIFY(mainCode.contains("Source: graph 'main'"));
         QVERIFY(mainCode.contains("DQ_UIBackendContext dq_ui_backend_ctx = {0};"));
-        QVERIFY(mainCode.contains("dq_ui_backend_init(&dq_ui_backend_ctx"));
+        QVERIFY(mainCode.contains(expectedInlineDesktopInitCall("Desktop UI Baseline",
+                                                                640, 480,
+                                                                480, 360,
+                                                                true)));
         QVERIFY(mainCode.contains("dq_ui_backend_poll_event(&event)"));
         QVERIFY(mainCode.contains("dq_ui_backend_window_size(&dq_ui_backend_ctx, &window_width, &window_height);"));
         QVERIFY(mainCode.contains("ui_apply_layout(&"));
@@ -939,6 +956,312 @@ private slots:
         QCOMPARE(lines.at(1), QString("DeltaQ"));
     }
 
+    void settingsFileConsoleExampleBuildsAndRunsEndToEnd()
+    {
+        QTemporaryDir tmpDir;
+        QVERIFY(tmpDir.isValid());
+
+        const QString repoRoot = repoRootPath();
+        QVERIFY2(!repoRoot.isEmpty(), "Repository root was not found from test binary location");
+
+        const QString projectDir = tmpDir.path() + "/settings_file_console";
+        QVERIFY(copyDirectory(repoRoot + "/resources/examples/settings_file_console", projectDir));
+
+        ModuleRegistry registry;
+        registry.loadGlobalModules(repoRoot + "/modules");
+
+        GraphStore graphStore;
+        UILayoutStore layoutStore;
+        QVERIFY(graphStore.loadFromDirectory(projectDir));
+        QCOMPARE(graphStore.count(), 1);
+
+        PreBuildProcessor processor(&registry, &graphStore, &layoutStore);
+        const PreBuildResult prebuild = processor.process(projectDir);
+        QVERIFY2(prebuild.success, qPrintable(prebuild.errors.join('\n')));
+        QCOMPARE(prebuild.generatedArtifacts.size(), 1);
+        QCOMPARE(prebuild.generatedArtifacts.first().kind, PreBuildArtifactKind::GraphSource);
+        QVERIFY(prebuild.generatedArtifacts.first().path.endsWith("/src/main.c"));
+
+        QFile mainFile(projectDir + "/src/main.c");
+        QVERIFY(mainFile.open(QIODevice::ReadOnly | QIODevice::Text));
+        const QString mainCode = QString::fromUtf8(mainFile.readAll());
+        QVERIFY(mainCode.contains("dq_ensure_dir"));
+        QVERIFY(mainCode.contains("dq_read_text_file"));
+        QVERIFY(mainCode.contains("dq_json_get_int"));
+        QVERIFY(mainCode.contains("dq_json_set_int"));
+        QVERIFY(mainCode.contains("dq_json_get_string"));
+        QVERIFY(mainCode.contains("dq_json_set_string"));
+        QVERIFY(mainCode.contains("dq_write_text_file"));
+        QVERIFY(mainCode.contains("runtime/settings.json"));
+
+        CMakeGenerator generator;
+        const QString targetName = "SettingsFileConsole";
+        generator.generate(projectDir, targetName, "17", "20", {}, "console");
+        QVERIFY2(generator.configure(projectDir), "CMake configure failed for settings file console flow");
+
+        QByteArray buildOut;
+        QByteArray buildErr;
+        QVERIFY2(runProcess("cmake", {"--build", "build", "--parallel"}, projectDir,
+                            &buildOut, &buildErr),
+                 qPrintable(QString::fromUtf8(buildOut + buildErr)));
+
+        const QString executablePath = findBuiltExecutable(projectDir + "/build", targetName);
+        QVERIFY2(!executablePath.isEmpty(), "Built settings file console executable was not found");
+
+        const auto runOnce = [&](int expectedCount) {
+            QProcess app;
+            app.setProgram(executablePath);
+            app.setWorkingDirectory(projectDir + "/build");
+            app.start();
+            QVERIFY2(app.waitForStarted(30000), "Built settings file console executable failed to start");
+            QVERIFY2(app.waitForFinished(30000), "Built settings file console executable did not finish in time");
+
+            const QString stdoutText = QString::fromUtf8(app.readAllStandardOutput()).replace("\r\n", "\n");
+            const QString stderrText = QString::fromUtf8(app.readAllStandardError());
+            const QString runtimeLog = QString("STDOUT:\n%1\nSTDERR:\n%2")
+                                           .arg(stdoutText, stderrText);
+            QVERIFY2(app.exitStatus() == QProcess::NormalExit && app.exitCode() == 0,
+                     qPrintable(runtimeLog));
+            QVERIFY2(stdoutText.contains(QString("launch_count=%1\n").arg(expectedCount)),
+                     qPrintable(runtimeLog));
+            QVERIFY2(stdoutText.contains("profile=deltaq\n"), qPrintable(runtimeLog));
+        };
+
+        runOnce(1);
+        runOnce(2);
+
+        QFile configFile(projectDir + "/build/runtime/settings.json");
+        QVERIFY(configFile.open(QIODevice::ReadOnly | QIODevice::Text));
+        const QString configText = QString::fromUtf8(configFile.readAll());
+        QVERIFY(configText.contains("\"launch_count\":2"));
+        QVERIFY(configText.contains("\"profile\":\"deltaq\""));
+    }
+
+    void processTimerConsoleExampleBuildsAndRunsEndToEnd()
+    {
+        QTemporaryDir tmpDir;
+        QVERIFY(tmpDir.isValid());
+
+        const QString repoRoot = repoRootPath();
+        QVERIFY2(!repoRoot.isEmpty(), "Repository root was not found from test binary location");
+
+        const QString projectDir = tmpDir.path() + "/process_timer_console";
+        QVERIFY(copyDirectory(repoRoot + "/resources/examples/process_timer_console", projectDir));
+        QVERIFY(QFile::exists(projectDir + "/tools/mock_worker.sh"));
+
+        ModuleRegistry registry;
+        registry.loadGlobalModules(repoRoot + "/modules");
+
+        GraphStore graphStore;
+        UILayoutStore layoutStore;
+        QVERIFY(graphStore.loadFromDirectory(projectDir));
+        QCOMPARE(graphStore.count(), 1);
+
+        PreBuildProcessor processor(&registry, &graphStore, &layoutStore);
+        const PreBuildResult prebuild = processor.process(projectDir);
+        QVERIFY2(prebuild.success, qPrintable(prebuild.errors.join('\n')));
+        QCOMPARE(prebuild.generatedArtifacts.size(), 1);
+        QCOMPARE(prebuild.generatedArtifacts.first().kind, PreBuildArtifactKind::GraphSource);
+        QVERIFY(prebuild.generatedArtifacts.first().path.endsWith("/src/main.c"));
+
+        QFile mainFile(projectDir + "/src/main.c");
+        QVERIFY(mainFile.open(QIODevice::ReadOnly | QIODevice::Text));
+        const QString mainCode = QString::fromUtf8(mainFile.readAll());
+        QVERIFY(mainCode.contains("dq_now_ms"));
+        QVERIFY(mainCode.contains("dq_timeout_once"));
+        QVERIFY(mainCode.contains("dq_elapsed_ms"));
+        QVERIFY(mainCode.contains("dq_run_stdout"));
+        QVERIFY(mainCode.contains("dq_run_exit_code"));
+        QVERIFY(mainCode.contains("../tools/mock_worker.sh"));
+
+        CMakeGenerator generator;
+        const QString targetName = "ProcessTimerConsole";
+        generator.generate(projectDir, targetName, "17", "20", {}, "console");
+        QVERIFY2(generator.configure(projectDir), "CMake configure failed for process timer console flow");
+
+        QByteArray buildOut;
+        QByteArray buildErr;
+        QVERIFY2(runProcess("cmake", {"--build", "build", "--parallel"}, projectDir,
+                            &buildOut, &buildErr),
+                 qPrintable(QString::fromUtf8(buildOut + buildErr)));
+
+        const QString executablePath = findBuiltExecutable(projectDir + "/build", targetName);
+        QVERIFY2(!executablePath.isEmpty(), "Built process timer console executable was not found");
+
+        QProcess app;
+        app.setProgram(executablePath);
+        app.setWorkingDirectory(projectDir + "/build");
+        app.start();
+        QVERIFY2(app.waitForStarted(30000), "Built process timer console executable failed to start");
+        QVERIFY2(app.waitForFinished(30000), "Built process timer console executable did not finish in time");
+
+        const QString stdoutText = QString::fromUtf8(app.readAllStandardOutput()).replace("\r\n", "\n");
+        const QString stderrText = QString::fromUtf8(app.readAllStandardError());
+        const QString runtimeLog = QString("STDOUT:\n%1\nSTDERR:\n%2")
+                                       .arg(stdoutText, stderrText);
+        QVERIFY2(app.exitStatus() == QProcess::NormalExit && app.exitCode() == 0,
+                 qPrintable(runtimeLog));
+        QVERIFY2(stdoutText.contains("stdout=worker-ready\n"), qPrintable(runtimeLog));
+        QVERIFY2(stdoutText.contains("stdout_timed_out=0\n"), qPrintable(runtimeLog));
+        QVERIFY2(stdoutText.contains("exit_code=0\n"), qPrintable(runtimeLog));
+        QVERIFY2(stdoutText.contains("exit_timed_out=0\n"), qPrintable(runtimeLog));
+
+        const QRegularExpression stdoutElapsedRe("stdout_elapsed_ms=(\\d+)");
+        const QRegularExpression exitElapsedRe("exit_elapsed_ms=(\\d+)");
+        const QRegularExpressionMatch stdoutElapsedMatch = stdoutElapsedRe.match(stdoutText);
+        const QRegularExpressionMatch exitElapsedMatch = exitElapsedRe.match(stdoutText);
+        QVERIFY2(stdoutElapsedMatch.hasMatch(), qPrintable(runtimeLog));
+        QVERIFY2(exitElapsedMatch.hasMatch(), qPrintable(runtimeLog));
+        QVERIFY2(stdoutElapsedMatch.captured(1).toInt() > 0, qPrintable(runtimeLog));
+        QVERIFY2(exitElapsedMatch.captured(1).toInt() > 0, qPrintable(runtimeLog));
+    }
+
+    void transportProbeConsoleExampleBuildsAndRunsEndToEnd()
+    {
+        QTemporaryDir tmpDir;
+        QVERIFY(tmpDir.isValid());
+
+        const QString repoRoot = repoRootPath();
+        QVERIFY2(!repoRoot.isEmpty(), "Repository root was not found from test binary location");
+
+        const QString projectDir = tmpDir.path() + "/transport_probe_console";
+        QVERIFY(copyDirectory(repoRoot + "/resources/examples/transport_probe_console", projectDir));
+
+        ModuleRegistry registry;
+        registry.loadGlobalModules(repoRoot + "/modules");
+
+        GraphStore graphStore;
+        UILayoutStore layoutStore;
+        QVERIFY(graphStore.loadFromDirectory(projectDir));
+        QCOMPARE(graphStore.count(), 1);
+
+        PreBuildProcessor processor(&registry, &graphStore, &layoutStore);
+        const PreBuildResult prebuild = processor.process(projectDir);
+        QVERIFY2(prebuild.success, qPrintable(prebuild.errors.join('\n')));
+        QCOMPARE(prebuild.generatedArtifacts.size(), 1);
+        QCOMPARE(prebuild.generatedArtifacts.first().kind, PreBuildArtifactKind::GraphSource);
+        QVERIFY(prebuild.generatedArtifacts.first().path.endsWith("/src/main.c"));
+
+        QFile mainFile(projectDir + "/src/main.c");
+        QVERIFY(mainFile.open(QIODevice::ReadOnly | QIODevice::Text));
+        const QString mainCode = QString::fromUtf8(mainFile.readAll());
+        QVERIFY(mainCode.contains("dq_udp_bind"));
+        QVERIFY(mainCode.contains("dq_udp_local_port"));
+        QVERIFY(mainCode.contains("dq_udp_send"));
+        QVERIFY(mainCode.contains("dq_udp_receive"));
+        QVERIFY(mainCode.contains("dq_udp_close"));
+        QVERIFY(mainCode.contains("dq_timeout_once"));
+        QVERIFY(mainCode.contains("probe-packet"));
+
+        CMakeGenerator generator;
+        const QString targetName = "TransportProbeConsole";
+        generator.generate(projectDir, targetName, "17", "20", {}, "console");
+        QVERIFY2(generator.configure(projectDir), "CMake configure failed for transport probe console flow");
+
+        QByteArray buildOut;
+        QByteArray buildErr;
+        QVERIFY2(runProcess("cmake", {"--build", "build", "--parallel"}, projectDir,
+                            &buildOut, &buildErr),
+                 qPrintable(QString::fromUtf8(buildOut + buildErr)));
+
+        const QString executablePath = findBuiltExecutable(projectDir + "/build", targetName);
+        QVERIFY2(!executablePath.isEmpty(), "Built transport probe console executable was not found");
+
+        QProcess app;
+        app.setProgram(executablePath);
+        app.setWorkingDirectory(projectDir + "/build");
+        app.start();
+        QVERIFY2(app.waitForStarted(30000), "Built transport probe console executable failed to start");
+        QVERIFY2(app.waitForFinished(30000), "Built transport probe console executable did not finish in time");
+
+        const QString stdoutText = QString::fromUtf8(app.readAllStandardOutput()).replace("\r\n", "\n");
+        const QString stderrText = QString::fromUtf8(app.readAllStandardError());
+        const QString runtimeLog = QString("STDOUT:\n%1\nSTDERR:\n%2")
+                                       .arg(stdoutText, stderrText);
+        QVERIFY2(app.exitStatus() == QProcess::NormalExit && app.exitCode() == 0,
+                 qPrintable(runtimeLog));
+        QVERIFY2(stdoutText.contains("received=probe-packet\n"), qPrintable(runtimeLog));
+        QVERIFY2(stdoutText.contains("timed_out=0\n"), qPrintable(runtimeLog));
+
+        const QRegularExpression elapsedRe("elapsed_ms=(\\d+)");
+        const QRegularExpressionMatch elapsedMatch = elapsedRe.match(stdoutText);
+        QVERIFY2(elapsedMatch.hasMatch(), qPrintable(runtimeLog));
+        QVERIFY2(elapsedMatch.captured(1).toInt() >= 0, qPrintable(runtimeLog));
+    }
+
+    void serialProbeConsoleExampleBuildsAndRunsEndToEnd()
+    {
+        QTemporaryDir tmpDir;
+        QVERIFY(tmpDir.isValid());
+
+        const QString repoRoot = repoRootPath();
+        QVERIFY2(!repoRoot.isEmpty(), "Repository root was not found from test binary location");
+
+        const QString projectDir = tmpDir.path() + "/serial_probe_console";
+        QVERIFY(copyDirectory(repoRoot + "/resources/examples/serial_probe_console", projectDir));
+
+        ModuleRegistry registry;
+        registry.loadGlobalModules(repoRoot + "/modules");
+
+        GraphStore graphStore;
+        UILayoutStore layoutStore;
+        QVERIFY(graphStore.loadFromDirectory(projectDir));
+        QCOMPARE(graphStore.count(), 1);
+
+        PreBuildProcessor processor(&registry, &graphStore, &layoutStore);
+        const PreBuildResult prebuild = processor.process(projectDir);
+        QVERIFY2(prebuild.success, qPrintable(prebuild.errors.join('\n')));
+        QCOMPARE(prebuild.generatedArtifacts.size(), 1);
+        QCOMPARE(prebuild.generatedArtifacts.first().kind, PreBuildArtifactKind::GraphSource);
+        QVERIFY(prebuild.generatedArtifacts.first().path.endsWith("/src/main.c"));
+
+        QFile mainFile(projectDir + "/src/main.c");
+        QVERIFY(mainFile.open(QIODevice::ReadOnly | QIODevice::Text));
+        const QString mainCode = QString::fromUtf8(mainFile.readAll());
+        QVERIFY(mainCode.contains("dq_serial_loopback_path"));
+        QVERIFY(mainCode.contains("dq_serial_open"));
+        QVERIFY(mainCode.contains("dq_serial_configure"));
+        QVERIFY(mainCode.contains("dq_serial_write"));
+        QVERIFY(mainCode.contains("dq_serial_read"));
+        QVERIFY(mainCode.contains("dq_serial_close"));
+        QVERIFY(mainCode.contains("serial-probe"));
+
+        CMakeGenerator generator;
+        const QString targetName = "SerialProbeConsole";
+        generator.generate(projectDir, targetName, "17", "20", {}, "console");
+        QVERIFY2(generator.configure(projectDir), "CMake configure failed for serial probe console flow");
+
+        QByteArray buildOut;
+        QByteArray buildErr;
+        QVERIFY2(runProcess("cmake", {"--build", "build", "--parallel"}, projectDir,
+                            &buildOut, &buildErr),
+                 qPrintable(QString::fromUtf8(buildOut + buildErr)));
+
+        const QString executablePath = findBuiltExecutable(projectDir + "/build", targetName);
+        QVERIFY2(!executablePath.isEmpty(), "Built serial probe console executable was not found");
+
+        QProcess app;
+        app.setProgram(executablePath);
+        app.setWorkingDirectory(projectDir + "/build");
+        app.start();
+        QVERIFY2(app.waitForStarted(30000), "Built serial probe console executable failed to start");
+        QVERIFY2(app.waitForFinished(30000), "Built serial probe console executable did not finish in time");
+
+        const QString stdoutText = QString::fromUtf8(app.readAllStandardOutput()).replace("\r\n", "\n");
+        const QString stderrText = QString::fromUtf8(app.readAllStandardError());
+        const QString runtimeLog = QString("STDOUT:\n%1\nSTDERR:\n%2")
+                                       .arg(stdoutText, stderrText);
+        QVERIFY2(app.exitStatus() == QProcess::NormalExit && app.exitCode() == 0,
+                 qPrintable(runtimeLog));
+        QVERIFY2(stdoutText.contains("received=serial-probe\n"), qPrintable(runtimeLog));
+        QVERIFY2(stdoutText.contains("timed_out=0\n"), qPrintable(runtimeLog));
+
+        const QRegularExpression elapsedRe("elapsed_ms=(\\d+)");
+        const QRegularExpressionMatch elapsedMatch = elapsedRe.match(stdoutText);
+        QVERIFY2(elapsedMatch.hasMatch(), qPrintable(runtimeLog));
+        QVERIFY2(elapsedMatch.captured(1).toInt() >= 0, qPrintable(runtimeLog));
+    }
+
     void desktopUiExampleBuildsAndRunsHeadless()
     {
         QTemporaryDir tmpDir;
@@ -968,6 +1291,13 @@ private slots:
         QFile uiSource(projectDir + "/src/ui/window1.c");
         QVERIFY(uiSource.open(QIODevice::ReadOnly | QIODevice::Text));
         const QString uiCode = QString::fromUtf8(uiSource.readAll());
+        QFile mainFile(projectDir + "/src/main.c");
+        QVERIFY(mainFile.open(QIODevice::ReadOnly | QIODevice::Text));
+        const QString mainCode = QString::fromUtf8(mainFile.readAll());
+        QVERIFY(mainCode.contains(expectedInlineDesktopInitCall("Desktop UI Flow",
+                                                                640, 480,
+                                                                480, 360,
+                                                                true)));
         QVERIFY(uiCode.contains("SDL_RENDERER_SOFTWARE"));
 
         QFile eventsSource(projectDir + "/src/ui/window1_events.c");
@@ -1002,6 +1332,103 @@ private slots:
         app.start();
         QVERIFY2(app.waitForStarted(30000), "Built desktop UI flow executable failed to start");
         QVERIFY2(app.waitForFinished(10000), "Built desktop UI flow executable did not finish in time");
+
+        const QString stdoutText = QString::fromUtf8(app.readAllStandardOutput());
+        const QString stderrText = QString::fromUtf8(app.readAllStandardError());
+        const QString runtimeLog = QString("STDOUT:\n%1\nSTDERR:\n%2")
+                                       .arg(stdoutText, stderrText);
+        QVERIFY2(app.exitStatus() == QProcess::NormalExit && app.exitCode() == 0,
+                 qPrintable(runtimeLog));
+    }
+
+    void desktopTextEditorStarterBuildsAndRunsHeadless()
+    {
+        QTemporaryDir tmpDir;
+        QVERIFY(tmpDir.isValid());
+
+        const QString repoRoot = repoRootPath();
+        QVERIFY2(!repoRoot.isEmpty(), "Repository root was not found from test binary location");
+
+        const QString projectDir = tmpDir.path() + "/desktop_text_editor";
+        QString error;
+        QVERIFY2(ProjectTemplates::generate("desktop_text_editor",
+                                            projectDir,
+                                            "DesktopTextEditorStarter",
+                                            &error),
+                 qPrintable(error));
+
+        ModuleRegistry registry;
+        registry.loadGlobalModules(repoRoot + "/modules");
+
+        GraphStore graphStore;
+        UILayoutStore layoutStore;
+        QVERIFY(graphStore.loadFromDirectory(projectDir));
+        QVERIFY(layoutStore.loadFromDirectory(projectDir));
+        QCOMPARE(graphStore.count(), 1);
+        QCOMPARE(layoutStore.count(), 1);
+
+        PreBuildProcessor processor(&registry, &graphStore, &layoutStore);
+        const PreBuildResult prebuild = processor.process(projectDir);
+        QVERIFY2(prebuild.success, qPrintable(prebuild.errors.join('\n')));
+        QCOMPARE(prebuild.generatedArtifacts.size(), 5);
+
+        QFile mainFile(projectDir + "/src/main.c");
+        QVERIFY(mainFile.open(QIODevice::ReadOnly | QIODevice::Text));
+        const QString mainCode = QString::fromUtf8(mainFile.readAll());
+        QVERIFY(mainCode.contains(expectedInlineDesktopInitCall("Workspace Notes",
+                                                                1080, 720,
+                                                                900, 620,
+                                                                true)));
+
+        QFile uiHeader(projectDir + "/src/ui/window1.h");
+        QVERIFY(uiHeader.open(QIODevice::ReadOnly | QIODevice::Text));
+        const QString uiHeaderCode = QString::fromUtf8(uiHeader.readAll());
+        QVERIFY(uiHeaderCode.contains("DQ_MenuBar"));
+        QVERIFY(uiHeaderCode.contains("DQ_ToolBar"));
+        QVERIFY(uiHeaderCode.contains("DQ_TabPanel"));
+        QVERIFY(uiHeaderCode.contains("DQ_StatusBar"));
+
+        QFile uiSource(projectDir + "/src/ui/window1.c");
+        QVERIFY(uiSource.open(QIODevice::ReadOnly | QIODevice::Text));
+        const QString uiCode = QString::fromUtf8(uiSource.readAll());
+        QVERIFY(uiCode.contains("ui->tabsWorkspace.active_tab = 0;"));
+        QVERIFY(uiCode.contains("menuMain"));
+        QVERIFY(uiCode.contains("statusMain"));
+        QVERIFY(!uiCode.contains("TODO: implement MenuBar rendering"));
+        QVERIFY(!uiCode.contains("TODO: implement TabPanel rendering"));
+
+        QFile eventsSource(projectDir + "/src/ui/window1_events.c");
+        QVERIFY(eventsSource.open(QIODevice::ReadOnly | QIODevice::Text));
+        const QString eventsCode = QString::fromUtf8(eventsSource.readAll());
+        QVERIFY(eventsCode.contains("DQ_DESKTOP_TEXT_EDITOR_AUTOCLOSE_MS"));
+        QVERIFY(eventsCode.contains("Loaded starter sample"));
+        QVERIFY(!eventsCode.contains("UI Graph Example"));
+
+        CMakeGenerator generator;
+        const QString targetName = "DesktopTextEditorStarter";
+        generator.generate(projectDir, targetName, "17", "20", {}, "desktop");
+        QVERIFY2(generator.configure(projectDir), "CMake configure failed for desktop text editor starter");
+
+        QByteArray buildOut;
+        QByteArray buildErr;
+        QVERIFY2(runProcess("cmake", {"--build", "build", "--parallel"}, projectDir,
+                            &buildOut, &buildErr),
+                 qPrintable(QString::fromUtf8(buildOut + buildErr)));
+
+        const QString executablePath = findBuiltExecutable(projectDir + "/build", targetName);
+        QVERIFY2(!executablePath.isEmpty(), "Built desktop text editor starter executable was not found");
+
+        QProcess app;
+        QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
+        env.insert("SDL_VIDEODRIVER", "dummy");
+        env.insert("SDL_RENDER_DRIVER", "software");
+        env.insert("DQ_DESKTOP_TEXT_EDITOR_AUTOCLOSE_MS", "1200");
+        app.setProcessEnvironment(env);
+        app.setProgram(executablePath);
+        app.setWorkingDirectory(projectDir + "/build");
+        app.start();
+        QVERIFY2(app.waitForStarted(30000), "Built desktop text editor starter executable failed to start");
+        QVERIFY2(app.waitForFinished(10000), "Built desktop text editor starter executable did not finish in time");
 
         const QString stdoutText = QString::fromUtf8(app.readAllStandardOutput());
         const QString stderrText = QString::fromUtf8(app.readAllStandardError());

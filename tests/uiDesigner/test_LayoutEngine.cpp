@@ -152,6 +152,26 @@ private slots:
         QCOMPARE(item->widgetWidth(), 860.0);
         QCOMPARE(item->widgetHeight(), 40.0);
     }
+
+    void testApplyAnchorsToRootWidgetsUsesFullRuntimeClientHeight()
+    {
+        DesignScene scene;
+        scene.setWindowRect(QRectF(0, 0, 640, 480));
+
+        UIWidget child = UIWidget::create("Button", "btn_bottom");
+        child.geometry = QRectF(20, 20, 120, 40);
+        child.anchors.right = true;
+        child.anchors.bottom = true;
+        child.anchors.rightMargin = 20;
+        child.anchors.bottomMargin = 20;
+
+        auto *item = scene.addWidgetItem(child);
+        QVERIFY(item != nullptr);
+
+        LayoutEngine::applyAnchorsToRootWidgets(&scene);
+
+        QCOMPARE(item->pos(), QPointF(500, 420));
+    }
 };
 
 QTEST_MAIN(TestLayoutEngine)

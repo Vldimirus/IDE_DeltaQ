@@ -177,8 +177,7 @@ void LayoutEngine::applyAnchorsToRootWidgets(DesignScene *scene)
 {
     if (!scene) return;
     QRectF windowRect = scene->windowRect();
-    // Клиентская область (без title bar)
-    QSizeF clientSize(windowRect.width(), windowRect.height() - 30.0);
+    QSizeF clientSize(windowRect.width(), windowRect.height());
 
     const auto &widgets = scene->widgetItems();
     for (auto it = widgets.cbegin(); it != widgets.cend(); ++it) {

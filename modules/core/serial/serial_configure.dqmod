@@ -1,0 +1,46 @@
+{
+    "category": "serial",
+    "dependencies": [],
+    "description": "Настройка serial-порта через termios",
+    "header": "",
+    "id": "core.serial.serial_configure",
+    "includes": [
+        "termios.h",
+        "unistd.h"
+    ],
+    "language": "c",
+    "name": "serial_configure",
+    "origin": "core",
+    "ports": {
+        "input": [
+            {
+                "kind": "execution",
+                "name": "flow_in",
+                "type": "exec"
+            },
+            {
+                "name": "serial_fd",
+                "type": "int"
+            },
+            {
+                "default": "115200",
+                "name": "baud_rate",
+                "type": "int"
+            }
+        ],
+        "output": [
+            {
+                "kind": "execution",
+                "name": "flow_out",
+                "type": "exec"
+            }
+        ]
+    },
+    "source": "",
+    "source_code": "static speed_t dq_serial_map_baud_rate(int baud_rate) {\n    switch (baud_rate) {\n    case 9600: return B9600;\n    case 19200: return B19200;\n    case 38400: return B38400;\n    case 57600: return B57600;\n    case 115200: return B115200;\n    default: return B115200;\n    }\n}\n\nvoid dq_serial_configure(int serial_fd, int baud_rate) {\n    struct termios tio;\n    if (serial_fd < 0)\n        return;\n    if (tcgetattr(serial_fd, &tio) != 0)\n        return;\n    cfmakeraw(&tio);\n    cfsetispeed(&tio, dq_serial_map_baud_rate(baud_rate));\n    cfsetospeed(&tio, dq_serial_map_baud_rate(baud_rate));\n    tio.c_cflag |= (CLOCAL | CREAD);\n    tio.c_cflag &= (tcflag_t) ~CSTOPB;\n    tio.c_cflag &= (tcflag_t) ~CRTSCTS;\n    tio.c_cflag &= (tcflag_t) ~PARENB;\n    tio.c_cflag &= (tcflag_t) ~CSIZE;\n    tio.c_cflag |= CS8;\n    tio.c_cc[VMIN] = 0;\n    tio.c_cc[VTIME] = 0;\n    tcsetattr(serial_fd, TCSANOW, &tio);\n}",
+    "version": "1.0",
+    "metadata": {
+        "deltaq.doc.when_to_use": "Когда graph должен привести serial fd к предсказуемому raw-mode contract перед exchange payload.",
+        "deltaq.doc.limitations": "Linux-first helper: покрывает только базовый 8N1 raw-mode setup и небольшой набор baud rate значений."
+    }
+}

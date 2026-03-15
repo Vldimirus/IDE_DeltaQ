@@ -1,0 +1,46 @@
+{
+    "category": "config_json",
+    "dependencies": [],
+    "description": "Получение int из JSON",
+    "header": "",
+    "id": "core.config_json.json_get_int",
+    "includes": [
+        "ctype.h",
+        "stdio.h",
+        "stdlib.h",
+        "string.h"
+    ],
+    "language": "c",
+    "name": "json_get_int",
+    "origin": "core",
+    "ports": {
+        "input": [
+            {
+                "name": "json_text",
+                "type": "string"
+            },
+            {
+                "name": "key",
+                "type": "string"
+            },
+            {
+                "default": "0",
+                "name": "default_value",
+                "type": "int"
+            }
+        ],
+        "output": [
+            {
+                "name": "result",
+                "type": "int"
+            }
+        ]
+    },
+    "source": "",
+    "source_code": "static const char *dq_json_get_int_find_value(const char *json, const char *key) {\n    char pattern[256];\n    const char *cursor = json;\n    if (!json || !key || !*key)\n        return NULL;\n    snprintf(pattern, sizeof(pattern), \"\\\"%s\\\"\", key);\n    while ((cursor = strstr(cursor, pattern)) != NULL) {\n        const char *value = cursor + strlen(pattern);\n        while (*value && isspace((unsigned char) *value))\n            ++value;\n        if (*value == ':')\n            return value + 1;\n        ++cursor;\n    }\n    return NULL;\n}\n\nint dq_json_get_int(const char *json_text, const char *key, int default_value) {\n    const char *value = dq_json_get_int_find_value(json_text, key);\n    char *end = NULL;\n    long parsed = 0;\n    if (!value)\n        return default_value;\n    while (*value && isspace((unsigned char) *value))\n        ++value;\n    parsed = strtol(value, &end, 10);\n    if (end == value)\n        return default_value;\n    return (int) parsed;\n}",
+    "version": "1.0",
+    "metadata": {
+        "deltaq.doc.when_to_use": "Когда нужно вытащить int-настройку из плоского JSON-конфига без отдельного parser state.",
+        "deltaq.doc.limitations": "Работает только с top-level object и простыми int scalar values; при проблемах возвращает default_value."
+    }
+}

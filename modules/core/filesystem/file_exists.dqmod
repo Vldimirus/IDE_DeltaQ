@@ -1,0 +1,35 @@
+{
+    "category": "filesystem",
+    "dependencies": [],
+    "description": "Проверка существования файла",
+    "header": "",
+    "id": "core.filesystem.file_exists",
+    "includes": [
+        "sys/stat.h",
+        "sys/types.h"
+    ],
+    "language": "c",
+    "name": "file_exists",
+    "origin": "core",
+    "ports": {
+        "input": [
+            {
+                "name": "path",
+                "type": "string"
+            }
+        ],
+        "output": [
+            {
+                "name": "exists",
+                "type": "bool"
+            }
+        ]
+    },
+    "source": "",
+    "source_code": "int dq_file_exists(const char *path) {\n    struct stat st;\n    if (!path || !*path)\n        return 0;\n    return stat(path, &st) == 0;\n}",
+    "version": "1.0",
+    "metadata": {
+        "deltaq.doc.when_to_use": "Когда перед чтением, записью или ветвлением нужно узнать, существует ли путь в файловой системе.",
+        "deltaq.doc.limitations": "Проверяет только факт существования path и не различает типы entries или права доступа."
+    }
+}

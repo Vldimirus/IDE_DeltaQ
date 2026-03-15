@@ -17,6 +17,9 @@ namespace DeltaQ {
 namespace {
 
 constexpr auto ProjectNameToken = "__PROJECT_NAME__";
+constexpr auto RecommendedStarterRole = "recommended_starter";
+constexpr auto AdvancedDesktopTemplateRole = "advanced_desktop_template";
+constexpr auto InternalOnlyRole = "internal_only";
 
 QString applyProjectNameToken(QString value, const QString &projectName)
 {
@@ -56,8 +59,11 @@ QStringList collectTemplateSummaryFiles(const QString &templateDir)
 QString discoverTemplatesDirInternal()
 {
     QStringList startPoints;
-    if (!QCoreApplication::applicationDirPath().isEmpty())
-        startPoints.append(QCoreApplication::applicationDirPath());
+    if (QCoreApplication::instance()) {
+        const QString appDirPath = QCoreApplication::applicationDirPath();
+        if (!appDirPath.isEmpty())
+            startPoints.append(appDirPath);
+    }
     if (!QDir::currentPath().isEmpty())
         startPoints.append(QDir::currentPath());
 
@@ -78,6 +84,13 @@ QString discoverTemplatesDirInternal()
     }
 
     return {};
+}
+
+bool isKnownCatalogRole(const QString &role)
+{
+    return role == QLatin1String(RecommendedStarterRole)
+        || role == QLatin1String(AdvancedDesktopTemplateRole)
+        || role == QLatin1String(InternalOnlyRole);
 }
 
 bool writeTemplateFile(const QString &srcPath,
@@ -123,7 +136,7 @@ bool writeTemplateFile(const QString &srcPath,
 
 } // namespace
 
-QVector<ProjectTemplateInfo> ProjectTemplates::availableTemplates()
+QVector<ProjectTemplateInfo> ProjectTemplates::availableTemplates(bool includeHidden)
 {
     QVector<ProjectTemplateInfo> templates;
     const QString root = templatesDir();
@@ -136,8 +149,10 @@ QVector<ProjectTemplateInfo> ProjectTemplates::availableTemplates()
 
     for (const QFileInfo &entry : entries) {
         ProjectTemplateInfo info;
-        if (loadTemplateInfo(entry.absoluteFilePath(), &info))
+        if (loadTemplateInfo(entry.absoluteFilePath(), &info)
+            && (includeHidden || info.isUserVisible())) {
             templates.append(info);
+        }
     }
 
     std::sort(templates.begin(), templates.end(),
@@ -152,7 +167,7 @@ QVector<ProjectTemplateInfo> ProjectTemplates::availableTemplates()
 
 bool ProjectTemplates::templateInfo(const QString &id, ProjectTemplateInfo *info)
 {
-    const auto templates = availableTemplates();
+    const auto templates = availableTemplates(true);
     for (const auto &candidate : templates) {
         if (candidate.id == id) {
             if (info)
@@ -215,6 +230,11 @@ bool ProjectTemplates::loadTemplateInfo(const QString &templateDir,
     loaded.projectType = obj["project_type"].toString();
     loaded.sortOrder = obj["sort_order"].toInt();
     loaded.path = QFileInfo(templateDir).absoluteFilePath();
+    loaded.catalogRole = obj["catalog_role"]
+                             .toString(QString::fromLatin1(RecommendedStarterRole))
+                             .trimmed()
+                             .toLower();
+    loaded.hiddenReason = obj["hidden_reason"].toString().trimmed();
 
     for (const auto &value : obj["summary_files"].toArray()) {
         const QString path = value.toString().trimmed();
@@ -228,6 +248,23 @@ bool ProjectTemplates::loadTemplateInfo(const QString &templateDir,
     if (!loaded.isValid()) {
         if (error) {
             *error = QObject::tr("Template manifest is incomplete: %1")
+                         .arg(QDir::toNativeSeparators(manifestPath));
+        }
+        return false;
+    }
+
+    if (!isKnownCatalogRole(loaded.catalogRole)) {
+        if (error) {
+            *error = QObject::tr("Template manifest '%1' has unknown catalog_role '%2'")
+                         .arg(QDir::toNativeSeparators(manifestPath), loaded.catalogRole);
+        }
+        return false;
+    }
+
+    if (loaded.catalogRole == QLatin1String(InternalOnlyRole) && loaded.hiddenReason.isEmpty()) {
+        if (error) {
+            *error = QObject::tr(
+                "Template manifest '%1' marks template as internal_only without hidden_reason")
                          .arg(QDir::toNativeSeparators(manifestPath));
         }
         return false;

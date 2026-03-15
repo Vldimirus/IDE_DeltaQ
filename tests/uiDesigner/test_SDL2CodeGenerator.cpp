@@ -284,7 +284,27 @@ private slots:
 
         QVERIFY(code.eventsSource.contains("File role: event implementation (ui_events.c)."));
         QVERIFY(code.eventsSource.contains("on_ok_click"));
-        QVERIFY(code.eventsSource.contains("TODO"));
+        QVERIFY(code.eventsSource.contains("static void dq_ui_generated_event_stub_once"));
+        QVERIFY(code.eventsSource.contains("Generated SDL2 event stub invoked"));
+        QVERIFY(code.eventsSource.contains("Replace this scaffold with project logic."));
+        QVERIFY(code.eventsSource.contains("dq_ui_generated_event_stub_once(\"on_ok_click\", \"onClick\", &did_log);"));
+        QVERIFY(!code.eventsSource.contains("TODO"));
+    }
+
+    void testUnboundButtonDoesNotEmitTodoPlaceholder()
+    {
+        UILayout layout = UILayout::create("UnboundButton");
+        layout.window.geometry = QRectF(0, 0, 320, 240);
+
+        UIWidget btn = UIWidget::create("Button", "btnIdle");
+        btn.geometry = QRectF(20, 20, 120, 40);
+        btn.properties["text"] = "Idle";
+        layout.window.children.append(btn);
+
+        GeneratedCode code = SDL2CodeGenerator::generate(layout);
+
+        QVERIFY(code.uiSource.contains("case DQ_UIWidget_btnIdle:"));
+        QVERIFY(!code.uiSource.contains("TODO: onClick handler"));
     }
 
     void testExtendedContractWidgetsUseExplicitRuntimeBranches()

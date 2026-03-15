@@ -1,0 +1,46 @@
+{
+    "category": "serial",
+    "dependencies": [],
+    "description": "Создание loopback PTY для serial probe",
+    "header": "",
+    "id": "core.serial.serial_loopback_path",
+    "includes": [
+        "pty.h",
+        "signal.h",
+        "stdlib.h",
+        "string.h",
+        "sys/wait.h",
+        "termios.h",
+        "unistd.h"
+    ],
+    "language": "c",
+    "name": "serial_loopback_path",
+    "origin": "core",
+    "ports": {
+        "input": [
+            {
+                "kind": "execution",
+                "name": "flow_in",
+                "type": "exec"
+            }
+        ],
+        "output": [
+            {
+                "kind": "execution",
+                "name": "flow_out",
+                "type": "exec"
+            },
+            {
+                "name": "path",
+                "type": "string"
+            }
+        ]
+    },
+    "source": "",
+    "source_code": "static pid_t dq_serial_loopback_child_pid = -1;\nstatic char dq_serial_loopback_path_buffer[128] = \"\";\n\nstatic void dq_serial_loopback_cleanup(void) {\n    int status = 0;\n    if (dq_serial_loopback_child_pid <= 0)\n        return;\n    kill(dq_serial_loopback_child_pid, SIGTERM);\n    waitpid(dq_serial_loopback_child_pid, &status, 0);\n    dq_serial_loopback_child_pid = -1;\n    dq_serial_loopback_path_buffer[0] = '\\0';\n}\n\nconst char *dq_serial_loopback_path(void) {\n    int master_fd = -1;\n    int slave_fd = -1;\n    pid_t child_pid = -1;\n    struct termios tio;\n\n    if (dq_serial_loopback_path_buffer[0] != '\\0')\n        return dq_serial_loopback_path_buffer;\n\n    if (openpty(&master_fd, &slave_fd, dq_serial_loopback_path_buffer, NULL, NULL) != 0)\n        return \"\";\n\n    if (tcgetattr(slave_fd, &tio) == 0) {\n        cfmakeraw(&tio);\n        tcsetattr(slave_fd, TCSANOW, &tio);\n    }\n\n    child_pid = fork();\n    if (child_pid < 0) {\n        close(master_fd);\n        close(slave_fd);\n        dq_serial_loopback_path_buffer[0] = '\\0';\n        return \"\";\n    }\n\n    if (child_pid == 0) {\n        char buffer[512];\n        close(slave_fd);\n        while (1) {\n            ssize_t bytes_read = read(master_fd, buffer, sizeof(buffer));\n            if (bytes_read <= 0)\n                _exit(0);\n            if (write(master_fd, buffer, (size_t) bytes_read) <= 0)\n                _exit(0);\n        }\n    }\n\n    dq_serial_loopback_child_pid = child_pid;\n    atexit(dq_serial_loopback_cleanup);\n    close(master_fd);\n    close(slave_fd);\n    return dq_serial_loopback_path_buffer;\n}",
+    "version": "1.0",
+    "metadata": {
+        "deltaq.doc.when_to_use": "Когда нужен self-contained serial probe scenario без реального устройства, чтобы проверить graph/runtime path на loopback PTY.",
+        "deltaq.doc.limitations": "Linux-first convenience helper для testing/probe flow: создаёт локальный PTY echo loop и не должен подменять собой реальный hardware discovery layer."
+    }
+}

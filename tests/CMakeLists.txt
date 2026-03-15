@@ -339,6 +339,7 @@ add_test(NAME test_GraphCompiler COMMAND test_GraphCompiler)
 add_executable(test_PreBuildProcessor
     codegen/test_PreBuildProcessor.cpp
     ${CMAKE_SOURCE_DIR}/src/editor/CMakeGenerator.cpp
+    ${CMAKE_SOURCE_DIR}/src/core/ProjectTemplates.cpp
 )
 target_include_directories(test_PreBuildProcessor PRIVATE
     ${CMAKE_SOURCE_DIR}/src

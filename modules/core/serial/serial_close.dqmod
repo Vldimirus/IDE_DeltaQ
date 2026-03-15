@@ -1,0 +1,40 @@
+{
+    "category": "serial",
+    "dependencies": [],
+    "description": "Закрытие serial-порта",
+    "header": "",
+    "id": "core.serial.serial_close",
+    "includes": [
+        "unistd.h"
+    ],
+    "language": "c",
+    "name": "serial_close",
+    "origin": "core",
+    "ports": {
+        "input": [
+            {
+                "kind": "execution",
+                "name": "flow_in",
+                "type": "exec"
+            },
+            {
+                "name": "serial_fd",
+                "type": "int"
+            }
+        ],
+        "output": [
+            {
+                "kind": "execution",
+                "name": "flow_out",
+                "type": "exec"
+            }
+        ]
+    },
+    "source": "",
+    "source_code": "void dq_serial_close(int serial_fd) {\n    if (serial_fd >= 0)\n        close(serial_fd);\n}",
+    "version": "1.0",
+    "metadata": {
+        "deltaq.doc.when_to_use": "Когда graph завершает serial exchange и хочет явно закрыть device fd перед выходом.",
+        "deltaq.doc.limitations": "Тонкий Linux-first cleanup helper без richer lifecycle/error-reporting semantics."
+    }
+}

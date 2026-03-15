@@ -25,6 +25,8 @@ Use the docs in this order:
 3. use the Linux artifact checklist if you are reviewing or handing off a packaged build.
 4. use the project export checklist when you want to hand off an application built inside DeltaQ rather than the IDE itself.
 
+If you want to create a fresh desktop project instead of opening a checked-in example, start with `Desktop Text Editor` in the New Project wizard. Use `Desktop UI Baseline` only when you deliberately want the thinner advanced desktop baseline.
+
 ## Related Docs
 
 - [Library Docs Hub](../library/README.md)

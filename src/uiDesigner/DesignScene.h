@@ -17,6 +17,8 @@ class DesignScene : public QGraphicsScene {
     Q_OBJECT
 
 public:
+    static constexpr qreal TitleBarHeight = 30.0;
+
     explicit DesignScene(QObject *parent = nullptr);
 
     // Работа с виджетами
@@ -32,6 +34,7 @@ public:
 
     // Рамка окна по умолчанию
     QRectF windowRect() const { return m_windowRect; }
+    QRectF windowFrameRect() const;
     void setWindowRect(const QRectF &rect);
     QString windowTitle() const { return m_windowTitle; }
     void setWindowTitle(const QString &title);
@@ -95,7 +98,6 @@ private:
     QSizeF m_windowMinimumSize = QSizeF(240, 180);
     bool m_windowResizable = true;
     QMap<QString, QVariant> m_windowProperties;
-    static constexpr qreal TitleBarHeight = 30.0;
     bool m_windowSelected = false;
     bool m_windowResizing = false;
     int m_windowActiveHandle = -1;

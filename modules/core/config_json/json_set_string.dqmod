@@ -1,0 +1,45 @@
+{
+    "category": "config_json",
+    "dependencies": [],
+    "description": "Установка string в JSON",
+    "header": "",
+    "id": "core.config_json.json_set_string",
+    "includes": [
+        "ctype.h",
+        "stdio.h",
+        "string.h"
+    ],
+    "language": "c",
+    "name": "json_set_string",
+    "origin": "core",
+    "ports": {
+        "input": [
+            {
+                "name": "json_text",
+                "type": "string"
+            },
+            {
+                "name": "key",
+                "type": "string"
+            },
+            {
+                "default": "\"\"",
+                "name": "value",
+                "type": "string"
+            }
+        ],
+        "output": [
+            {
+                "name": "result",
+                "type": "string"
+            }
+        ]
+    },
+    "source": "",
+    "source_code": "static const char *dq_json_set_string_skip_ws(const char *cursor) {\n    while (*cursor && isspace((unsigned char) *cursor))\n        ++cursor;\n    return cursor;\n}\n\nstatic int dq_json_set_string_parse_key(const char **cursor, char *key, size_t key_size) {\n    const char *p = dq_json_set_string_skip_ws(*cursor);\n    size_t out = 0;\n    if (*p != '\"')\n        return 0;\n    ++p;\n    while (*p && *p != '\"' && out + 1U < key_size) {\n        if (*p == '\\\\' && p[1])\n            ++p;\n        key[out++] = *p++;\n    }\n    if (*p != '\"')\n        return 0;\n    key[out] = '\\0';\n    ++p;\n    p = dq_json_set_string_skip_ws(p);\n    if (*p != ':')\n        return 0;\n    ++p;\n    *cursor = p;\n    return 1;\n}\n\nstatic const char *dq_json_set_string_find_value_end(const char *cursor) {\n    int in_string = 0;\n    while (*cursor) {\n        if (in_string) {\n            if (*cursor == '\\\\' && cursor[1]) {\n                cursor += 2;\n                continue;\n            }\n            if (*cursor == '\"')\n                in_string = 0;\n            ++cursor;\n            continue;\n        }\n        if (*cursor == '\"') {\n            in_string = 1;\n            ++cursor;\n            continue;\n        }\n        if (*cursor == ',' || *cursor == '}')\n            break;\n        ++cursor;\n    }\n    return cursor;\n}\n\nstatic size_t dq_json_set_string_append_span(char *dst, size_t pos, size_t cap, const char *begin, const char *end) {\n    size_t length = (begin && end && end > begin) ? (size_t) (end - begin) : 0U;\n    if (cap == 0U || pos >= cap - 1U)\n        return pos;\n    if (length > cap - pos - 1U)\n        length = cap - pos - 1U;\n    if (length > 0U)\n        memcpy(dst + pos, begin, length);\n    pos += length;\n    dst[pos] = '\\0';\n    return pos;\n}\n\nstatic size_t dq_json_set_string_append_text(char *dst, size_t pos, size_t cap, const char *text) {\n    return dq_json_set_string_append_span(dst, pos, cap, text, text + strlen(text));\n}\n\nstatic size_t dq_json_set_string_append_entry(char *dst, size_t pos, size_t cap, const char *begin, const char *end, int *wrote_any) {\n    while (begin < end && isspace((unsigned char) *begin))\n        ++begin;\n    while (end > begin && isspace((unsigned char) end[-1]))\n        --end;\n    if (begin >= end)\n        return pos;\n    if (*wrote_any)\n        pos = dq_json_set_string_append_text(dst, pos, cap, \",\");\n    pos = dq_json_set_string_append_span(dst, pos, cap, begin, end);\n    *wrote_any = 1;\n    return pos;\n}\n\nstatic size_t dq_json_set_string_append_quoted(char *dst, size_t pos, size_t cap, const char *text) {\n    const char *cursor = text ? text : \"\";\n    pos = dq_json_set_string_append_text(dst, pos, cap, \"\\\"\");\n    while (*cursor && pos < cap - 1U) {\n        const char ch = *cursor++;\n        char tmp[2] = {ch, '\\0'};\n        if (ch == '\\\\' || ch == '\"') {\n            pos = dq_json_set_string_append_text(dst, pos, cap, \"\\\\\");\n            pos = dq_json_set_string_append_text(dst, pos, cap, tmp);\n        } else if (ch == '\\n') {\n            pos = dq_json_set_string_append_text(dst, pos, cap, \"\\\\n\");\n        } else if (ch == '\\r') {\n            pos = dq_json_set_string_append_text(dst, pos, cap, \"\\\\r\");\n        } else if (ch == '\\t') {\n            pos = dq_json_set_string_append_text(dst, pos, cap, \"\\\\t\");\n        } else {\n            pos = dq_json_set_string_append_text(dst, pos, cap, tmp);\n        }\n    }\n    pos = dq_json_set_string_append_text(dst, pos, cap, \"\\\"\");\n    return pos;\n}\n\nconst char *dq_json_set_string(const char *json_text, const char *key, const char *value) {\n    static char buffer[4096];\n    const char *cursor = json_text ? json_text : \"\";\n    size_t pos = 0;\n    int wrote_any = 0;\n    buffer[0] = '\\0';\n    pos = dq_json_set_string_append_text(buffer, pos, sizeof(buffer), \"{\");\n    cursor = dq_json_set_string_skip_ws(cursor);\n    if (*cursor == '{') {\n        ++cursor;\n        while (*cursor) {\n            const char *entry_start = dq_json_set_string_skip_ws(cursor);\n            const char *scan = entry_start;\n            const char *entry_end = NULL;\n            char parsed_key[128];\n            if (*entry_start == '\\0' || *entry_start == '}')\n                break;\n            if (!dq_json_set_string_parse_key(&scan, parsed_key, sizeof(parsed_key)))\n                break;\n            entry_end = dq_json_set_string_find_value_end(scan);\n            if (strcmp(parsed_key, key ? key : \"\") != 0)\n                pos = dq_json_set_string_append_entry(buffer, pos, sizeof(buffer), entry_start, entry_end, &wrote_any);\n            cursor = entry_end;\n            if (*cursor == ',')\n                ++cursor;\n            else if (*cursor == '}')\n                break;\n        }\n    }\n    if (wrote_any)\n        pos = dq_json_set_string_append_text(buffer, pos, sizeof(buffer), \",\");\n    pos = dq_json_set_string_append_text(buffer, pos, sizeof(buffer), \"\\\"\");\n    pos = dq_json_set_string_append_text(buffer, pos, sizeof(buffer), key ? key : \"\");\n    pos = dq_json_set_string_append_text(buffer, pos, sizeof(buffer), \"\\\":\");\n    pos = dq_json_set_string_append_quoted(buffer, pos, sizeof(buffer), value ? value : \"\");\n    pos = dq_json_set_string_append_text(buffer, pos, sizeof(buffer), \"}\");\n    return buffer;\n}",
+    "version": "1.0",
+    "metadata": {
+        "deltaq.doc.when_to_use": "Когда graph должен обновить string-настройку в небольшом JSON-конфиге и передать итоговый JSON в следующий шаг.",
+        "deltaq.doc.limitations": "Поддерживает только плоский top-level object и экранирует базовые string characters без полноценного JSON serializer."
+    }
+}

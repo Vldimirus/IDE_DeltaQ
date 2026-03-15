@@ -25,6 +25,20 @@ QString renderTemplatePath(QString path, const QString &projectName)
     return path;
 }
 
+QString catalogRoleLabel(const ProjectTemplateInfo &tmpl)
+{
+    if (tmpl.catalogRole == QLatin1String("advanced_desktop_template"))
+        return QObject::tr("Advanced desktop template");
+    if (tmpl.catalogRole == QLatin1String("internal_only"))
+        return QObject::tr("Internal-only template");
+    return QObject::tr("Recommended starter");
+}
+
+QString catalogRoleMarkup(const ProjectTemplateInfo &tmpl)
+{
+    return QStringLiteral("<b>%1</b>").arg(catalogRoleLabel(tmpl).toHtmlEscaped());
+}
+
 } // namespace
 
 // Страница с валидацией: имя и директория не пусты
@@ -102,12 +116,13 @@ QWizardPage *NewProjectWizard::createTypePage()
     m_typeList = new QListWidget;
     auto *descLabel = new QLabel;
     descLabel->setWordWrap(true);
+    descLabel->setTextFormat(Qt::RichText);
     descLabel->setStyleSheet("color: gray; padding: 8px;");
 
     for (const auto &tmpl : m_templates) {
         auto *item = new QListWidgetItem(tmpl.name);
         item->setData(TemplateIdRole, tmpl.id);
-        item->setToolTip(tmpl.description);
+        item->setToolTip(catalogRoleLabel(tmpl) + "\n" + tmpl.description);
         m_typeList->addItem(item);
     }
 
@@ -116,7 +131,10 @@ QWizardPage *NewProjectWizard::createTypePage()
 
     auto updateDescription = [descLabel, this]() {
         const ProjectTemplateInfo *tmpl = selectedTemplate();
-        descLabel->setText(tmpl ? tmpl->description : tr("No project templates were found."));
+        descLabel->setText(tmpl
+                               ? catalogRoleMarkup(*tmpl) + QStringLiteral("<br><br>")
+                                   + tmpl->description.toHtmlEscaped()
+                               : tr("No project templates were found."));
     };
     connect(m_typeList, &QListWidget::currentRowChanged, this, updateDescription);
     updateDescription();
@@ -230,6 +248,8 @@ void NewProjectWizard::updateSummary()
     m_summaryLabel->setText(
         "<b>" + tr("Template:") + "</b> "
             + (tmpl ? tmpl->name.toHtmlEscaped() : tr("Unknown")) + "<br><br>"
+        "<b>" + tr("Catalog role:") + "</b> "
+            + (tmpl ? catalogRoleLabel(*tmpl).toHtmlEscaped() : tr("Unknown")) + "<br><br>"
         "<b>" + tr("Type:") + "</b> " + projectType().toHtmlEscaped() + "<br><br>"
         "<b>" + tr("Name:") + "</b> " + name.toHtmlEscaped() + "<br><br>"
         "<b>" + tr("Path:") + "</b> " + dir.toHtmlEscaped() + "<br><br>"

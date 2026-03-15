@@ -1,0 +1,40 @@
+{
+    "category": "timers",
+    "dependencies": [],
+    "description": "Текущее monotonic time в миллисекундах",
+    "header": "",
+    "id": "core.timers.now_ms",
+    "includes": [
+        "time.h"
+    ],
+    "language": "c",
+    "name": "now_ms",
+    "origin": "core",
+    "ports": {
+        "input": [
+            {
+                "kind": "execution",
+                "name": "flow_in",
+                "type": "exec"
+            }
+        ],
+        "output": [
+            {
+                "kind": "execution",
+                "name": "flow_out",
+                "type": "exec"
+            },
+            {
+                "name": "result",
+                "type": "int"
+            }
+        ]
+    },
+    "source": "",
+    "source_code": "int dq_now_ms(void) {\n    struct timespec ts;\n    long long value = 0;\n    if (clock_gettime(CLOCK_MONOTONIC, &ts) != 0)\n        return 0;\n    value = (long long) ts.tv_sec * 1000LL + (long long) (ts.tv_nsec / 1000000L);\n    return (int) (value % 2147483647LL);\n}",
+    "version": "1.0",
+    "metadata": {
+        "deltaq.doc.when_to_use": "Когда graph должен зафиксировать monotonic timestamp перед внешним шагом или коротким runtime budget check.",
+        "deltaq.doc.limitations": "Linux-first helper: возвращает значение в `int`, поэтому long-running uptime eventually wrap-around; ориентирован на короткие interval/budget проверки, а не на wall-clock time."
+    }
+}

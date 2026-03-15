@@ -295,6 +295,198 @@ static QVector<ReviewedCurationSpec> reviewedNonEssentialCurations()
             QObject::tr("Дополнительный прикладной модуль"),
             QObject::tr("Полезен для прикладных графов, но не обязателен для базового набора v1."),
             {}
+        },
+        {
+            "core.filesystem.read_text_file",
+            "essential",
+            QObject::tr("Опорный useful-baseline модуль"),
+            QObject::tr("Это часть первого practical Stage 4 baseline для file-backed сценариев "
+                        "и конфигурационных графов."),
+            {}
+        },
+        {
+            "core.filesystem.write_text_file",
+            "essential",
+            QObject::tr("Опорный useful-baseline модуль"),
+            QObject::tr("Это часть первого practical Stage 4 baseline для file-backed сценариев "
+                        "и конфигурационных графов."),
+            {}
+        },
+        {
+            "core.filesystem.file_exists",
+            "convenience",
+            QObject::tr("Дополнительный convenience-модуль"),
+            QObject::tr("Ускоряет ветвления вокруг file-backed flow, но не считается обязательной "
+                        "частью самого минимального filesystem baseline."),
+            {}
+        },
+        {
+            "core.filesystem.ensure_dir",
+            "convenience",
+            QObject::tr("Дополнительный convenience-модуль"),
+            QObject::tr("Полезен перед сохранением config/state файлов, но не должен разрастаться "
+                        "в полноценный file-management layer внутри core."),
+            {}
+        },
+        {
+            "core.config_json.json_get_int",
+            "essential",
+            QObject::tr("Опорный useful-baseline модуль"),
+            QObject::tr("Это часть первого practical Stage 4 baseline для небольших JSON-config "
+                        "сценариев без отдельного parser state."),
+            {}
+        },
+        {
+            "core.config_json.json_set_int",
+            "essential",
+            QObject::tr("Опорный useful-baseline модуль"),
+            QObject::tr("Это часть первого practical Stage 4 baseline для небольших JSON-config "
+                        "сценариев без отдельного serializer layer."),
+            {}
+        },
+        {
+            "core.config_json.json_get_string",
+            "convenience",
+            QObject::tr("Дополнительный convenience-модуль"),
+            QObject::tr("Полезен для file-backed settings flow, но остаётся частью небольшого "
+                        "JSON helper slice, а не полного config framework."),
+            {}
+        },
+        {
+            "core.config_json.json_set_string",
+            "convenience",
+            QObject::tr("Дополнительный convenience-модуль"),
+            QObject::tr("Полезен для настроек и small-state scenarios, но не должен маскироваться "
+                        "под полнофункциональный JSON serializer."),
+            {}
+        },
+        {
+            "core.process.run_stdout",
+            "essential",
+            QObject::tr("Опорный useful-baseline модуль"),
+            QObject::tr("Это часть compact Stage 4 baseline для простого tool-runner flow, "
+                        "где graph должен запустить внешний script/tool и получить stdout."),
+            {}
+        },
+        {
+            "core.process.run_exit_code",
+            "essential",
+            QObject::tr("Опорный useful-baseline модуль"),
+            QObject::tr("Это часть compact Stage 4 baseline для tool-runner scenarios, "
+                        "где нужен явный success/failure contract без shell orchestration."),
+            {}
+        },
+        {
+            "core.timers.now_ms",
+            "essential",
+            QObject::tr("Опорный useful-baseline модуль"),
+            QObject::tr("Это часть practical Stage 4 baseline для коротких monotonic budget "
+                        "и elapsed-time checks вокруг sync runtime step."),
+            {}
+        },
+        {
+            "core.timers.timeout_once",
+            "essential",
+            QObject::tr("Опорный useful-baseline модуль"),
+            QObject::tr("Это часть practical Stage 4 baseline для one-shot timeout checks "
+                        "без возврата к blocking delay helpers."),
+            {}
+        },
+        {
+            "core.timers.elapsed_ms",
+            "convenience",
+            QObject::tr("Дополнительный convenience-модуль"),
+            QObject::tr("Полезен для stdout/log/reporting path вокруг sync step, но не должен "
+                        "разрастаться в полноценный scheduler layer внутри core."),
+            {}
+        },
+        {
+            "core.tcp_udp.udp_bind",
+            "essential",
+            QObject::tr("Опорный useful-baseline модуль"),
+            QObject::tr("Это часть datagram-first Stage 4 baseline для loopback/integration probe "
+                        "сценариев без отдельного server framework."),
+            {}
+        },
+        {
+            "core.tcp_udp.udp_send",
+            "essential",
+            QObject::tr("Опорный useful-baseline модуль"),
+            QObject::tr("Это часть datagram-first Stage 4 baseline для простого transport exchange "
+                        "внутри graph runtime."),
+            {}
+        },
+        {
+            "core.tcp_udp.udp_receive",
+            "essential",
+            QObject::tr("Опорный useful-baseline модуль"),
+            QObject::tr("Это часть datagram-first Stage 4 baseline для короткого receive path "
+                        "с явным timeout boundary."),
+            {}
+        },
+        {
+            "core.tcp_udp.udp_local_port",
+            "convenience",
+            QObject::tr("Дополнительный convenience-модуль"),
+            QObject::tr("Полезен, когда transport probe хочет bind на ephemeral port и потом "
+                        "переиспользовать фактический port без внешнего helper-кода."),
+            {}
+        },
+        {
+            "core.tcp_udp.udp_close",
+            "convenience",
+            QObject::tr("Дополнительный convenience-модуль"),
+            QObject::tr("Полезен для явного cleanup transport probe flow, но сам по себе не "
+                        "образует новый protocol baseline."),
+            {}
+        },
+        {
+            "core.serial.serial_open",
+            "essential",
+            QObject::tr("Опорный useful-baseline модуль"),
+            QObject::tr("Это часть compact Stage 4 baseline для generic serial device bridge, "
+                        "где graph открывает уже известный device path."),
+            {}
+        },
+        {
+            "core.serial.serial_configure",
+            "essential",
+            QObject::tr("Опорный useful-baseline модуль"),
+            QObject::tr("Это часть compact Stage 4 baseline для предсказуемого raw serial contract "
+                        "перед обменом payload."),
+            {}
+        },
+        {
+            "core.serial.serial_write",
+            "essential",
+            QObject::tr("Опорный useful-baseline модуль"),
+            QObject::tr("Это часть compact Stage 4 baseline для короткого serial write path "
+                        "без protocol-specific layer."),
+            {}
+        },
+        {
+            "core.serial.serial_read",
+            "essential",
+            QObject::tr("Опорный useful-baseline модуль"),
+            QObject::tr("Это часть compact Stage 4 baseline для serial receive path "
+                        "с явным timeout boundary."),
+            {}
+        },
+        {
+            "core.serial.serial_close",
+            "essential",
+            QObject::tr("Опорный useful-baseline модуль"),
+            QObject::tr("Это часть compact Stage 4 baseline для явного serial lifecycle cleanup "
+                        "внутри graph runtime."),
+            {}
+        },
+        {
+            "core.serial.serial_loopback_path",
+            "convenience",
+            QObject::tr("Дополнительный convenience-модуль"),
+            QObject::tr("Полезен для self-contained serial probe flow без реального hardware, "
+                        "но не должен подменять device discovery layer."),
+            {}
         }
     };
 }

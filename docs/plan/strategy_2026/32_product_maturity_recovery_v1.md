@@ -218,7 +218,7 @@
   - runtime parity по window size;
   - runtime parity по `minimum size` и `resizable policy`.
 
-#### Status on 2026-03-14
+#### Status on 2026-03-15
 
 - первый implementation slice уже приземлён:
   - `DesignScene` получил единый state для `title / min_width / min_height / resizable`;
@@ -229,9 +229,77 @@
     - `DesignScene` save/load round-trip;
     - geometry clamp by minimum size;
     - generated runtime window contract;
-- stage пока не закрыт:
-  - остаются broader runtime/design parity cases;
-  - остаётся delivery no-regression pass на release/export flow при следующих desktop changes.
+- второй implementation slice уже приземлён:
+  - desktop baseline assets (`desktop`, `desktop_text_editor`, `desktop_ui_flow`)
+    теперь хранят явный window contract в `.dqui`;
+  - graph-generated desktop `main.c` синхронизирован с новым
+    `dq_ui_backend_init(..., min_width, min_height, resizable)` contract;
+  - release no-regression для `Export Linux Bundle` повторно подтверждён на:
+    - `minimal_console_flow`;
+    - `desktop_ui_flow`;
+- третий implementation slice уже приземлён:
+  - `DesignScene` теперь интерпретирует `window.geometry` как runtime client area,
+    а desktop chrome рисует поверх отдельного `windowFrameRect`, чтобы designer и
+    runtime использовали одну и ту же coordinate/size model;
+  - root anchor/layout path в designer переведён на полный client size без старого
+    скрытого `title bar`-offset;
+  - `PropertyEditor` синхронизирует `width / height / min size / resizable`
+    контролы сразу после window property edits и больше не держит устаревшие
+    ranges/value после clamp;
+  - добавлены regression tests на:
+    - designer client/frame model;
+    - root anchor parity по полной window height;
+    - property-editor sync после minimum-size clamp;
+  - release no-regression для `Export Linux Bundle` ещё раз подтверждён на:
+    - `minimal_console_flow`;
+    - `desktop_ui_flow`;
+- четвёртый implementation slice уже приземлён:
+  - добавлен explicit regression на mouse-drag resize window handles прямо на
+    уровне `DesignScene`, без завязки на неустойчивые viewport-pixel tests;
+  - mouse-resize path теперь проверяется не только на изменение geometry в
+    памяти, но и на `.dqui` save/reopen через `UILayoutStore`;
+  - добавлен parity-case, который сравнивает mouse-clamped resize и property
+    resize после reload и подтверждает одинаковые `width / height` значения;
+- пятый implementation slice уже приземлён:
+  - `PreBuildProcessor` теперь пробрасывает primary window contract из `.dqui`
+    в inline desktop graph path, чтобы graph-generated `main.c` не жил на
+    отдельно зашитых fallback-значениях;
+  - `GraphCompiler` умеет принимать injected desktop window contract и
+    использует его для `title / width / height / min_width / min_height / resizable`
+    в `dq_ui_backend_init(...)`;
+  - desktop baseline и `desktop_ui_flow` получили runtime-level parity checks:
+    - `desktop` template prebuild теперь проверяет exact generated init contract;
+    - `desktop_ui_flow` build/run и export bundle path проверяют тот же contract
+      до реального headless runtime/export verification;
+- шестой implementation slice уже приземлён:
+  - baseline `desktop` template получил opt-in headless autoclose hook через
+    `DQ_DESKTOP_TEMPLATE_AUTOCLOSE_MS`, чтобы user-facing regression мог пройти
+    реальный `run`, а не останавливаться на `build`;
+  - добавлен `MainWindow` integration regression на baseline flow:
+    `open project -> open window1.dqui -> edit window properties ->
+    save -> reopen -> build -> run`;
+  - regression идёт через реальные `PropertyEditor` controls и подтверждает, что
+    baseline window contract после edit/save доходит до:
+    - persisted `ui/window1.dqui`;
+    - regenerated `src/main.c` с exact `dq_ui_backend_init(...)`;
+    - headless runtime с clean exit;
+- седьмой implementation slice уже приземлён:
+  - baseline `desktop` flow получил отдельный `MainWindow` acceptance proof для
+    mouse resize path: реальный drag window handle в designer ->
+    save -> reopen -> build -> run;
+  - runtime-level proof теперь закрывает оба user-facing resize path:
+    - property edit path;
+    - mouse resize path;
+  - это убирает последний незакрытый runtime-behavior tail для `Stage 1`:
+    desktop baseline теперь доказан end-to-end не только на init contract, но и
+    на реальных resize workflows от IDE до runtime;
+- `Stage 1: UI Designer Hardening` можно считать закрытым:
+  - desktop baseline имеет end-to-end proof для property и mouse resize path;
+  - designer/codegen/runtime используют единый window contract и regression
+    coverage на save/load/resize/property edit;
+  - release/export no-regression теперь снова зелёный, но должен оставаться
+    обязательным gate после следующих desktop/template изменений;
+  - следующий основной фокус можно смещать на `Stage 2: Desktop Template Overhaul`.
 
 ### Stage 2. Desktop Template Overhaul
 
@@ -287,6 +355,47 @@
 - README/release screenshots и onboarding больше не ссылаются на legacy-fixtures
   как на основной desktop starter.
 
+- первый implementation slice `Stage 2` уже приземлён:
+  - template catalog получил явный `catalog_role` contract;
+  - `New Project` wizard теперь показывает classification для user-facing templates;
+  - `desktop_empty` и `desktop_mdi` переведены в `internal_only` и скрыты из
+    normal wizard flow с зафиксированной причиной, чтобы user-facing desktop
+    catalog перестал показывать слабые raw-SDL fixtures как обычные starters;
+  - regression tests закрепляют:
+    - visible template order;
+    - hidden desktop templates остаются discoverable по ID для internal/test flows;
+    - `desktop` и `desktop_text_editor` имеют явную desktop-catalog classification;
+- второй implementation slice `Stage 2` закрывает user-facing starter path:
+  - `desktop_text_editor` пересобран в notes-workspace starter вместо узкого `Text Pad`
+    fixture;
+  - checked-in starter теперь содержит реальные desktop-pattern элементы:
+    - `MenuBar`
+    - `ToolBar`
+    - `TabPanel`
+    - `StatusBar`;
+  - template event hooks больше не тащат legacy-copy о `UI Graph Example`, а
+    сразу поддерживают sample/new/append workflow и headless autoclose через
+    `DQ_DESKTOP_TEXT_EDITOR_AUTOCLOSE_MS`;
+  - regression coverage теперь доказывает для `desktop_text_editor` путь
+    `generate -> pre-build -> build -> run` без ручной правки и отдельно
+    проверяет presence desktop shell widgets в generated template assets;
+- `Stage 2` пока не закрыт полностью:
+  - оставался один хвост: explicit cleanup/reframing desktop template names,
+    template copy и onboarding README surfaces, чтобы user-facing catalog больше
+    не смешивал recommended starter с legacy/showcase wording.
+- третий implementation slice закрывает и этот хвост:
+  - advanced desktop template переименован из `Desktop UI Graph Example` в
+    `Desktop UI Baseline`;
+  - baseline template copy больше не использует user-facing wording вида
+    `Example` / `Existing` и синхронизирован с advanced-desktop role;
+  - README/README_RU и onboarding index теперь явно говорят, что:
+    - `Desktop Text Editor` является recommended desktop starter;
+    - `Desktop UI Baseline` является advanced desktop option;
+    - hidden raw-SDL fixtures не являются normal wizard options;
+  - regression coverage закрепляет новый metadata/naming contract для
+    user-facing desktop templates;
+- `Stage 2: Desktop Template Overhaul` после этого можно считать закрытым.
+
 ### Stage 3. Bug Burn-Down For Trust
 
 #### Problem
@@ -336,6 +445,23 @@
 - release/export surfaces из закрытых tracks `29/30/31` не деградировали:
   - release bundle по-прежнему проходит `first-run` и `open example -> build -> run`;
   - `Export Linux Bundle` остаётся зелёным для console и desktop reference flow.
+
+#### Current Stage 3 Status
+
+Рабочий blocker-shortlist для этого stage теперь ведётся отдельно в
+`33_bug_burn_down_shortlist.md`.
+
+На срезе `2026-03-15` зафиксировано:
+
+- после закрытия `Stage 1` и `Stage 2` в top-level Linux flow не подтверждаются
+  открытые `crash / data-loss / editor-runtime mismatch` blockers;
+- первые короткие Stage 3 slices закрыли три trust-blocker-а:
+  - misleading current-readiness framing;
+  - stale open issue про уже исправленный `zoomFit`;
+  - generated SDL2 event scaffold с raw `TODO`-body и placeholder comment;
+- на текущем срезе explicit shortlist не содержит open blocker-item-ов, но
+  `Stage 3` остаётся активным gating-lane для следующих slices после `Stage 4`
+  и `Stage 5`.
 
 ### Stage 4. Core Module Library v1
 
@@ -397,6 +523,25 @@
 - как минимум два checked-in reference scenario используют новые или выровненные
   useful core-модули в реальном `build -> run` flow;
 - `resources/examples/reusable_composition_console` остаётся зелёным после изменений в `core`.
+
+#### Current Stage 4 Status
+
+Execution-grade audit для Stage 4 зафиксирован в
+`docs/library/core/useful_baseline_audit.md`.
+
+На срезе `2026-03-15` он фиксирует:
+
+- для Stage 4 categories `filesystem / timers / config-json / process / tcp-udp / serial`
+  определены:
+  - essential baseline slices;
+  - граница `convenience / specialized`;
+  - общий docs/verification bar;
+- `filesystem`, `config-json`, `process`, `timers`, `tcp-udp` и `serial` уже получили checked-in initial baseline:
+  - новые `core` modules с explicit curation review;
+  - reference examples `settings_file_console`, `process_timer_console`, `transport_probe_console` и `serial_probe_console`;
+  - automated `build -> run` proof;
+- useful-category baseline portion `Stage 4` можно считать закрытой; дальше
+  оставшиеся шаги — это уже consolidation/discoverability, а не новые category gaps.
 
 ### Stage 5. External Library Adapter v1
 

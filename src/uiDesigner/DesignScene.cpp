@@ -26,13 +26,21 @@ QPointF windowResizeHandleCenter(const QRectF &rect, int index)
     }
 }
 
+QRectF windowFrameRectForClientRect(const QRectF &clientRect)
+{
+    return QRectF(clientRect.x(),
+                  clientRect.y() - DesignScene::TitleBarHeight,
+                  clientRect.width(),
+                  clientRect.height() + DesignScene::TitleBarHeight);
+}
+
 } // namespace
 
 DesignScene::DesignScene(QObject *parent)
     : QGraphicsScene(parent)
 {
     setBackgroundBrush(QColor(30, 30, 30));
-    setSceneRect(0, 0, 2000, 2000);
+    setSceneRect(-2000, -2000, 4000, 4000);
 
     // Обработка изменения выделения
     connect(this, &QGraphicsScene::selectionChanged, this, [this]() {
@@ -46,6 +54,11 @@ DesignScene::DesignScene(QObject *parent)
             }
         }
     });
+}
+
+QRectF DesignScene::windowFrameRect() const
+{
+    return windowFrameRectForClientRect(m_windowRect);
 }
 
 void DesignScene::setWindowRect(const QRectF &rect)
@@ -267,23 +280,25 @@ void DesignScene::drawBackground(QPainter *painter, const QRectF &rect)
     painter->drawLines(majorLines);
 
     // --- Рамка окна по умолчанию ---
-    if (!m_windowRect.isEmpty() && rect.intersects(m_windowRect)) {
+    const QRectF frameRect = windowFrameRect();
+    if (!m_windowRect.isEmpty() && rect.intersects(frameRect)) {
         painter->save();
 
         // Тень окна
-        QRectF shadowRect = m_windowRect.translated(4, 4);
+        QRectF shadowRect = frameRect.translated(4, 4);
         painter->setPen(Qt::NoPen);
         painter->setBrush(QColor(0, 0, 0, 80));
         painter->drawRect(shadowRect);
 
-        // Тело окна (тёмно-серый фон, имитация SDL-окна)
+        // Визуальная рамка окна рисуется вокруг client area; title bar вынесен
+        // выше client rect, чтобы scene и runtime использовали одни координаты.
         painter->setBrush(QColor(45, 45, 48));
         painter->setPen(QPen(QColor(80, 80, 80), 1.0));
-        painter->drawRect(m_windowRect);
+        painter->drawRect(frameRect);
 
         // Title bar
-        QRectF titleBar(m_windowRect.x(), m_windowRect.y(),
-                        m_windowRect.width(), TitleBarHeight);
+        QRectF titleBar(frameRect.x(), frameRect.y(),
+                        frameRect.width(), TitleBarHeight);
         painter->setBrush(QColor(60, 60, 65));
         painter->setPen(Qt::NoPen);
         painter->drawRect(titleBar);
@@ -314,8 +329,8 @@ void DesignScene::drawBackground(QPainter *painter, const QRectF &rect)
 
         // Разделитель под title bar
         painter->setPen(QPen(QColor(80, 80, 80), 1.0));
-        painter->drawLine(QPointF(titleBar.left(), titleBar.bottom()),
-                          QPointF(titleBar.right(), titleBar.bottom()));
+        painter->drawLine(QPointF(m_windowRect.left(), m_windowRect.top()),
+                          QPointF(m_windowRect.right(), m_windowRect.top()));
 
         if (m_windowSelected)
             paintWindowResizeHandles(painter);
@@ -344,7 +359,7 @@ void DesignScene::mousePressEvent(QGraphicsSceneMouseEvent *event)
     QGraphicsScene::mousePressEvent(event);
 
     // Если клик не попал ни по одному виджету и внутри windowRect — выделяем окно
-    if (selectedItems().isEmpty() && m_windowRect.contains(event->scenePos())) {
+    if (selectedItems().isEmpty() && windowFrameRect().contains(event->scenePos())) {
         m_windowSelected = true;
         update();
         emit windowSelected();
@@ -449,10 +464,7 @@ void DesignScene::drawForeground(QPainter *painter, const QRectF &rect)
 
 bool DesignScene::isInsideWindowClient(const QPointF &pos) const
 {
-    // Клиентская область = windowRect минус title bar
-    QRectF clientRect(m_windowRect.x(), m_windowRect.y() + TitleBarHeight,
-                      m_windowRect.width(), m_windowRect.height() - TitleBarHeight);
-    return clientRect.contains(pos);
+    return m_windowRect.contains(pos);
 }
 
 int DesignScene::windowResizeHandleAt(const QPointF &scenePos) const
@@ -461,7 +473,7 @@ int DesignScene::windowResizeHandleAt(const QPointF &scenePos) const
         return -1;
 
     for (int i = 0; i < 3; ++i) {
-        const QPointF center = windowResizeHandleCenter(m_windowRect, i);
+        const QPointF center = windowResizeHandleCenter(windowFrameRect(), i);
         const QRectF handleRect(center.x() - WindowHandleSize,
                                 center.y() - WindowHandleSize,
                                 WindowHandleSize * 2,
@@ -481,12 +493,12 @@ void DesignScene::paintWindowResizeHandles(QPainter *painter)
     painter->save();
     painter->setPen(QPen(QColor(0, 120, 215), 1.5, Qt::DashLine));
     painter->setBrush(Qt::NoBrush);
-    painter->drawRect(m_windowRect);
+    painter->drawRect(windowFrameRect());
 
     painter->setPen(QPen(QColor(0, 120, 215)));
     painter->setBrush(QColor(0, 120, 215));
     for (int i = 0; i < 3; ++i) {
-        const QPointF center = windowResizeHandleCenter(m_windowRect, i);
+        const QPointF center = windowResizeHandleCenter(windowFrameRect(), i);
         painter->drawRect(QRectF(center.x() - WindowHandleSize / 2,
                                  center.y() - WindowHandleSize / 2,
                                  WindowHandleSize,
@@ -551,8 +563,7 @@ void DesignScene::dropEvent(QGraphicsSceneDragDropEvent *event)
 
         // Если вне клиентской области — корректируем позицию внутрь
         const QSizeF defaultSize = defaultUIWidgetSize(widgetType);
-        QRectF clientRect(m_windowRect.x(), m_windowRect.y() + TitleBarHeight,
-                          m_windowRect.width(), m_windowRect.height() - TitleBarHeight);
+        const QRectF clientRect = m_windowRect;
         if (!clientRect.contains(snapped)) {
             snapped.setX(qBound(clientRect.left(), snapped.x(), clientRect.right() - defaultSize.width()));
             snapped.setY(qBound(clientRect.top(), snapped.y(), clientRect.bottom() - defaultSize.height()));

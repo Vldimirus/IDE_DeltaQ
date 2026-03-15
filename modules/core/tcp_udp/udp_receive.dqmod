@@ -1,0 +1,56 @@
+{
+    "category": "tcp_udp",
+    "dependencies": [],
+    "description": "Получение UDP datagram с timeout",
+    "header": "",
+    "id": "core.tcp_udp.udp_receive",
+    "includes": [
+        "string.h",
+        "sys/select.h",
+        "sys/socket.h"
+    ],
+    "language": "c",
+    "name": "udp_receive",
+    "origin": "core",
+    "ports": {
+        "input": [
+            {
+                "kind": "execution",
+                "name": "flow_in",
+                "type": "exec"
+            },
+            {
+                "name": "socket_fd",
+                "type": "int"
+            },
+            {
+                "default": "250",
+                "name": "timeout_ms",
+                "type": "int"
+            },
+            {
+                "default": "512",
+                "name": "max_bytes",
+                "type": "int"
+            }
+        ],
+        "output": [
+            {
+                "kind": "execution",
+                "name": "flow_out",
+                "type": "exec"
+            },
+            {
+                "name": "text",
+                "type": "string"
+            }
+        ]
+    },
+    "source": "",
+    "source_code": "const char *dq_udp_receive(int socket_fd, int timeout_ms, int max_bytes) {\n    static char buffer[4096];\n    fd_set read_fds;\n    struct timeval timeout;\n    int ready = 0;\n    size_t limit = sizeof(buffer) - 1U;\n    if (socket_fd < 0)\n        return \"\";\n    if (max_bytes > 0 && (size_t) max_bytes < limit)\n        limit = (size_t) max_bytes;\n    if (timeout_ms < 0)\n        timeout_ms = 0;\n    FD_ZERO(&read_fds);\n    FD_SET(socket_fd, &read_fds);\n    timeout.tv_sec = timeout_ms / 1000;\n    timeout.tv_usec = (timeout_ms % 1000) * 1000;\n    ready = select(socket_fd + 1, &read_fds, NULL, NULL, &timeout);\n    if (ready <= 0)\n        return \"\";\n    ready = (int) recv(socket_fd, buffer, limit, 0);\n    if (ready <= 0)\n        return \"\";\n    buffer[ready] = '\\0';\n    return buffer;\n}",
+    "version": "1.0",
+    "metadata": {
+        "deltaq.doc.when_to_use": "Когда graph должен дождаться небольшой UDP datagram в probe/integration flow без отдельного async event-loop слоя.",
+        "deltaq.doc.limitations": "Блокирует только до заданного timeout, читает один datagram в фиксированный буфер и не даёт source-address metadata."
+    }
+}

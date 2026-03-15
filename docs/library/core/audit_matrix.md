@@ -10,6 +10,7 @@
   - `remove` — пока не используется, в текущем срезе таких модулей нет.
 - `Role`:
   - `essential`
+  - `convenience`
   - `specialized`
   - `legacy`
 
@@ -91,10 +92,64 @@
 | `core.desktop.ttf_quit` | `keep` | `essential` | Backend text shutdown baseline |
 | `core.desktop.sdl_quit` | `keep` | `essential` | Backend lifecycle shutdown baseline |
 
+## Filesystem
+
+| Module | Decision | Role | Note |
+| --- | --- | --- | --- |
+| `core.filesystem.read_text_file` | `keep` | `essential` | Первый useful-baseline path для file-backed config/state |
+| `core.filesystem.write_text_file` | `keep` | `essential` | Первый useful-baseline path для file-backed config/state |
+| `core.filesystem.file_exists` | `keep` | `convenience` | Ускоряет file-backed ветвления без разрастания baseline |
+| `core.filesystem.ensure_dir` | `keep` | `convenience` | Удобный helper перед сохранением runtime/config файлов |
+
+## Config / JSON
+
+| Module | Decision | Role | Note |
+| --- | --- | --- | --- |
+| `core.config_json.json_get_int` | `keep` | `essential` | Базовый int-read path для небольших JSON-config flow |
+| `core.config_json.json_set_int` | `keep` | `essential` | Базовый int-write path для небольших JSON-config flow |
+| `core.config_json.json_get_string` | `keep` | `convenience` | Удобный string-read helper для settings/state scenarios |
+| `core.config_json.json_set_string` | `keep` | `convenience` | Удобный string-write helper для settings/state scenarios |
+
+## Process
+
+| Module | Decision | Role | Note |
+| --- | --- | --- | --- |
+| `core.process.run_stdout` | `keep` | `essential` | Минимальный tool-runner path с захватом stdout без shell orchestration layer |
+| `core.process.run_exit_code` | `keep` | `essential` | Минимальный tool-runner status path с явным success/failure contract |
+
+## Timers
+
+| Module | Decision | Role | Note |
+| --- | --- | --- | --- |
+| `core.timers.now_ms` | `keep` | `essential` | Monotonic timestamp для budget/elapsed checks вокруг sync step |
+| `core.timers.timeout_once` | `keep` | `essential` | One-shot timeout check без возврата к blocking delay helper |
+| `core.timers.elapsed_ms` | `keep` | `convenience` | Удобный elapsed helper для stdout/log/reporting path |
+
+## TCP / UDP
+
+| Module | Decision | Role | Note |
+| --- | --- | --- | --- |
+| `core.tcp_udp.udp_bind` | `keep` | `essential` | Datagrams-first loopback bind path для compact transport probe |
+| `core.tcp_udp.udp_send` | `keep` | `essential` | Минимальный UDP text send path без protocol framework |
+| `core.tcp_udp.udp_receive` | `keep` | `essential` | Минимальный UDP receive path с timeout boundary |
+| `core.tcp_udp.udp_local_port` | `keep` | `convenience` | Удобный helper для ephemeral bind -> send-to-self flow |
+| `core.tcp_udp.udp_close` | `keep` | `convenience` | Явный cleanup helper для transport probe scenario |
+
+## Serial
+
+| Module | Decision | Role | Note |
+| --- | --- | --- | --- |
+| `core.serial.serial_open` | `keep` | `essential` | Минимальный open path для serial device bridge |
+| `core.serial.serial_configure` | `keep` | `essential` | Базовый raw 8N1 configure path перед exchange |
+| `core.serial.serial_write` | `keep` | `essential` | Минимальный write path для небольшого text payload |
+| `core.serial.serial_read` | `keep` | `essential` | Минимальный read path с timeout boundary |
+| `core.serial.serial_close` | `keep` | `essential` | Явный serial cleanup path |
+| `core.serial.serial_loopback_path` | `keep` | `convenience` | Self-contained PTY helper для serial probe без реального hardware |
+
 ## Current Summary
 
-- `essential`: 28
+- `essential`: 44
 - `specialized`: 3
 - `legacy`: 12
 - `remove`: 0
-- `convenience`: 0 checked-in reviewed modules на текущем срезе
+- `convenience`: 8 checked-in reviewed modules на текущем срезе

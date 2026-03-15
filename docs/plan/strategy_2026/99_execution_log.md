@@ -4816,3 +4816,773 @@ execution-дыры:
 - первый проверяемый slice `Stage 1` закрыт;
 - сам `Stage 1: UI Designer Hardening` ещё не завершён целиком, но основной
   contract gap `designer -> .dqui -> generated runtime` по window metadata уже снят.
+
+### Шаг 94 — Stage 1 продолжен: desktop baseline синхронизирован с новым window contract и re-verified через export smoke
+
+**Фаза:** `Product Maturity Recovery v1 / Stage 1`
+
+**Почему это потребовалось:**
+
+После первого slice `Stage 1` runtime contract для UI-layout path уже был
+обновлён, но desktop graph/codegen path оставался на старом вызове
+`dq_ui_backend_init(&backend, title, width, height)`.
+
+Это дало реальный regression:
+
+- `desktop_ui_flow -> Export Linux Bundle` падал уже на compile phase;
+- graph-generated `main.c` не совпадал с новым UI backend contract;
+- desktop baseline assets ещё не хранили window policy явно в `.dqui`.
+
+**Что сделано:**
+
+- desktop baseline assets обновлены и теперь несут явный window-level contract:
+  - `resources/templates/desktop/ui/window1.dqui`;
+  - `resources/templates/desktop_text_editor/ui/window1.dqui`;
+  - `resources/examples/desktop_ui_flow/ui/window1.dqui`;
+- `test_ProjectTemplates` расширен и теперь проверяет, что desktop templates
+  сохраняют `title / min_width / min_height / resizable`;
+- `GraphCompiler` синхронизирован с новым backend init contract и теперь
+  graph-generated desktop path вызывает:
+  - `dq_ui_backend_init(..., min_width, min_height, resizable)`;
+- codegen regression tests обновлены для нового 7-аргументного desktop init:
+  - `test_GraphCompiler`;
+  - `test_PreBuildProcessor`.
+
+**Проверка:**
+
+- `cmake --build build/qt-dev --parallel --target test_GraphCompiler test_PreBuildProcessor test_ProjectTemplates test_DesignScene test_SDL2CodeGenerator test_UILayout`
+- `QT_QPA_PLATFORM=offscreen ./build/qt-dev/tests/test_GraphCompiler desktopRuntimeGraphGeneratesSDLMain`
+- `QT_QPA_PLATFORM=offscreen ./build/qt-dev/tests/test_PreBuildProcessor processesDesktopTemplateEndToEnd`
+- `./scripts/build_release.sh --no-tests`
+- `./scripts/smoke_linux_example_export.sh build/release/DeltaQ minimal_console_flow`
+- `./scripts/smoke_linux_example_export.sh build/release/DeltaQ desktop_ui_flow`
+
+**Итог:**
+
+- desktop baseline assets и graph desktop codegen снова согласованы с новым
+  window contract;
+- release/export no-regression gate снова зелёный для:
+  - `minimal_console_flow`;
+  - `desktop_ui_flow`;
+- `Stage 1` ещё не закрыт целиком, но следующий slice уже можно брать поверх
+  восстановленного desktop delivery path.
+
+### Шаг 95 — Stage 1 продолжен: designer переведён на runtime client-area model и закрыт property-clamp sync
+
+**Фаза:** `Product Maturity Recovery v1 / Stage 1`
+
+**Почему это потребовалось:**
+
+После предыдущего slice window contract по `title / min_width / min_height /
+resizable` уже был единым, но сам designer всё ещё визуально трактовал
+`window.geometry` как прямоугольник вместе с внутренним fake title bar.
+
+Это оставляло два ощутимых parity-gap:
+
+- designer и runtime расходились по effective client area примерно на `30px`
+  по вертикали;
+- после `min size` edits через `PropertyEditor` scene уже clamp-ил окно, но сами
+  `Width / Height` контролы могли остаться со старыми ranges/value до
+  дополнительного refresh.
+
+**Что сделано:**
+
+- `DesignScene` теперь хранит `windowRect` как runtime client area и отдельно
+  вычисляет `windowFrameRect` для desktop chrome в designer;
+- visual title bar вынесен над client rect, поэтому root-widget coordinates и
+  window size в designer совпадают с runtime model напрямую;
+- root anchor/layout path в `LayoutEngine` и `UIDesignerWidget` переведён на
+  полный client height без старого скрытого `title bar`-offset;
+- `PropertyEditor` получил явную синхронизацию window controls после
+  `title / width / height / min size / resizable` edits, включая обновление
+  `Width / Height` ranges после clamp;
+- добавлены object names для window property controls, чтобы parity можно было
+  покрывать regression tests без хрупкого поиска по порядку widgets.
+
+**Проверка:**
+
+- `cmake --build build/qt-dev --target test_DesignScene test_LayoutEngine test_UIContractAlignment --parallel`
+- `QT_QPA_PLATFORM=offscreen ./build/qt-dev/tests/test_DesignScene`
+- `QT_QPA_PLATFORM=offscreen ./build/qt-dev/tests/test_LayoutEngine`
+- `QT_QPA_PLATFORM=offscreen ./build/qt-dev/tests/test_UIContractAlignment`
+- `./scripts/smoke_linux_example_export.sh build/release/DeltaQ minimal_console_flow`
+- `./scripts/smoke_linux_example_export.sh build/release/DeltaQ desktop_ui_flow`
+
+**Итог:**
+
+- designer/codegen/runtime теперь используют одну window-size model: `window.geometry`
+  = runtime client area, без скрытого designer-only offset;
+- property-based resize/min-size edits больше не оставляют stale `Width / Height`
+  controls в `PropertyEditor`;
+- release/export gate остаётся зелёным для:
+  - `minimal_console_flow`;
+  - `desktop_ui_flow`;
+- `Stage 1` заметно продвинут, но для полного закрытия всё ещё полезно добить
+  explicit mouse-drag resize parity/reopen regression case.
+
+### Шаг 96 — Stage 1 продолжен: mouse-drag resize parity зафиксирован через save/reopen regression
+
+**Фаза:** `Product Maturity Recovery v1 / Stage 1`
+
+**Почему это потребовалось:**
+
+После шага 95 window model в designer уже совпадала с runtime client area, а
+property-side clamp/sync был закрыт, но explicit regression на resize мышью всё
+ещё отсутствовал.
+
+Без него оставался неприятный blind spot:
+
+- можно было снова сломать window-handle resize path, не зацепив property tests;
+- reopen/save acceptance оставался покрыт для property/edit path лучше, чем для
+  реального mouse-drag сценария.
+
+**Что сделано:**
+
+- в `test_DesignScene` добавлен test helper, который синтезирует
+  `QGraphicsSceneMouseEvent` и гоняет resize handle напрямую через
+  `DesignScene::mousePressEvent/mouseMoveEvent/mouseReleaseEvent`;
+- добавлен regression `mouse-drag -> save .dqui -> reopen`, который проверяет,
+  что увеличенный размер окна сохраняется и восстанавливается без дрейфа;
+- добавлен parity-case, который сравнивает mouse-clamped resize и property
+  resize после reload и подтверждает одинаковый persisted result;
+- `windowGeometryChanged` теперь тоже зафиксирован в targeted regression для
+  mouse-resize path.
+
+**Проверка:**
+
+- `cmake --build build/qt-dev --target test_DesignScene --parallel`
+- `QT_QPA_PLATFORM=offscreen ./build/qt-dev/tests/test_DesignScene`
+
+**Итог:**
+
+- explicit mouse-drag resize path больше не остаётся непокрытым внутри `Stage 1`;
+- `save/load + resize + property editing` regression layer по window contract
+  теперь собран в один последовательный набор targeted cases;
+- следующий практический хвост `Stage 1` смещается с resize persistence на
+  более широкий `runtime behavior parity` для desktop baseline flows.
+
+### Шаг 97 — Stage 1 продолжен: graph-generated desktop runtime привязан к `.dqui` window contract
+
+**Фаза:** `Product Maturity Recovery v1 / Stage 1`
+
+**Почему это потребовалось:**
+
+После шага 96 resize/save/reopen regressions уже были закрыты, но в
+graph-generated desktop path оставался отдельный contract gap:
+
+- `GraphCompiler` всё ещё подставлял `min_width / min_height / resizable` через
+  internal defaults, а не через actual `.dqui` metadata;
+- у desktop baseline graph path мог совпадать по `width/height`, но всё равно
+  жить не на том runtime init contract, который видел пользователь в designer.
+
+Это означало, что targeted UI/runtime tests были уже зелёными, но
+`prebuild/build/run/export` путь для inline desktop graph всё ещё не был
+доказан как единый source of truth от `.dqui` до `dq_ui_backend_init(...)`.
+
+**Что сделано:**
+
+- `GraphCompiler` получил injected `InlineDesktopWindowContract` для inline
+  desktop graph path;
+- `PreBuildProcessor` теперь выбирает primary UI layout проекта и пробрасывает
+  его `title / width / height / min_width / min_height / resizable` в
+  graph-generated desktop `main.c`;
+- `test_GraphCompiler` расширен отдельным regression case, который проверяет,
+  что injected contract реально переопределяет graph-side fallback path;
+- `test_PreBuildProcessor` для:
+  - `resources/templates/desktop`;
+  - `resources/examples/desktop_ui_flow`;
+  теперь проверяет exact `dq_ui_backend_init(...)` contract в generated `src/main.c`
+  поверх уже существующего build/run proof;
+- `test_LinuxProjectExporter` делает ту же проверку на export path перед bundle
+  verification и headless clean-env run.
+
+**Проверка:**
+
+- `cmake --build build/qt-dev --target test_GraphCompiler test_PreBuildProcessor test_LinuxProjectExporter --parallel`
+- `QT_QPA_PLATFORM=offscreen ./build/qt-dev/tests/test_GraphCompiler desktopRuntimeGraphGeneratesSDLMain desktopRuntimeGraphCanUseInjectedWindowContract`
+- `QT_QPA_PLATFORM=offscreen ./build/qt-dev/tests/test_PreBuildProcessor processesDesktopTemplateEndToEnd desktopUiExampleBuildsAndRunsHeadless`
+- `QT_QPA_PLATFORM=offscreen ./build/qt-dev/tests/test_LinuxProjectExporter exportsDesktopExampleIntoRunnableBundle`
+
+**Итог:**
+
+- primary `.dqui` window contract теперь доходит до graph-generated desktop
+  runtime не только в UI codegen path, но и в inline desktop `main.c`;
+- `desktop` baseline и `desktop_ui_flow` теперь имеют runtime-level parity proof
+  на `prebuild/build/run/export` пути по exact init contract;
+- следующий незакрытый хвост `Stage 1` смещается с graph/runtime init drift на
+  более user-facing `open/save` proof и broader runtime behavior parity.
+
+### Шаг 98 — Stage 1 продолжен: baseline open/save/build/run proof через MainWindow
+
+**Фаза:** `Product Maturity Recovery v1 / Stage 1`
+
+**Почему это потребовалось:**
+
+После шага 97 exact runtime init contract уже был доказан для desktop template
+prebuild и для `desktop_ui_flow` build/run/export, но acceptance Stage 1 всё
+ещё требовал user-facing proof именно для baseline IDE path:
+
+- открыть desktop project;
+- изменить window properties в designer;
+- сохранить и переоткрыть `.dqui`;
+- пройти до реального `build` и `run`.
+
+Без этого desktop baseline всё ещё подтверждался главным образом targeted
+codegen/runtime assertions, а не end-to-end IDE flow.
+
+**Что сделано:**
+
+- baseline `resources/templates/desktop/src/ui/window1_events.c` получил
+  opt-in autoclose hook через `DQ_DESKTOP_TEMPLATE_AUTOCLOSE_MS`, чтобы
+  baseline desktop runtime можно было гонять headless без принудительного
+  убийства процесса;
+- `test_MainWindowEditorActions` расширен интеграционным regression case, который:
+  - генерирует baseline desktop project из template;
+  - открывает проект через `MainWindow::startStartupAutomation(...)`;
+  - открывает `window1.dqui`, меняет `title / width / height / min_width /
+    min_height / resizable` через реальные `PropertyEditor` controls;
+  - делает `save`, затем `reopen`, и проверяет persisted `.dqui`;
+  - запускает реальный `build` через `MainWindow` action и проверяет
+    regenerated `src/main.c` на exact `dq_ui_backend_init(...)` contract;
+  - запускает реальный `run` через `MainWindow` action под
+    `SDL_VIDEODRIVER=dummy` и ждёт clean exit baseline runtime;
+- checklist Stage 1 обновлён: acceptance про parity window properties между
+  editor и runtime для desktop baseline закрыт, остался более узкий
+  runtime-behavior tail.
+
+**Проверка:**
+
+- `cmake --build build/qt-dev --target test_MainWindowEditorActions --parallel`
+- `QT_QPA_PLATFORM=offscreen ./build/qt-dev/tests/test_MainWindowEditorActions desktopBaselineProjectSupportsOpenSaveReopenBuildRun`
+- `QT_QPA_PLATFORM=offscreen ./build/qt-dev/tests/test_MainWindowEditorActions`
+- `QT_QPA_PLATFORM=offscreen ./build/qt-dev/tests/test_ProjectTemplates generateCopiesNestedDesktopFiles`
+
+**Итог:**
+
+- Stage 1 больше не висит на user-facing baseline flow proof;
+- baseline desktop template теперь имеет реальный `MainWindow` acceptance path
+  от `.dqui` property edits до headless runtime;
+- незакрытым остаётся уже более узкий хвост про broader runtime behavior parity
+  beyond current init-contract/property-path coverage.
+
+### Шаг 99 — Stage 1 закрыт: mouse resize path доведён до runtime acceptance
+
+**Фаза:** `Product Maturity Recovery v1 / Stage 1`
+
+**Почему это потребовалось:**
+
+После шага 98 baseline desktop уже имел user-facing acceptance proof для
+property edit path, но формально в checklist оставался последний `[ ]`:
+
+- resize окна мышью и через properties должен быть доказан не только targeted
+  designer regressions, но и runtime-side acceptance path;
+- для mouse resize path всё ещё не было end-to-end proof уровня
+  `save -> reopen -> build -> run`.
+
+**Что сделано:**
+
+- `test_MainWindowEditorActions` расширен ещё одним baseline regression case,
+  который:
+  - генерирует desktop template project;
+  - открывает `window1.dqui` в `MainWindow`;
+  - делает реальный mouse-drag по window resize handle в `DesignScene`;
+  - проверяет persisted `.dqui` после `save` и повторного `reopen`;
+  - запускает реальный `build` и проверяет regenerated `src/main.c`;
+  - запускает headless `run` и ждёт clean exit baseline runtime;
+- этим mouse resize path поднят с уровня isolated `DesignScene` regressions до
+  того же acceptance bar, который уже был у property path;
+- checklist Stage 1 обновлён: последний пункт `UI Designer Hardening`
+  переведён в `[x]`.
+
+**Проверка:**
+
+- `cmake --build build/qt-dev --target test_MainWindowEditorActions --parallel`
+- `QT_QPA_PLATFORM=offscreen ./build/qt-dev/tests/test_MainWindowEditorActions desktopBaselineMouseResizePathSurvivesSaveBuildRun`
+- `QT_QPA_PLATFORM=offscreen ./build/qt-dev/tests/test_MainWindowEditorActions`
+
+**Итог:**
+
+- `Stage 1: UI Designer Hardening` можно считать закрытым;
+- desktop baseline теперь имеет end-to-end acceptance proof и для property path,
+  и для mouse resize path;
+- следующий основной трек можно смещать на `Stage 2: Desktop Template Overhaul`.
+
+### Шаг 100 — Stage 2 начат: desktop template catalog классифицирован и очищен от слабых fixtures
+
+**Фаза:** `Product Maturity Recovery v1 / Stage 2`
+
+**Почему это потребовалось:**
+
+Сразу после закрытия `Stage 1` user-facing desktop catalog всё ещё выглядел
+нечестно:
+
+- `desktop_empty` и `desktop_mdi` показывались в обычном `New Project` wizard
+  как равноправные desktop options;
+- при этом оба шаблона были raw-SDL fixtures без graph/UI starter structure и
+  не соответствовали новому product bar для desktop templates;
+- в metadata не было явного способа различить:
+  - recommended starter;
+  - advanced desktop template;
+  - internal-only fixture.
+
+**Что сделано:**
+
+- `ProjectTemplates` получил явный `catalog_role` metadata contract и поддержку
+  hidden templates, которые остаются discoverable по ID для internal/test flows;
+- `NewProjectWizard` теперь показывает user-facing classification в template
+  description/summary вместо безымянного списка шаблонов;
+- `resources/templates/desktop` классифицирован как
+  `advanced_desktop_template`;
+- `resources/templates/desktop_text_editor` классифицирован как
+  `recommended_starter`;
+- `resources/templates/desktop_empty` и `resources/templates/desktop_mdi`
+  переведены в `internal_only` с явной причиной и скрыты из normal wizard flow;
+- `test_ProjectTemplates` расширен проверками на:
+  - visible catalog order без hidden desktop fixtures;
+  - доступность hidden templates по ID;
+  - явную classification metadata для desktop catalog.
+
+**Проверка:**
+
+- `cmake --build build/qt-dev --target test_ProjectTemplates test_MainWindowEditorActions test_MainWindowBuildOutputNavigation --parallel`
+- `QT_QPA_PLATFORM=offscreen ./build/qt-dev/tests/test_ProjectTemplates`
+- `QT_QPA_PLATFORM=offscreen ./build/qt-dev/tests/test_MainWindowEditorActions`
+- `QT_QPA_PLATFORM=offscreen ./build/qt-dev/tests/test_MainWindowBuildOutputNavigation`
+
+**Итог:**
+
+- первый slice `Stage 2` закрыт: user-facing desktop template catalog теперь
+  классифицирован и больше не рекламирует слабые raw-SDL fixtures как обычные starters;
+- дальнейшая работа `Stage 2` смещается на содержательную часть:
+  перестройку `desktop_text_editor` и добавление реальных desktop patterns в
+  templates, которые остаются user-facing.
+
+### Шаг 101 — `desktop_text_editor` превращён в product-grade starter и проходит полный headless build/run path
+
+**Фаза:** `Product Maturity Recovery v1 / Stage 2`
+
+**Почему это потребовалось:**
+
+После classification cleanup `desktop_text_editor` всё ещё оставался слабым
+fixture:
+
+- starter выглядел как узкий `Text Pad`, а не как правдоподобная desktop starter surface;
+- в checked-in assets не было реальных desktop-pattern элементов из acceptance
+  списка `menu / tabs / dialogs / multi-window basics`;
+- user-facing proof для template path `generate -> pre-build -> build -> run`
+  всё ещё отсутствовал именно для `desktop_text_editor`.
+
+**Что сделано:**
+
+- `resources/templates/desktop_text_editor` перестроен в `Workspace Notes` starter:
+  - window contract синхронизирован на `1080x720`, `min 900x620`, `resizable`;
+  - graph title/size baseline приведены к тем же значениям;
+  - checked-in shell теперь включает:
+    - `MenuBar`
+    - `ToolBar`
+    - `TabPanel`
+    - `StatusBar`;
+- template event hooks переписаны под notes workflow:
+  - starter сам загружает sample document;
+  - `New Draft`, `Load Sample`, `Append Note` обновляют document/status metrics;
+  - для headless runtime добавлен dedicated hook
+    `DQ_DESKTOP_TEXT_EDITOR_AUTOCLOSE_MS`;
+  - legacy text про `UI Graph Example` убран из template source;
+- regression coverage усилен на двух уровнях:
+  - `test_ProjectTemplates` теперь проверяет новые shell widgets, window limits
+    и dedicated autoclose hook;
+  - `test_PreBuildProcessor` теперь прогоняет `desktop_text_editor` через полный
+    path `generate -> pre-build -> build -> run` с dummy SDL runtime.
+
+**Проверка:**
+
+- `cmake --build build/qt-dev --target test_ProjectTemplates test_PreBuildProcessor --parallel`
+- `QT_QPA_PLATFORM=offscreen ./build/qt-dev/tests/test_ProjectTemplates`
+- `QT_QPA_PLATFORM=offscreen ./build/qt-dev/tests/test_PreBuildProcessor desktopTextEditorStarterBuildsAndRunsHeadless`
+- `QT_QPA_PLATFORM=offscreen ./build/qt-dev/tests/test_PreBuildProcessor`
+
+**Итог:**
+
+- `Desktop Text Editor` больше не выглядит полуподдерживаемым fixture;
+- acceptance по `menu + tabs` теперь закрыт checked-in user-facing template-ом;
+- user-facing desktop templates уже можно считать закрытыми по `build -> run`
+  без ручной правки;
+- у `Stage 2` остаётся более узкий хвост: cleanup/reframing оставшихся
+  legacy/showcase text surfaces и release/onboarding references.
+
+### Шаг 102 — desktop template naming и onboarding framing очищены от legacy/showcase wording
+
+**Фаза:** `Product Maturity Recovery v1 / Stage 2`
+
+**Почему это потребовалось:**
+
+После усиления `desktop_text_editor` в user-facing surfaces всё ещё оставался
+смешанный narrative:
+
+- README/README_RU продолжали говорить про `6` templates и перечисляли hidden
+  raw-SDL fixtures как обычные starter options;
+- advanced desktop template всё ещё назывался `Desktop UI Graph Example`, хотя
+  по новому catalog contract это уже не showcase, а advanced baseline;
+- onboarding docs ещё не говорили явно, какой desktop template является
+  recommended starter, а какой нужно трактовать как более тонкий advanced path.
+
+**Что сделано:**
+
+- `resources/templates/desktop` переименован в user-facing copy из
+  `Desktop UI Graph Example` в `Desktop UI Baseline`;
+- baseline template metadata и assets приведены к новому framing:
+  - manifest name/description больше не используют wording `Example` / `Existing`;
+  - graph/layout title contract синхронизирован на `Desktop UI Baseline`;
+  - starter source comments тоже вычищены от старого naming;
+- README/README_RU теперь честно описывают:
+  - 4 user-facing templates в normal wizard flow;
+  - `Desktop Text Editor` как recommended desktop starter;
+  - `Desktop UI Baseline` как advanced desktop option;
+  - hidden raw-SDL fixtures как internal-only, а не нормальные starters;
+- onboarding index в `docs/onboarding/README*.md` теперь прямо направляет
+  пользователя на `Desktop Text Editor`, если он хочет создать новый desktop
+  project вместо открытия checked-in examples;
+- regression tests закрепляют новый metadata contract и updated baseline title.
+
+**Проверка:**
+
+- `cmake --build build/qt-dev --target test_ProjectTemplates test_PreBuildProcessor test_GraphCompiler test_MainWindowEditorActions --parallel`
+- `QT_QPA_PLATFORM=offscreen ./build/qt-dev/tests/test_ProjectTemplates`
+- `QT_QPA_PLATFORM=offscreen ./build/qt-dev/tests/test_PreBuildProcessor`
+- `QT_QPA_PLATFORM=offscreen ./build/qt-dev/tests/test_GraphCompiler`
+- `QT_QPA_PLATFORM=offscreen ./build/qt-dev/tests/test_MainWindowEditorActions`
+
+**Итог:**
+
+- user-facing desktop template catalog теперь консистентен не только по runtime
+  quality bar, но и по naming/framing;
+- `Stage 2: Desktop Template Overhaul` можно считать закрытым;
+- следующий основной трек по плану смещается на `Stage 3: Bug Burn-Down For Trust`.
+
+### Шаг 103 — Stage 3 стартовал с явного blocker shortlist и честного reframing `docs/PROGRESS.md`
+
+**Фаза:** `Product Maturity Recovery v1 / Stage 3`
+
+**Почему это потребовалось:**
+
+После закрытия `Stage 1` и `Stage 2` у DeltaQ уже не оставалось явных top-level
+`build -> run` mismatch-блокеров, но trust-layer всё ещё был загрязнён старой
+подачей состояния проекта:
+
+- `docs/PROGRESS.md` всё ещё выглядел как current source of truth с `~97%` и
+  риторикой "почти всё завершено";
+- внутри того же файла оставался stale open issue про уже исправленный `zoomFit`;
+- в самом `Stage 3` не существовало отдельного blocker-shortlist, хотя master-plan
+  прямо требовал вести его как gating-lane.
+
+**Что сделано:**
+
+- создан отдельный shortlist:
+  - `docs/plan/strategy_2026/33_bug_burn_down_shortlist.md`;
+- shortlist теперь явно фиксирует:
+  - severity/status по user-facing blocker-ам;
+  - отсутствие подтверждённых открытых `crash / data-loss / editor-runtime mismatch`
+    blockers для top-level Linux flow на текущем срезе;
+  - один оставшийся open medium-severity trust defect:
+    generated SDL2 event scaffold всё ещё использует raw `TODO`-bodies;
+- `docs/PROGRESS.md` переведён из misleading pseudo-status page в честный
+  исторический журнал:
+  - title и top-note теперь прямо объясняют его роль;
+  - сверху добавлены ссылки на current maturity/status sources;
+  - stale `zoomFit` issue удалён из active-known-issues слоя;
+  - секция `Что дальше` заменена на текущий maturity plan вместо старой логики
+    "все фазы завершены, осталось тестирование/стабилизация".
+- `32_product_maturity_recovery_v1.md` и `98_strategy_checklist.md` синхронизированы
+  с новым shortlist flow.
+
+**Проверка:**
+
+- `docs/plan/strategy_2026/33_bug_burn_down_shortlist.md` существует и содержит
+  explicit blocker IDs, severity, status и closure proof / next action;
+- `docs/PROGRESS.md` сверху больше не выглядит как current product-readiness snapshot
+  и вместо этого явно отсылает к `strategy_2026`;
+- `98_strategy_checklist.md` отмечает, что blocker-shortlist для Stage 3 теперь есть.
+
+**Итог:**
+
+- `Stage 3` начал выполняться не абстрактно, а через реальный blocker ledger;
+- верхний trust layer больше не конфликтует так грубо с текущим maturity plan;
+- следующий короткий slice Stage 3 логично направить на open item
+  `S3-03`: product-grade generated SDL2 event scaffold без raw `TODO`-body.
+
+### Шаг 104 — generated SDL2 event scaffold очищен от raw `TODO` и закрыт `S3-03`
+
+**Фаза:** `Product Maturity Recovery v1 / Stage 3`
+
+**Почему это потребовалось:**
+
+После старта blocker-shortlist в Stage 3 оставался один явный open item:
+
+- generated `*_events.c` из `SDL2CodeGenerator` всё ещё содержал raw
+  `/* TODO: implement ... */` body;
+- для кнопки без event binding generated `ui.c` ещё вставлял placeholder comment
+  `TODO: onClick handler`;
+- такой scaffold был buildable, но выглядел как недоведённый first-contact output
+  в desktop runtime path.
+
+**Что сделано:**
+
+- `SDL2CodeGenerator` больше не генерирует raw `TODO`-body в `eventsSource`;
+- вместо этого generated `*_events.c` теперь содержит one-time no-op stub logger,
+  который явно сообщает, какой handler/event был вызван и что scaffold нужно
+  заменить project-specific logic;
+- unbound button path в generated `uiSource` больше не вставляет
+  `TODO: onClick handler` comment и просто остаётся безопасным no-op branch;
+- `test_SDL2CodeGenerator` обновлён:
+  - старый expectation на наличие `TODO` удалён;
+  - новый regression проверяет generated stub helper и отсутствие raw `TODO`;
+  - отдельный сценарий закрепляет отсутствие placeholder comment для button без
+    binding-а.
+
+**Проверка:**
+
+- `cmake --build build/qt-dev --target test_SDL2CodeGenerator --parallel`
+- `QT_QPA_PLATFORM=offscreen ./build/qt-dev/tests/test_SDL2CodeGenerator`
+
+**Итог:**
+
+- blocker `S3-03` закрыт automated regression-ом;
+- текущий Stage 3 shortlist не содержит open blocker-item-ов;
+- gating-lane Stage 3 остаётся активным и может снова наполняться после будущих
+  slices в `Stage 4` и `Stage 5`.
+
+### Шаг 105 — для Stage 4 зафиксирован useful baseline audit по новым core-категориям
+
+**Фаза:** `Product Maturity Recovery v1 / Stage 4`
+
+**Почему это потребовалось:**
+
+После завершения desktop hardening/template overhaul стало видно, что следующий
+сильный gap лежит уже не в UI surfaces, а в practical value checked-in `core`:
+
+- current `modules/core` хорошо закрывает primitive baseline
+  `control / io / string / conversion / logic / math / desktop`;
+- но Stage 4 требует уже другой, более полезный горизонт:
+  `filesystem / timers / config-json / process / tcp-udp / serial`;
+- без explicit audit этот этап легко бы скатился в хаотичное добавление модулей
+  без ясного baseline и без границы между `core` и external pack growth.
+
+**Что сделано:**
+
+- добавлен execution-grade audit:
+  - `docs/library/core/useful_baseline_audit.md`;
+- audit прямо фиксирует repo facts:
+  - current checked-in `core` categories;
+  - отсутствие checked-in модулей в шести новых useful-категориях;
+  - важное исключение: `core.control.delay_ms` не считается timer baseline;
+- для каждой Stage 4 category определены:
+  - essential baseline slice;
+  - граница `convenience / specialized`;
+  - причина, почему статус сейчас честно считается `deferred with reason`;
+- отдельно зафиксирован общий docs/verification bar и три target reference scenario,
+  которые должны вести следующие implementation slices;
+- `docs/library/README.md`, `docs/library/core/README.md`,
+  `32_product_maturity_recovery_v1.md` и `98_strategy_checklist.md`
+  синхронизированы с новым audit layer;
+- `test_StandardLibrary` получил repo-fact regression на текущий checked-in
+  category set, чтобы audit не жил только как текстовая декларация.
+
+**Проверка:**
+
+- `cmake --build build/qt-dev --target test_StandardLibrary --parallel`
+- `QT_QPA_PLATFORM=offscreen ./build/qt-dev/tests/test_StandardLibrary`
+
+**Итог:**
+
+- первый Stage 4 slice перевёл тему useful core baseline из vague intentions в
+  конкретную gap-matrix;
+- у каждой из шести новых категорий теперь есть явный статус и минимальный
+  implementation target;
+- следующий честный slice должен брать уже один конкретный category baseline
+  вместе с reference scenario, а не пытаться "добавить сразу всё".
+
+### Шаг 106 — в `core` добавлен первый useful baseline slice `filesystem + config_json`
+
+**Фаза:** `Product Maturity Recovery v1 / Stage 4`
+
+**Почему это потребовалось:**
+
+После audit-среза у Stage 4 уже был честный gap-map, но practical value ещё не
+сдвинулась:
+
+- `filesystem` и `config_json` были описаны как полезные категории, но в repo их
+  ещё не существовало как checked-in modules;
+- без живого `build -> run` scenario это оставалось бы стратегическим намерением,
+  а не реальным baseline;
+- нужно было сделать минимальный, но product-shaped slice, который не превращает
+  `core` в свалку wrappers и сразу даёт tangible value.
+
+**Что сделано:**
+
+- в `modules/core` добавлен первый file-backed useful baseline:
+  - `core.filesystem.read_text_file`
+  - `core.filesystem.write_text_file`
+  - `core.filesystem.file_exists`
+  - `core.filesystem.ensure_dir`
+  - `core.config_json.json_get_int`
+  - `core.config_json.json_set_int`
+  - `core.config_json.json_get_string`
+  - `core.config_json.json_set_string`
+- `modules/core/pack.json` поднят до версии `1.4`;
+- `StandardLibrary` получил explicit curation review для новых модулей:
+  - `read_text_file`, `write_text_file`, `json_get_int`, `json_set_int` как `essential`;
+  - `file_exists`, `ensure_dir`, `json_get_string`, `json_set_string` как `convenience`;
+- library docs расширены:
+  - `docs/library/core/filesystem.md`
+  - `docs/library/core/config_json.md`
+  - `docs/library/core/audit_matrix.md`
+  - `docs/library/core/useful_baseline_audit.md`
+- добавлен новый checked-in reference scenario:
+  - `resources/examples/settings_file_console`
+  - graph создаёт `runtime/settings.json`, инкрементит `launch_count`, сохраняет
+    `profile = "deltaq"` и печатает текущее состояние;
+- example catalogs и Stage 4 status docs синхронизированы с новым scenario;
+- regression coverage усилен на двух уровнях:
+  - `test_StandardLibrary` теперь фиксирует новый category set и updated role counts;
+  - `test_PreBuildProcessor` прогоняет `settings_file_console` через
+    `generate -> build -> run`, включая повторный запуск и persisted JSON file.
+
+**Проверка:**
+
+- `cmake --build build/qt-dev --target test_StandardLibrary test_PreBuildProcessor --parallel`
+- `QT_QPA_PLATFORM=offscreen ./build/qt-dev/tests/test_StandardLibrary`
+- `QT_QPA_PLATFORM=offscreen ./build/qt-dev/tests/test_PreBuildProcessor settingsFileConsoleExampleBuildsAndRunsEndToEnd`
+
+**Итог:**
+
+- `filesystem` и `config_json` больше не существуют только в audit-таблице;
+- у Stage 4 теперь есть первый реально полезный file-backed baseline внутри checked-in `core`;
+- следующий логичный Stage 4 slice смещается на `process + timers`, потому что это
+  следующий компактный useful scenario pair после file-backed settings path.
+
+### Шаг 107 — в `core` добавлен второй useful baseline slice `process + timers`
+
+**Фаза:** `Product Maturity Recovery / Stage 4`
+
+**Что сделано:**
+
+- в `modules/core` добавлены новые checked-in категории:
+  - `process`:
+    - `core.process.run_stdout`
+    - `core.process.run_exit_code`
+  - `timers`:
+    - `core.timers.now_ms`
+    - `core.timers.timeout_once`
+    - `core.timers.elapsed_ms`
+- `StandardLibrary` получил explicit curation review для этих модулей:
+  - `run_stdout`, `run_exit_code`, `now_ms`, `timeout_once` как `essential`;
+  - `elapsed_ms` как `convenience`;
+- добавлен новый checked-in reference scenario:
+  - `resources/examples/process_timer_console`
+  - graph запускает `../tools/mock_worker.sh` через `/bin/sh`, печатает `stdout`,
+    `exit_code`, `elapsed_ms` и `timed_out`;
+- docs/library контур расширен новыми category guides:
+  - `docs/library/core/process.md`
+  - `docs/library/core/timers.md`
+  - `docs/library/core/useful_baseline_audit.md`
+  - `docs/library/core/audit_matrix.md`
+- example catalogs и Stage 4 status docs синхронизированы с новым scenario;
+- regression coverage усилен на двух уровнях:
+  - `test_StandardLibrary` теперь фиксирует новый category set и updated role counts;
+  - `test_PreBuildProcessor` прогоняет `process_timer_console` через
+    `generate -> build -> run`.
+
+**Проверка:**
+
+- `cmake --build build/qt-dev --target test_StandardLibrary test_PreBuildProcessor --parallel`
+- `QT_QPA_PLATFORM=offscreen ./build/qt-dev/tests/test_StandardLibrary`
+- `QT_QPA_PLATFORM=offscreen ./build/qt-dev/tests/test_PreBuildProcessor settingsFileConsoleExampleBuildsAndRunsEndToEnd`
+- `QT_QPA_PLATFORM=offscreen ./build/qt-dev/tests/test_PreBuildProcessor processTimerConsoleExampleBuildsAndRunsEndToEnd`
+
+**Итог:**
+
+- Stage 4 теперь опирается уже на два checked-in useful scenarios, а не на один;
+- `process` и `timers` больше не живут только как deferred categories в audit-документе;
+- следующий логичный implementation slice смещается на `tcp/udp` или `serial` поверх того же timeout-oriented baseline.
+
+### Шаг 108 — в `core` добавлен datagram-first slice `tcp_udp + timers`
+
+**Фаза:** `Product Maturity Recovery / Stage 4`
+
+**Что сделано:**
+
+- в `modules/core/tcp_udp` добавлены новые checked-in модули:
+  - `core.tcp_udp.udp_bind`
+  - `core.tcp_udp.udp_local_port`
+  - `core.tcp_udp.udp_send`
+  - `core.tcp_udp.udp_receive`
+  - `core.tcp_udp.udp_close`
+- `StandardLibrary` получил explicit curation review:
+  - `udp_bind`, `udp_send`, `udp_receive` как `essential`;
+  - `udp_local_port`, `udp_close` как `convenience`;
+- добавлен новый checked-in reference scenario:
+  - `resources/examples/transport_probe_console`
+  - graph делает loopback UDP probe: `bind -> send -> receive -> elapsed -> timeout -> close`;
+- docs/library контур расширен новым category guide:
+  - `docs/library/core/tcp_udp.md`
+  - `docs/library/core/useful_baseline_audit.md`
+  - `docs/library/core/audit_matrix.md`
+- example catalogs и Stage 4 status docs синхронизированы с новым transport scenario;
+- regression coverage усилен на двух уровнях:
+  - `test_StandardLibrary` теперь фиксирует category `tcp_udp` и updated role counts;
+  - `test_PreBuildProcessor` прогоняет `transport_probe_console` через
+    `generate -> build -> run`.
+
+**Проверка:**
+
+- `cmake --build build/qt-dev --target test_StandardLibrary test_PreBuildProcessor --parallel`
+- `QT_QPA_PLATFORM=offscreen ./build/qt-dev/tests/test_StandardLibrary`
+- `QT_QPA_PLATFORM=offscreen ./build/qt-dev/tests/test_PreBuildProcessor transportProbeConsoleExampleBuildsAndRunsEndToEnd`
+
+**Итог:**
+
+- у Stage 4 теперь есть три checked-in useful reference scenarios, а не только file/process slices;
+- `tcp_udp` больше не живёт только как deferred category в audit-документе;
+- внутри текущего useful baseline в Stage 4 остался главным образом `serial`.
+
+### Шаг 109 — `serial` baseline добит как последний useful category tail `Stage 4`
+
+**Фаза:** `Product Maturity Recovery / Stage 4`
+
+**Что сделано:**
+
+- в `modules/core/serial` добавлены checked-in модули:
+  - `core.serial.serial_open`
+  - `core.serial.serial_configure`
+  - `core.serial.serial_write`
+  - `core.serial.serial_read`
+  - `core.serial.serial_close`
+  - `core.serial.serial_loopback_path`
+- `StandardLibrary` получил explicit curation review:
+  - `serial_open`, `serial_configure`, `serial_write`, `serial_read`, `serial_close` как `essential`;
+  - `serial_loopback_path` как `convenience`;
+- добавлен новый checked-in reference scenario:
+  - `resources/examples/serial_probe_console`
+  - graph создаёт loopback PTY path, делает `serial open/configure/write/read/close`,
+    измеряет elapsed time и проверяет timeout budget;
+- docs/library контур расширен новым category guide:
+  - `docs/library/core/serial.md`
+  - `docs/library/core/useful_baseline_audit.md`
+  - `docs/library/core/audit_matrix.md`
+- example catalogs и Stage 4 status docs синхронизированы с `serial_probe_console`;
+- regression coverage усилен на двух уровнях:
+  - `test_StandardLibrary` теперь фиксирует category `serial` и updated role counts;
+  - `test_PreBuildProcessor` прогоняет `serial_probe_console` через
+    `generate -> build -> run`.
+
+**Проверка:**
+
+- `cmake --build build/qt-dev --target test_StandardLibrary test_PreBuildProcessor --parallel`
+- `QT_QPA_PLATFORM=offscreen ./build/qt-dev/tests/test_StandardLibrary`
+- `QT_QPA_PLATFORM=offscreen ./build/qt-dev/tests/test_PreBuildProcessor`
+
+**Итог:**
+
+- все planned Stage 4 useful categories теперь имеют checked-in initial baseline;
+- checklist `Core Module Library v1` можно переводить в закрытое состояние;
+- дальнейшие срезы вокруг core уже про consolidation/discoverability, а не про category gaps.

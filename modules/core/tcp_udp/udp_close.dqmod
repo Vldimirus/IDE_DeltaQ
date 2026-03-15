@@ -1,0 +1,40 @@
+{
+    "category": "tcp_udp",
+    "dependencies": [],
+    "description": "Закрытие UDP-сокета",
+    "header": "",
+    "id": "core.tcp_udp.udp_close",
+    "includes": [
+        "unistd.h"
+    ],
+    "language": "c",
+    "name": "udp_close",
+    "origin": "core",
+    "ports": {
+        "input": [
+            {
+                "kind": "execution",
+                "name": "flow_in",
+                "type": "exec"
+            },
+            {
+                "name": "socket_fd",
+                "type": "int"
+            }
+        ],
+        "output": [
+            {
+                "kind": "execution",
+                "name": "flow_out",
+                "type": "exec"
+            }
+        ]
+    },
+    "source": "",
+    "source_code": "void dq_udp_close(int socket_fd) {\n    if (socket_fd >= 0)\n        close(socket_fd);\n}",
+    "version": "1.0",
+    "metadata": {
+        "deltaq.doc.when_to_use": "Когда graph завершает UDP probe flow и хочет явно закрыть socket fd перед выходом.",
+        "deltaq.doc.limitations": "Тонкий Linux-first cleanup helper без richer socket lifecycle semantics."
+    }
+}

@@ -183,6 +183,18 @@ private:
                  qPrintable(QString::fromUtf8(stdoutData + stderrData)));
     }
 
+    static QString expectedInlineDesktopInitCall(const QString &title, int width, int height,
+                                                 int minWidth, int minHeight, bool resizable)
+    {
+        return QString("dq_ui_backend_init(&dq_ui_backend_ctx, \"%1\", %2, %3, %4, %5, %6)")
+            .arg(title)
+            .arg(width)
+            .arg(height)
+            .arg(minWidth)
+            .arg(minHeight)
+            .arg(resizable ? "true" : "false");
+    }
+
 private slots:
     void exportsBuiltConsoleProjectIntoHandoffBundle()
     {
@@ -277,6 +289,14 @@ private slots:
         PreBuildProcessor processor(&registry, &graphStore, &layoutStore);
         const PreBuildResult prebuild = processor.process(projectDir);
         QVERIFY2(prebuild.success, qPrintable(prebuild.errors.join('\n')));
+
+        QFile mainFile(projectDir + "/src/main.c");
+        QVERIFY(mainFile.open(QIODevice::ReadOnly | QIODevice::Text));
+        const QString mainCode = QString::fromUtf8(mainFile.readAll());
+        QVERIFY(mainCode.contains(expectedInlineDesktopInitCall("Desktop UI Flow",
+                                                                640, 480,
+                                                                480, 360,
+                                                                true)));
 
         CMakeGenerator generator;
         const QString targetName = "DesktopUIFlow";

@@ -77,7 +77,7 @@ The full Linux release-facing gallery and handoff context are documented in:
 - **UI Designer** — drag & drop interface builder targeting SDL2; design windows visually, bind events to graph handlers, and generate compilable C code
 - **Library Processor** — import existing C/C++ libraries through libclang AST parsing; automatically decompose functions and classes into reusable modules
 - **Module System** — everything is a module (`.dqmod`). Modules nest recursively (matryoshka principle): a graph is a module, a module can contain a graph. The repository currently ships 43 checked-in core modules across 7 categories
-- **Project Templates** — 6 file-based starter templates are loaded from `resources/templates/` and copied into new projects as ready source trees
+- **Project Templates** — 4 user-facing file-based starter templates plus internal regression fixtures are loaded from `resources/templates/` and copied into new projects as ready source trees
 - **Built-in Debugger** — GDB/MI integration with breakpoints, stepping, variable inspection, call stack, and visual debugging on the graph canvas
 - **Build System** — CMake-based build pipeline with compiler output parsing, error navigation, and one-click build & run
 
@@ -192,7 +192,7 @@ Qt Creator can use the checked-in `CMakePresets.json` and point its development 
 
 A typical workflow in DeltaQ IDE:
 
-1. **Create a project** — File → New Project, choose one of the 6 file-based templates: Console Hello World, Console Counter Until Q, Desktop Empty Window, Desktop UI Graph Example, Desktop Text Editor, or Desktop Multi Window Workspace
+1. **Create a project** — File → New Project, choose one of the 4 user-facing templates: Console Hello World, Console Counter Until Q, Desktop Text Editor, or Desktop UI Baseline
 2. **Write modules** — create C functions with `@dqmodule` annotations, or use the Module Manager to write and test modules with instant preview
 3. **Build a graph** — open the Block Editor, drag modules from the palette, and connect their ports to define program flow
 4. **Design UI** *(Desktop projects)* — open the UI Designer, place widgets (buttons, text fields, sliders...), set properties, and bind events to graph handlers
@@ -228,12 +228,14 @@ If you are validating a packaged Linux artifact rather than a source checkout, u
 
 DeltaQ now loads project templates directly from files in `resources/templates/` rather than generating starter source code inside the IDE.
 
+The normal New Project wizard exposes 4 user-facing templates:
+
 - **Console Hello World** — minimal console app that prints `Hello, world!` and exits
 - **Console Counter Until Q** — console loop that prints an incrementing counter until the user presses `q`
-- **Desktop Empty Window** — SDL2 desktop app that opens a blank window
-- **Desktop UI Graph Example** — desktop project with a ready graph, UI layout, and generated SDL2 runtime files
-- **Desktop Text Editor** — DeltaQ desktop text-pad starter with a graph, UI layout, editable text area, and custom UI event handlers
-- **Desktop Multi Window Workspace** — desktop workspace with child windows inside the main frame
+- **Desktop Text Editor** — the recommended desktop starter; a notes workspace with menu bar, toolbar, tab strip, document workflow, and editable event hooks
+- **Desktop UI Baseline** — the advanced desktop option; a thinner graph/UI/runtime baseline for lower-level desktop contract work and customization
+
+Two older raw-SDL desktop fixtures remain checked in only for internal/test flows and are hidden from the normal wizard.
 
 The repository currently includes 5 checked-in example projects in `resources/examples/`:
 

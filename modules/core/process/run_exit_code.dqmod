@@ -1,0 +1,63 @@
+{
+    "category": "process",
+    "dependencies": [],
+    "description": "Запуск процесса с получением exit code",
+    "header": "",
+    "id": "core.process.run_exit_code",
+    "includes": [
+        "errno.h",
+        "fcntl.h",
+        "sys/types.h",
+        "sys/wait.h",
+        "unistd.h"
+    ],
+    "language": "c",
+    "name": "run_exit_code",
+    "origin": "core",
+    "ports": {
+        "input": [
+            {
+                "kind": "execution",
+                "name": "flow_in",
+                "type": "exec"
+            },
+            {
+                "name": "program",
+                "type": "string"
+            },
+            {
+                "default": "\"\"",
+                "name": "arg0",
+                "type": "string"
+            },
+            {
+                "default": "\"\"",
+                "name": "arg1",
+                "type": "string"
+            },
+            {
+                "default": "\"\"",
+                "name": "arg2",
+                "type": "string"
+            }
+        ],
+        "output": [
+            {
+                "kind": "execution",
+                "name": "flow_out",
+                "type": "exec"
+            },
+            {
+                "name": "exit_code",
+                "type": "int"
+            }
+        ]
+    },
+    "source": "",
+    "source_code": "static int dq_process_run_exit_code_build_argv(const char *program, const char *arg0, const char *arg1, const char *arg2, char *argv[5]) {\n    int argc = 0;\n    if (!program || !*program)\n        return 0;\n    argv[argc++] = (char *) program;\n    if (arg0 && *arg0)\n        argv[argc++] = (char *) arg0;\n    if (arg1 && *arg1)\n        argv[argc++] = (char *) arg1;\n    if (arg2 && *arg2)\n        argv[argc++] = (char *) arg2;\n    argv[argc] = NULL;\n    return argc;\n}\n\nint dq_run_exit_code(const char *program, const char *arg0, const char *arg1, const char *arg2) {\n    pid_t pid = -1;\n    int status = 127;\n    char *argv[5];\n\n    if (dq_process_run_exit_code_build_argv(program, arg0, arg1, arg2, argv) == 0)\n        return 127;\n\n    pid = fork();\n    if (pid < 0)\n        return 127;\n\n    if (pid == 0) {\n        const int dev_null = open(\"/dev/null\", O_WRONLY);\n        if (dev_null >= 0) {\n            dup2(dev_null, STDOUT_FILENO);\n            dup2(dev_null, STDERR_FILENO);\n            if (dev_null > STDERR_FILENO)\n                close(dev_null);\n        }\n        execvp(program, argv);\n        _exit(127);\n    }\n\n    while (waitpid(pid, &status, 0) < 0) {\n        if (errno != EINTR)\n            return 127;\n    }\n\n    if (WIFEXITED(status))\n        return WEXITSTATUS(status);\n    return 127;\n}",
+    "version": "1.0",
+    "metadata": {
+        "deltaq.doc.when_to_use": "Когда graph должен проверить, что внешний tool/script завершился успешно, не уходя в shell orchestration layer.",
+        "deltaq.doc.limitations": "Linux-first POSIX helper: поддерживает только program + до трёх позиционных аргументов, блокирует выполнение до завершения процесса и не отдаёт stderr/stdout в graph."
+    }
+}

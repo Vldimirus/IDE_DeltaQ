@@ -1,8 +1,9 @@
 {
     "id": "desktop",
-    "name": "Desktop UI Graph Example",
-    "description": "Existing DeltaQ desktop template with a graph, UI layout, and generated SDL2 UI runtime files.",
+    "name": "Desktop UI Baseline",
+    "description": "Advanced DeltaQ desktop baseline with a graph, UI layout, generated SDL2 runtime files, and editable event hooks.",
     "project_type": "desktop",
+    "catalog_role": "advanced_desktop_template",
     "sort_order": 40,
     "summary_files": [
         "__PROJECT_NAME__.dqproj",

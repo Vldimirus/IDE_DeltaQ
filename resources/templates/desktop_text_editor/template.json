@@ -1,8 +1,9 @@
 {
     "id": "desktop_text_editor",
     "name": "Desktop Text Editor",
-    "description": "DeltaQ desktop text pad starter with its own UI contract: document area, append-line input, sample/new actions, and custom event handlers.",
+    "description": "Recommended DeltaQ desktop notes starter with menu bar, toolbar, tab strip, document workflow, and editable event hooks.",
     "project_type": "desktop",
+    "catalog_role": "recommended_starter",
     "sort_order": 50,
     "summary_files": [
         "__PROJECT_NAME__.dqproj",

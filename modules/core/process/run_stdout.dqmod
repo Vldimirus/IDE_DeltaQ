@@ -1,0 +1,64 @@
+{
+    "category": "process",
+    "dependencies": [],
+    "description": "Запуск процесса с захватом stdout",
+    "header": "",
+    "id": "core.process.run_stdout",
+    "includes": [
+        "errno.h",
+        "stdio.h",
+        "string.h",
+        "sys/types.h",
+        "sys/wait.h",
+        "unistd.h"
+    ],
+    "language": "c",
+    "name": "run_stdout",
+    "origin": "core",
+    "ports": {
+        "input": [
+            {
+                "kind": "execution",
+                "name": "flow_in",
+                "type": "exec"
+            },
+            {
+                "name": "program",
+                "type": "string"
+            },
+            {
+                "default": "\"\"",
+                "name": "arg0",
+                "type": "string"
+            },
+            {
+                "default": "\"\"",
+                "name": "arg1",
+                "type": "string"
+            },
+            {
+                "default": "\"\"",
+                "name": "arg2",
+                "type": "string"
+            }
+        ],
+        "output": [
+            {
+                "kind": "execution",
+                "name": "flow_out",
+                "type": "exec"
+            },
+            {
+                "name": "stdout",
+                "type": "string"
+            }
+        ]
+    },
+    "source": "",
+    "source_code": "static int dq_process_run_stdout_build_argv(const char *program, const char *arg0, const char *arg1, const char *arg2, char *argv[5]) {\n    int argc = 0;\n    if (!program || !*program)\n        return 0;\n    argv[argc++] = (char *) program;\n    if (arg0 && *arg0)\n        argv[argc++] = (char *) arg0;\n    if (arg1 && *arg1)\n        argv[argc++] = (char *) arg1;\n    if (arg2 && *arg2)\n        argv[argc++] = (char *) arg2;\n    argv[argc] = NULL;\n    return argc;\n}\n\nconst char *dq_run_stdout(const char *program, const char *arg0, const char *arg1, const char *arg2) {\n    static char buffer[4096];\n    int pipefd[2] = {-1, -1};\n    pid_t pid = -1;\n    char *argv[5];\n    ssize_t total = 0;\n    int status = 0;\n\n    buffer[0] = '\\0';\n    if (dq_process_run_stdout_build_argv(program, arg0, arg1, arg2, argv) == 0)\n        return \"\";\n    if (pipe(pipefd) != 0)\n        return \"\";\n\n    pid = fork();\n    if (pid < 0) {\n        close(pipefd[0]);\n        close(pipefd[1]);\n        return \"\";\n    }\n\n    if (pid == 0) {\n        close(pipefd[0]);\n        if (dup2(pipefd[1], STDOUT_FILENO) < 0)\n            _exit(127);\n        close(pipefd[1]);\n        execvp(program, argv);\n        _exit(127);\n    }\n\n    close(pipefd[1]);\n    while (total < (ssize_t) sizeof(buffer) - 1) {\n        const ssize_t chunk = read(pipefd[0], buffer + total, sizeof(buffer) - 1U - (size_t) total);\n        if (chunk <= 0)\n            break;\n        total += chunk;\n    }\n    close(pipefd[0]);\n    buffer[total] = '\\0';\n\n    while (waitpid(pid, &status, 0) < 0) {\n        if (errno != EINTR)\n            break;\n    }\n\n    while (total > 0 && (buffer[total - 1] == '\\n' || buffer[total - 1] == '\\r')) {\n        --total;\n        buffer[total] = '\\0';\n    }\n    return buffer;\n}",
+    "version": "1.0",
+    "metadata": {
+        "deltaq.doc.when_to_use": "Когда graph должен запустить небольшой внешний tool/script и получить его stdout как следующий шаг console-flow.",
+        "deltaq.doc.limitations": "Linux-first POSIX helper: поддерживает только program + до трёх позиционных аргументов, блокирует выполнение до завершения процесса и хранит stdout во внутреннем буфере 4 KB."
+    }
+}

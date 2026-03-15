@@ -8,6 +8,10 @@
 #include <QString>
 #include <QVariant>
 
+class QCheckBox;
+class QDoubleSpinBox;
+class QLineEdit;
+
 namespace DeltaQ {
 
 class WidgetItem;
@@ -38,6 +42,7 @@ signals:
 private:
     void buildPropertyList();
     void buildWindowPropertyList();
+    void syncWindowPropertyEditors();
     void addProperty(const QString &label, const QString &key, const QVariant &value,
                      const QString &type = "string");
     void addSectionHeader(const QString &title);
@@ -49,6 +54,12 @@ private:
     QScrollArea *m_scrollArea = nullptr;
     QWidget *m_contentWidget = nullptr;
     QFormLayout *m_formLayout = nullptr;
+    QLineEdit *m_windowTitleEdit = nullptr;
+    QDoubleSpinBox *m_windowWidthSpin = nullptr;
+    QDoubleSpinBox *m_windowHeightSpin = nullptr;
+    QDoubleSpinBox *m_windowMinWidthSpin = nullptr;
+    QDoubleSpinBox *m_windowMinHeightSpin = nullptr;
+    QCheckBox *m_windowResizableCheck = nullptr;
     bool m_updating = false; // флаг для предотвращения рекурсии
 };
 

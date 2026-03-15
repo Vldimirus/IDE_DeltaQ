@@ -27,6 +27,40 @@ void appendArtifact(PreBuildResult &result, PreBuildProcessor *processor,
     emit processor->fileGenerated(artifact);
 }
 
+const UILayout *primaryInlineDesktopLayout(UILayoutStore *store)
+{
+    if (!store)
+        return nullptr;
+
+    auto layouts = store->allLayouts();
+    if (layouts.isEmpty())
+        return nullptr;
+
+    std::sort(layouts.begin(), layouts.end(),
+              [](const UILayout *lhs, const UILayout *rhs) {
+        return lhs->name < rhs->name;
+    });
+
+    for (const auto *layout : layouts) {
+        if (layout && layout->name == "window1")
+            return layout;
+    }
+
+    return layouts.first();
+}
+
+InlineDesktopWindowContract inlineDesktopWindowContractFromLayout(const UILayout &layout)
+{
+    InlineDesktopWindowContract contract;
+    contract.title = uiWindowTitle(layout.window);
+    contract.minWidth = uiWindowMinimumWidth(layout.window);
+    contract.minHeight = uiWindowMinimumHeight(layout.window);
+    contract.width = qMax(static_cast<int>(layout.window.geometry.width()), contract.minWidth);
+    contract.height = qMax(static_cast<int>(layout.window.geometry.height()), contract.minHeight);
+    contract.resizable = uiWindowResizable(layout.window);
+    return contract;
+}
+
 } // namespace
 
 PreBuildProcessor::PreBuildProcessor(ModuleRegistry *registry, GraphStore *graphStore,
@@ -73,6 +107,13 @@ void PreBuildProcessor::processGraphs(const QString &projectDir, PreBuildResult 
     processSubmodules(projectDir, result, compiler);
     if (!result.errors.isEmpty())
         return;
+
+    // Текущий inline desktop graph path компилируется для primary UI window проекта;
+    // это удерживает graph-generated main.c в одном window contract с .dqui/runtime.
+    if (const UILayout *layout = primaryInlineDesktopLayout(m_uiLayoutStore))
+        compiler.setInlineDesktopWindowContract(inlineDesktopWindowContractFromLayout(*layout));
+    else
+        compiler.clearInlineDesktopWindowContract();
 
     for (auto *graph : m_graphStore->allGraphs()) {
         if (!graph->parentModuleId.isEmpty())

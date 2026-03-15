@@ -250,30 +250,31 @@
 
 ### UI Designer Hardening
 
-- `[ ]` Размер окна и свойства окна совпадают между editor и runtime в desktop baseline `(частично: unified window metadata path для title / min size / resizable уже проведён через DesignScene -> .dqui -> SDL2 codegen и закреплён targeted tests)`
-- `[ ]` Resize окна мышью и через properties работает стабильно и без падений
-- `[ ]` Designer/codegen/runtime используют одну и ту же window-metadata model `(частично: общий contract для title / min_width / min_height / resizable уже landed; остаются более широкие parity-cases)`
-- `[ ]` Есть regression coverage на save/load, resize и property editing `(частично: round-trip/save-load и generated runtime contract уже покрыты, остаётся добить resize/runtime parity шире)`
+- `[x]` Размер окна и свойства окна совпадают между editor и runtime в desktop baseline `(MainWindow integration proof теперь покрывает open -> edit/save -> reopen -> build -> run на desktop template; runtime init contract после property edits проверяется на persisted .dqui, generated main.c и headless baseline run)`
+- `[x]` Resize окна мышью и через properties работает стабильно и без падений `(explicit mouse-drag resize + clamp parity против property path после reload покрыты targeted regressions, а baseline MainWindow acceptance теперь доказывает и property path, и mouse resize path через save -> reopen -> build -> run)`
+- `[x]` Designer/codegen/runtime используют одну и ту же window-metadata model `(window geometry теперь проходит как один client-area contract через designer/properties/.dqui/codegen/runtime; graph-generated desktop path уже синхронизирован с новым backend init)`
+- `[x]` Есть regression coverage на save/load, resize и property editing `(round-trip/save-load, mouse-drag resize, property clamp sync, designer client/frame model и generated runtime contract покрыты targeted regressions)`
 
 ### Desktop Template Overhaul
 
-- `[ ]` `Desktop Text Editor` перестроен из test fixture в product-grade starter
-- `[ ]` Desktop templates покрывают базовые desktop-паттерны `(menu / tabs / dialogs / multi-window basics)`
-- `[ ]` Templates не содержат copy-paste артефактов из legacy showcase-примеров
-- `[ ]` Templates проходят `build -> run` как reference projects без ручных правок
+- `[x]` User-facing desktop template catalog явно классифицирован, а слабые raw-SDL desktop fixtures скрыты из normal wizard flow
+- `[x]` `Desktop Text Editor` перестроен из test fixture в product-grade starter
+- `[x]` Desktop templates покрывают базовые desktop-паттерны `(menu / tabs / dialogs / multi-window basics)`
+- `[x]` Templates не содержат copy-paste артефактов из legacy showcase-примеров
+- `[x]` Templates проходят `build -> run` как reference projects без ручных правок
 
 ### Bug Burn-Down For Trust
 
-- `[ ]` Есть shortlist top-level user-facing блокирующих багов
-- `[ ]` Закрыты известные first-contact crash/mismatch defects в UI/build/template flow
-- `[ ]` Каждая закрытая критичная регрессия закреплена тестом или reproducible smoke-check
+- `[x]` Есть shortlist top-level user-facing блокирующих багов
+- `[x]` Закрыты известные first-contact crash/mismatch defects в UI/build/template flow
+- `[x]` Каждая закрытая критичная регрессия закреплена тестом или reproducible smoke-check
 
 ### Core Module Library v1
 
-- `[ ]` Определён useful baseline по категориям `filesystem / timers / config-json / process / tcp-udp / serial`
-- `[ ]` Для baseline-категорий есть curated набор модулей с ролями `essential / convenience / specialized / legacy`
-- `[ ]` Есть 2-3 meaningful сценария, которые реально опираются на эти модули
-- `[ ]` Core-библиотека читается как product-curated system, а не набор примитивов
+- `[x]` Определён useful baseline по категориям `filesystem / timers / config-json / process / tcp-udp / serial`
+- `[x]` Для baseline-категорий есть curated набор модулей с ролями `essential / convenience / specialized / legacy`
+- `[x]` Есть 2-3 meaningful сценария, которые реально опираются на эти модули
+- `[x]` Core-библиотека читается как product-curated system, а не набор примитивов
 
 ### External Library Adapter v1
 

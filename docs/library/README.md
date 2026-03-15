@@ -63,9 +63,16 @@
 
 - [core/README.md](./core/README.md) — общая логика curation standard library
 - [core/audit_matrix.md](./core/audit_matrix.md) — reviewed-матрица по checked-in `core`
+- [core/useful_baseline_audit.md](./core/useful_baseline_audit.md) — Stage 4 audit по полезным категориям `filesystem / timers / config-json / process / tcp-udp / serial`
 - [core/io.md](./core/io.md)
 - [core/control.md](./core/control.md)
 - [core/conversion.md](./core/conversion.md)
+- [core/filesystem.md](./core/filesystem.md)
+- [core/config_json.md](./core/config_json.md)
+- [core/process.md](./core/process.md)
+- [core/serial.md](./core/serial.md)
+- [core/tcp_udp.md](./core/tcp_udp.md)
+- [core/timers.md](./core/timers.md)
 - [core/math.md](./core/math.md)
 - [core/desktop.md](./core/desktop.md)
 - [core/logic.md](./core/logic.md)
@@ -81,6 +88,10 @@
 Если нужен shortest path от library docs к живому результату, сейчас есть такие reference flows:
 
 - `resources/examples/minimal_console_flow` — базовый `module -> graph -> generated C -> build -> run`
+- `resources/examples/settings_file_console` — первый useful Stage 4 path для `filesystem + config_json`
+- `resources/examples/process_timer_console` — второй useful Stage 4 path для `process + timers`
+- `resources/examples/transport_probe_console` — datagram-first Stage 4 path для `tcp_udp + timers`
+- `resources/examples/serial_probe_console` — device-bridge Stage 4 path для `serial + timers`
 - `resources/examples/desktop_ui_flow` — UI/backend path
 - `resources/examples/reusable_composition_console` — reusable composition
 - `resources/examples/imported_pack_sensor_console` — curated imported pack в реальном graph/runtime
@@ -155,7 +166,7 @@ Reference project:
 
 ## Что это доказывает
 
-- checked-in `core` уже ускоряет как минимум `3` эталонных сценария;
+- checked-in `core` уже ускоряет как минимум `7` эталонных сценариев;
 - ценность standard library видна через examples, а не только через audit-матрицу;
 - `core` остаётся компактным baseline, а расширение экосистемы дальше идёт через imported pack-и и project modules.
 

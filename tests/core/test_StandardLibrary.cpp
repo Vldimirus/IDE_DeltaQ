@@ -75,12 +75,28 @@ private slots:
         Module convenience = makeCoreModule("core.io.quick_text", "quick_text", "io");
         Module legacy = makeCoreModule("core.io.print_int", "print_int", "io");
         Module specialized = makeCoreModule("core.string.str_compare", "str_compare", "string");
+        Module stage4Essential = makeCoreModule("core.filesystem.read_text_file", "read_text_file", "filesystem");
+        Module stage4Convenience = makeCoreModule("core.filesystem.ensure_dir", "ensure_dir", "filesystem");
+        Module processEssential = makeCoreModule("core.process.run_stdout", "run_stdout", "process");
+        Module timerConvenience = makeCoreModule("core.timers.elapsed_ms", "elapsed_ms", "timers");
+        Module transportEssential = makeCoreModule("core.tcp_udp.udp_bind", "udp_bind", "tcp_udp");
+        Module transportConvenience = makeCoreModule("core.tcp_udp.udp_close", "udp_close", "tcp_udp");
+        Module serialEssential = makeCoreModule("core.serial.serial_open", "serial_open", "serial");
+        Module serialConvenience = makeCoreModule("core.serial.serial_loopback_path", "serial_loopback_path", "serial");
         Module foreign = Module::create("local_mod", "c");
 
         const StandardLibraryCurationInfo essentialInfo = StandardLibrary::curationForModule(essential);
         const StandardLibraryCurationInfo convenienceInfo = StandardLibrary::curationForModule(convenience);
         const StandardLibraryCurationInfo legacyInfo = StandardLibrary::curationForModule(legacy);
         const StandardLibraryCurationInfo specializedInfo = StandardLibrary::curationForModule(specialized);
+        const StandardLibraryCurationInfo stage4EssentialInfo = StandardLibrary::curationForModule(stage4Essential);
+        const StandardLibraryCurationInfo stage4ConvenienceInfo = StandardLibrary::curationForModule(stage4Convenience);
+        const StandardLibraryCurationInfo processEssentialInfo = StandardLibrary::curationForModule(processEssential);
+        const StandardLibraryCurationInfo timerConvenienceInfo = StandardLibrary::curationForModule(timerConvenience);
+        const StandardLibraryCurationInfo transportEssentialInfo = StandardLibrary::curationForModule(transportEssential);
+        const StandardLibraryCurationInfo transportConvenienceInfo = StandardLibrary::curationForModule(transportConvenience);
+        const StandardLibraryCurationInfo serialEssentialInfo = StandardLibrary::curationForModule(serialEssential);
+        const StandardLibraryCurationInfo serialConvenienceInfo = StandardLibrary::curationForModule(serialConvenience);
         const StandardLibraryCurationInfo foreignInfo = StandardLibrary::curationForModule(foreign);
 
         QCOMPARE(essentialInfo.tier, QString("essential"));
@@ -95,6 +111,31 @@ private slots:
 
         QCOMPARE(specializedInfo.tier, QString("specialized"));
         QVERIFY(specializedInfo.guidance.contains(QString::fromUtf8("базового набора")));
+
+        QCOMPARE(stage4EssentialInfo.tier, QString("essential"));
+        QVERIFY(stage4EssentialInfo.guidance.contains(QString::fromUtf8("Stage 4 baseline")));
+
+        QCOMPARE(stage4ConvenienceInfo.tier, QString("convenience"));
+        QVERIFY(stage4ConvenienceInfo.title.contains(QString::fromUtf8("convenience")));
+        QVERIFY(!stage4ConvenienceInfo.guidance.isEmpty());
+
+        QCOMPARE(processEssentialInfo.tier, QString("essential"));
+        QVERIFY(processEssentialInfo.guidance.contains(QString::fromUtf8("tool-runner")));
+
+        QCOMPARE(timerConvenienceInfo.tier, QString("convenience"));
+        QVERIFY(timerConvenienceInfo.guidance.contains(QString::fromUtf8("stdout/log/reporting")));
+
+        QCOMPARE(transportEssentialInfo.tier, QString("essential"));
+        QVERIFY(transportEssentialInfo.guidance.contains(QString::fromUtf8("datagram-first")));
+
+        QCOMPARE(transportConvenienceInfo.tier, QString("convenience"));
+        QVERIFY(transportConvenienceInfo.guidance.contains(QString::fromUtf8("cleanup transport probe flow")));
+
+        QCOMPARE(serialEssentialInfo.tier, QString("essential"));
+        QVERIFY(serialEssentialInfo.guidance.contains(QString::fromUtf8("serial device bridge")));
+
+        QCOMPARE(serialConvenienceInfo.tier, QString("convenience"));
+        QVERIFY(serialConvenienceInfo.guidance.contains(QString::fromUtf8("self-contained serial probe flow")));
 
         QVERIFY(!foreignInfo.isKnown());
     }
@@ -260,10 +301,49 @@ private slots:
 
         QVERIFY2(unknown.isEmpty(),
                  qPrintable(QString("Unknown curation for core modules: %1").arg(unknown.join(", "))));
-        QCOMPARE(counts.value("essential"), 28);
+        QCOMPARE(counts.value("essential"), 44);
         QCOMPARE(counts.value("specialized"), 3);
         QCOMPARE(counts.value("legacy"), 12);
-        QCOMPARE(counts.value("convenience"), 0);
+        QCOMPARE(counts.value("convenience"), 8);
+    }
+
+    void checkedInCorePackMatchesCurrentCategorySet()
+    {
+        const QString modulesDir = modulesRootDir();
+        QVERIFY2(!modulesDir.isEmpty(), "modules/core not found via QFINDTESTDATA");
+
+        ModuleRegistry registry;
+        registry.loadGlobalModules(modulesDir);
+
+        QSet<QString> categories;
+        for (const auto *module : registry.allModules()) {
+            if (!module || module->origin != "core")
+                continue;
+            categories.insert(module->category);
+        }
+
+        QStringList actual = categories.values();
+        actual.sort();
+
+        QCOMPARE(actual, QStringList({
+            "config_json",
+            "control",
+            "conversion",
+            "desktop",
+            "filesystem",
+            "io",
+            "logic",
+            "math",
+            "process",
+            "serial",
+            "string",
+            "tcp_udp",
+            "timers"
+        }));
+        QVERIFY(categories.contains("timers"));
+        QVERIFY(categories.contains("process"));
+        QVERIFY(categories.contains("tcp_udp"));
+        QVERIFY(categories.contains("serial"));
     }
 };
 

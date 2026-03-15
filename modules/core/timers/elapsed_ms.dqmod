@@ -1,0 +1,44 @@
+{
+    "category": "timers",
+    "dependencies": [],
+    "description": "Прошедшее monotonic время с момента start_ms",
+    "header": "",
+    "id": "core.timers.elapsed_ms",
+    "includes": [
+        "time.h"
+    ],
+    "language": "c",
+    "name": "elapsed_ms",
+    "origin": "core",
+    "ports": {
+        "input": [
+            {
+                "kind": "execution",
+                "name": "flow_in",
+                "type": "exec"
+            },
+            {
+                "name": "start_ms",
+                "type": "int"
+            }
+        ],
+        "output": [
+            {
+                "kind": "execution",
+                "name": "flow_out",
+                "type": "exec"
+            },
+            {
+                "name": "result",
+                "type": "int"
+            }
+        ]
+    },
+    "source": "",
+    "source_code": "static int dq_elapsed_ms_now_ms(void) {\n    struct timespec ts;\n    long long value = 0;\n    if (clock_gettime(CLOCK_MONOTONIC, &ts) != 0)\n        return 0;\n    value = (long long) ts.tv_sec * 1000LL + (long long) (ts.tv_nsec / 1000000L);\n    return (int) (value % 2147483647LL);\n}\n\nint dq_elapsed_ms(int start_ms) {\n    const int current_ms = dq_elapsed_ms_now_ms();\n    if (current_ms < start_ms)\n        return 0;\n    return current_ms - start_ms;\n}",
+    "version": "1.0",
+    "metadata": {
+        "deltaq.doc.when_to_use": "Когда после sync step хочется сразу получить elapsed duration для stdout/log/reporting path без ручной арифметики в graph.",
+        "deltaq.doc.limitations": "Linux-first helper для коротких monotonic interval measurements; при wrap-around `int` возвращает `0`, а не пытается вести долгоживущий timer state."
+    }
+}

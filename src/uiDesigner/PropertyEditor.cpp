@@ -17,6 +17,7 @@
 #include <QVBoxLayout>
 #include <QFrame>
 #include <QMetaType>
+#include <QSignalBlocker>
 
 namespace DeltaQ {
 
@@ -142,76 +143,129 @@ void PropertyEditor::buildWindowPropertyList()
     addProperty(tr("Contract"), "contract", "window", "readonly");
 
     // Заголовок окна
-    auto *titleEdit = new QLineEdit(m_windowScene->windowTitle(), m_contentWidget);
-    connect(titleEdit, &QLineEdit::editingFinished, this, [this, titleEdit]() {
+    m_windowTitleEdit = new QLineEdit(m_windowScene->windowTitle(), m_contentWidget);
+    m_windowTitleEdit->setObjectName(QStringLiteral("windowTitleEdit"));
+    connect(m_windowTitleEdit, &QLineEdit::editingFinished, this, [this]() {
         if (m_updating || !m_windowScene) return;
-        m_windowScene->setWindowTitle(titleEdit->text());
+        m_windowScene->setWindowTitle(m_windowTitleEdit->text());
+        syncWindowPropertyEditors();
         emit windowPropertyChanged();
     });
-    m_formLayout->addRow(tr("Title:"), titleEdit);
+    m_formLayout->addRow(tr("Title:"), m_windowTitleEdit);
 
     // Ширина окна
-    auto *widthSb = new QDoubleSpinBox(m_contentWidget);
-    widthSb->setRange(m_windowScene->windowMinimumSize().width(), 4000);
-    widthSb->setDecimals(0);
-    widthSb->setValue(m_windowScene->windowRect().width());
-    connect(widthSb, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
+    m_windowWidthSpin = new QDoubleSpinBox(m_contentWidget);
+    m_windowWidthSpin->setObjectName(QStringLiteral("windowWidthSpinBox"));
+    m_windowWidthSpin->setRange(m_windowScene->windowMinimumSize().width(), 4000);
+    m_windowWidthSpin->setDecimals(0);
+    m_windowWidthSpin->setValue(m_windowScene->windowRect().width());
+    connect(m_windowWidthSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
             this, [this](double val) {
         if (m_updating || !m_windowScene) return;
         QRectF r = m_windowScene->windowRect();
         m_windowScene->setWindowRect(QRectF(r.x(), r.y(), val, r.height()));
+        syncWindowPropertyEditors();
         emit windowPropertyChanged();
     });
-    m_formLayout->addRow(tr("Width:"), widthSb);
+    m_formLayout->addRow(tr("Width:"), m_windowWidthSpin);
 
     // Высота окна
-    auto *heightSb = new QDoubleSpinBox(m_contentWidget);
-    heightSb->setRange(m_windowScene->windowMinimumSize().height(), 4000);
-    heightSb->setDecimals(0);
-    heightSb->setValue(m_windowScene->windowRect().height());
-    connect(heightSb, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
+    m_windowHeightSpin = new QDoubleSpinBox(m_contentWidget);
+    m_windowHeightSpin->setObjectName(QStringLiteral("windowHeightSpinBox"));
+    m_windowHeightSpin->setRange(m_windowScene->windowMinimumSize().height(), 4000);
+    m_windowHeightSpin->setDecimals(0);
+    m_windowHeightSpin->setValue(m_windowScene->windowRect().height());
+    connect(m_windowHeightSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
             this, [this](double val) {
         if (m_updating || !m_windowScene) return;
         QRectF r = m_windowScene->windowRect();
         m_windowScene->setWindowRect(QRectF(r.x(), r.y(), r.width(), val));
+        syncWindowPropertyEditors();
         emit windowPropertyChanged();
     });
-    m_formLayout->addRow(tr("Height:"), heightSb);
+    m_formLayout->addRow(tr("Height:"), m_windowHeightSpin);
 
-    auto *minWidthSb = new QDoubleSpinBox(m_contentWidget);
-    minWidthSb->setRange(DQ_UIWindowDefaultMinWidth, 4000);
-    minWidthSb->setDecimals(0);
-    minWidthSb->setValue(m_windowScene->windowMinimumSize().width());
-    connect(minWidthSb, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
+    m_windowMinWidthSpin = new QDoubleSpinBox(m_contentWidget);
+    m_windowMinWidthSpin->setObjectName(QStringLiteral("windowMinWidthSpinBox"));
+    m_windowMinWidthSpin->setRange(DQ_UIWindowDefaultMinWidth, 4000);
+    m_windowMinWidthSpin->setDecimals(0);
+    m_windowMinWidthSpin->setValue(m_windowScene->windowMinimumSize().width());
+    connect(m_windowMinWidthSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
             this, [this](double val) {
         if (m_updating || !m_windowScene) return;
         const QSizeF currentMinSize = m_windowScene->windowMinimumSize();
         m_windowScene->setWindowMinimumSize(QSizeF(val, currentMinSize.height()));
+        syncWindowPropertyEditors();
         emit windowPropertyChanged();
     });
-    m_formLayout->addRow(tr("Min Width:"), minWidthSb);
+    m_formLayout->addRow(tr("Min Width:"), m_windowMinWidthSpin);
 
-    auto *minHeightSb = new QDoubleSpinBox(m_contentWidget);
-    minHeightSb->setRange(DQ_UIWindowDefaultMinHeight, 4000);
-    minHeightSb->setDecimals(0);
-    minHeightSb->setValue(m_windowScene->windowMinimumSize().height());
-    connect(minHeightSb, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
+    m_windowMinHeightSpin = new QDoubleSpinBox(m_contentWidget);
+    m_windowMinHeightSpin->setObjectName(QStringLiteral("windowMinHeightSpinBox"));
+    m_windowMinHeightSpin->setRange(DQ_UIWindowDefaultMinHeight, 4000);
+    m_windowMinHeightSpin->setDecimals(0);
+    m_windowMinHeightSpin->setValue(m_windowScene->windowMinimumSize().height());
+    connect(m_windowMinHeightSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
             this, [this](double val) {
         if (m_updating || !m_windowScene) return;
         const QSizeF currentMinSize = m_windowScene->windowMinimumSize();
         m_windowScene->setWindowMinimumSize(QSizeF(currentMinSize.width(), val));
+        syncWindowPropertyEditors();
         emit windowPropertyChanged();
     });
-    m_formLayout->addRow(tr("Min Height:"), minHeightSb);
+    m_formLayout->addRow(tr("Min Height:"), m_windowMinHeightSpin);
 
-    auto *resizableCb = new QCheckBox(tr("Resizable"), m_contentWidget);
-    resizableCb->setChecked(m_windowScene->windowResizable());
-    connect(resizableCb, &QCheckBox::toggled, this, [this](bool checked) {
+    m_windowResizableCheck = new QCheckBox(tr("Resizable"), m_contentWidget);
+    m_windowResizableCheck->setObjectName(QStringLiteral("windowResizableCheckBox"));
+    m_windowResizableCheck->setChecked(m_windowScene->windowResizable());
+    connect(m_windowResizableCheck, &QCheckBox::toggled, this, [this](bool checked) {
         if (m_updating || !m_windowScene) return;
         m_windowScene->setWindowResizable(checked);
+        syncWindowPropertyEditors();
         emit windowPropertyChanged();
     });
-    m_formLayout->addRow(resizableCb);
+    m_formLayout->addRow(m_windowResizableCheck);
+
+    syncWindowPropertyEditors();
+
+    m_updating = false;
+}
+
+void PropertyEditor::syncWindowPropertyEditors()
+{
+    if (!m_windowScene)
+        return;
+
+    m_updating = true;
+
+    if (m_windowTitleEdit) {
+        const QSignalBlocker blocker(m_windowTitleEdit);
+        m_windowTitleEdit->setText(m_windowScene->windowTitle());
+    }
+    if (m_windowWidthSpin) {
+        const QSignalBlocker blocker(m_windowWidthSpin);
+        m_windowWidthSpin->setRange(m_windowScene->windowMinimumSize().width(), 4000);
+        m_windowWidthSpin->setValue(m_windowScene->windowRect().width());
+    }
+    if (m_windowHeightSpin) {
+        const QSignalBlocker blocker(m_windowHeightSpin);
+        m_windowHeightSpin->setRange(m_windowScene->windowMinimumSize().height(), 4000);
+        m_windowHeightSpin->setValue(m_windowScene->windowRect().height());
+    }
+    if (m_windowMinWidthSpin) {
+        const QSignalBlocker blocker(m_windowMinWidthSpin);
+        m_windowMinWidthSpin->setRange(DQ_UIWindowDefaultMinWidth, 4000);
+        m_windowMinWidthSpin->setValue(m_windowScene->windowMinimumSize().width());
+    }
+    if (m_windowMinHeightSpin) {
+        const QSignalBlocker blocker(m_windowMinHeightSpin);
+        m_windowMinHeightSpin->setRange(DQ_UIWindowDefaultMinHeight, 4000);
+        m_windowMinHeightSpin->setValue(m_windowScene->windowMinimumSize().height());
+    }
+    if (m_windowResizableCheck) {
+        const QSignalBlocker blocker(m_windowResizableCheck);
+        m_windowResizableCheck->setChecked(m_windowScene->windowResizable());
+    }
 
     m_updating = false;
 }
@@ -458,6 +512,13 @@ QWidget *PropertyEditor::createEditor(const QString &key, const QVariant &value,
 void PropertyEditor::clearLayout()
 {
     if (!m_formLayout) return;
+
+    m_windowTitleEdit = nullptr;
+    m_windowWidthSpin = nullptr;
+    m_windowHeightSpin = nullptr;
+    m_windowMinWidthSpin = nullptr;
+    m_windowMinHeightSpin = nullptr;
+    m_windowResizableCheck = nullptr;
 
     QLayoutItem *child;
     while (m_formLayout->count() > 0 && (child = m_formLayout->takeAt(0)) != nullptr) {

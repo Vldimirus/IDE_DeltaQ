@@ -1,10 +1,30 @@
-# DeltaQ IDE — Прогресс разработки
+# DeltaQ IDE — Прогресс реализации (исторический журнал)
 
-> Последнее обновление: 2026-03-02 (Файловые шаблоны проектов вместо программной генерации)
+> Последнее обновление роли документа: 2026-03-15
+>
+> Этот файл больше не должен трактоваться как текущая продуктовая оценка готовности.
+> Он сохраняет историческую хронологию implementation work и старые формулировки
+> по состоянию на дату соответствующей записи.
+>
+> Актуальный maturity/status layer ведётся в:
+>
+> - `docs/plan/strategy_2026/32_product_maturity_recovery_v1.md`
+> - `docs/plan/strategy_2026/33_bug_burn_down_shortlist.md`
+> - `docs/plan/strategy_2026/98_strategy_checklist.md`
+> - `docs/reports/project_state_2026-03-09.md`
+> - `docs/reports/project_state_2026-03-09_post_priorities.md`
 
 ---
 
-## Общий прогресс
+## Как читать этот документ
+
+- Процент и phase snapshot ниже являются историческим implementation snapshot, а не
+  текущим product-readiness verdict.
+- Старые записи в таблицах ниже не переписываются задним числом под новые template names
+  или новую release framing логику.
+- Для актуального blocker/status-tracking используйте документы из `strategy_2026`.
+
+## Исторический implementation snapshot на 2026-03-02
 
 ```
 Фаза 0: Планирование         [████████████████████] 100%  ✓ утверждено
@@ -19,7 +39,8 @@
 Общий прогресс проекта:                                ~97%
 ```
 
-**Текущая фаза:** Фаза 9 завершена — Execution Flow, двухфазная сборка
+**Последний formal phase snapshot на ту дату:** Фаза 9 завершена — Execution Flow,
+двухфазная сборка
 
 ---
 
@@ -156,56 +177,30 @@
 | 66 | Linux release polish: свежесобранный AppImage проходит полную локальную verification | **Packaging fixes:** `build_appimage.sh` исправлен по двум реальным AppImage-проблемам — wrapper для `appstreamcli` больше не рекурсирует сам в себя после подмены `PATH`, а в `AppDir/usr/plugins/platforms` теперь явно включается `libqoffscreen.so`, без которого extracted artifact падал в headless smoke. **Result:** fresh `.AppImage` теперь не только создаётся, но и проходит `verify_appimage_file.sh` с checksum-check, post-extract `first launch` и post-extract `open example -> build -> run`. **Meaning:** delivery/runtime slice Linux-first release polish закрыт уже не декларативно, а на реально собранном локальном artifact. |
 | 67 | Linux release polish: public release surface получил единый entry path и manual artifact checklist | **Unified entry points:** добавлены `docs/onboarding/README.md`, `docs/onboarding/README_RU.md`, `resources/examples/README.md`, `resources/examples/README_RU.md`, `docs/release/linux_first_release_checklist.md` и `docs/release/linux_first_release_checklist_ru.md`, чтобы у DeltaQ появился короткий путь `README -> onboarding -> examples -> release handoff`. **Narrative wiring:** `README.md`, `README_RU.md`, `docs/onboarding/first_run*.md` и `docs/release/README.md` теперь явно ведут пользователя между first-run walkthrough, catalog of examples и Linux artifact acceptance path. **Status:** public release surface больше не распадается на несвязанные документы; в Linux polish открытым остаётся уже не базовый handoff, а screenshots / visual proof. |
 
-### Известные проблемы (Фаза 6)
+### Статус старых known issues из этого журнала
 
-- [ ] Блочный редактор (.dqgraph): узлы слишком приближены при открытии — zoomFit масштабирует чрезмерно для малого числа узлов
+- Старый `zoomFit` blocker для `.dqgraph` больше не активен: он был закрыт
+  2026-03-09 и закреплён regression test-ом в `tests/blockEditor/test_BlockEditorWidget.cpp`.
+- Текущий blocker tracking больше не ведётся внутри этого исторического журнала;
+  он вынесен в `docs/plan/strategy_2026/33_bug_burn_down_shortlist.md`.
 
 ---
 
-## Что дальше
+## Что дальше по текущему maturity plan
 
-**Фазы 1–3 — завершены на 100%.**
+Исторический phase snapshot выше не означает, что продукт уже дошёл до final release
+readiness. Актуальный план работ на срезе `2026-03-15` такой:
 
-**Фаза 4 (Дизайнер UI + Обработчик библиотек) — завершена на 100%.**
-
-**Фаза 5 (Интеграция) — завершена (100%).**
-
-**Фаза 6 (Модульная система) — завершена (100%).**
-
-**Фаза 7 (Конфиг, создание файлов, группировка, anchor) — завершена (100%).**
-
-Реализовано:
-- UI Designer: DesignScene, WidgetItem (12 типов), WidgetPalette (23 типа, 4 категории), PropertyEditor
-- UICommands: 10 команд undo/redo (Add/Remove/Move/Resize/ChangeProperty/ChangeLayout/BindEvent/Reparent/ChangeAnchors)
-- LayoutEngine: HBox, VBox, Grid, Flow компоновки + Anchor-привязки (left/right/top/bottom/hCenter/vCenter)
-- SDL2 Code Generator: 5 файлов C-кода из UILayout
-- EventBindingDialog: привязка событий (Module Function / Graph Trigger / Custom)
-- UIPreview: генерация → gcc → запуск SDL2-приложения
-- LibclangParser: парсинг C/C++ заголовков через libclang (#ifdef DQ_HAS_LIBCLANG)
-- LibraryDecomposer: функции→модули, классы→модули (create/destroy/methods)
-- WrapperGenerator: extern "C" обёртки для C++ классов
-- LibraryImportWizard: 5-шаговый мастер импорта
-- ModuleManagerWidget: полный менеджер модулей с компиляцией и тестированием (код-центричный UI с превью блока)
-- ModuleTestRunner: gcc -fsyntax-only + тестовая обвязка + запуск
-- UIModuleFactory: 8 UI-виджетов как модули (Button, TextField, Label, Slider, Checkbox, ProgressBar, Image, ComboBox)
-- GraphCompiler: полная сборка с дедупликацией includes и определений, проверка совместимости языков
-- SettingsDialog: диалог настроек IDE (путь проектов, шрифт, язык)
-- NewFileDialog: создание файлов внутри проекта (.dqui, .dqgraph, .dqmod, .c, .h)
-- Группировка виджетов: drag в контейнер (Panel/GroupBox), ReparentWidgetCommand, подсветка при drag
-- Anchor-привязки: UIAnchors, LayoutEngine::applyAnchors, визуальные индикаторы, автоприменение при ресайзе
-
-- StandardLibrary: ~30 core-модулей с рабочим C-кодом (io, math, string, logic, conversion, control)
-- Глобальное хранилище модулей: ~/.deltaq/modules/ (core + расширения пользователя)
-- 3-секционная палитра и менеджер модулей (Стандартная библиотека / UI / Расширения)
-- SettingsDialog: вкладка «Modules» с управлением пакетами
-- Локальные модули проекта: dqmods/ в корне проекта, 4-я секция «Проектные модули» в палитре и менеджере
-- Подмодули (матрёшка): SubModuleFactory (создание из выделения), BreadcrumbBar (навигация), CycleDetector (защита от циклов)
-- Рекурсивная компиляция подмодулей: GraphCompiler с вложенными графами
-- Execution Flow: exec-порты (треугольная форма), exec-aware сортировка, control-модули (if_branch, for_loop, sequence)
-- Двухфазная сборка: PreBuildProcessor (графы+UI→исходники) + BuildPipeline (pre-build→build)
-- Автоопределение компилятора: CompilerDetector (gcc/clang/cmake/make/ninja)
-
-**Следующие шаги:** Тестирование, стабилизация, документация пользователя.
+1. `Stage 3: Bug Burn-Down For Trust`
+   - держать explicit blocker shortlist;
+   - дожимать first-contact trust defects короткими slices;
+   - для каждого закрытого blocker-а оставлять regression test или smoke-check.
+2. `Stage 4: Core Module Library v1`
+   - собрать useful baseline по `filesystem / timers / config-json / process / tcp-udp / serial`.
+3. `Stage 5: External Library Adapter v1`
+   - довести Linux-first path `header + binary -> wrappers -> curated pack -> graph -> build/run`.
+4. `Stage 6: Release Framing Re-Evaluation`
+   - после maturity blocker-ов честно решить, на какой release label реально тянет repo.
 
 ---
 

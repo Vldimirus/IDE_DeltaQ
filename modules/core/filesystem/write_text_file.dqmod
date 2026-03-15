@@ -1,0 +1,45 @@
+{
+    "category": "filesystem",
+    "dependencies": [],
+    "description": "Запись текстового файла",
+    "header": "",
+    "id": "core.filesystem.write_text_file",
+    "includes": [
+        "stdio.h",
+        "string.h"
+    ],
+    "language": "c",
+    "name": "write_text_file",
+    "origin": "core",
+    "ports": {
+        "input": [
+            {
+                "kind": "execution",
+                "name": "flow_in",
+                "type": "exec"
+            },
+            {
+                "name": "path",
+                "type": "string"
+            },
+            {
+                "name": "text",
+                "type": "string"
+            }
+        ],
+        "output": [
+            {
+                "kind": "execution",
+                "name": "flow_out",
+                "type": "exec"
+            }
+        ]
+    },
+    "source": "",
+    "source_code": "void dq_write_text_file(const char *path, const char *text) {\n    FILE *file = NULL;\n    const char *safe_text = text ? text : \"\";\n    if (!path || !*path)\n        return;\n    file = fopen(path, \"wb\");\n    if (!file)\n        return;\n    fwrite(safe_text, 1, strlen(safe_text), file);\n    fclose(file);\n}",
+    "version": "1.0",
+    "metadata": {
+        "deltaq.doc.when_to_use": "Когда graph должен сохранить небольшой текстовый результат или config JSON в обычный файл.",
+        "deltaq.doc.limitations": "Перезаписывает файл целиком, не создаёт родительские директории сам и не возвращает детальную ошибку."
+    }
+}

@@ -1,11 +1,53 @@
 // Тесты DesignScene
 #include <QTest>
 #include <QApplication>
+#include <QSignalSpy>
+#include <QTemporaryDir>
+#include <QGraphicsSceneMouseEvent>
 #include "../../src/uiDesigner/DesignScene.h"
 #include "../../src/uiDesigner/WidgetItem.h"
+#include "../../src/core/UILayoutStore.h"
 #include <deltaq/UILayout.h>
 
 using namespace DeltaQ;
+
+namespace {
+
+class TestableDesignScene : public DesignScene {
+public:
+    using DesignScene::mouseMoveEvent;
+    using DesignScene::mousePressEvent;
+    using DesignScene::mouseReleaseEvent;
+
+    void dragWindowResizeHandle(const QPointF &pressPos, const QPointF &releasePos)
+    {
+        QGraphicsSceneMouseEvent pressEvent(QEvent::GraphicsSceneMousePress);
+        pressEvent.setButton(Qt::LeftButton);
+        pressEvent.setButtons(Qt::LeftButton);
+        pressEvent.setScenePos(pressPos);
+        pressEvent.setLastScenePos(pressPos);
+        pressEvent.setButtonDownScenePos(Qt::LeftButton, pressPos);
+        mousePressEvent(&pressEvent);
+
+        QGraphicsSceneMouseEvent moveEvent(QEvent::GraphicsSceneMouseMove);
+        moveEvent.setButton(Qt::LeftButton);
+        moveEvent.setButtons(Qt::LeftButton);
+        moveEvent.setScenePos(releasePos);
+        moveEvent.setLastScenePos(pressPos);
+        moveEvent.setButtonDownScenePos(Qt::LeftButton, pressPos);
+        mouseMoveEvent(&moveEvent);
+
+        QGraphicsSceneMouseEvent releaseEvent(QEvent::GraphicsSceneMouseRelease);
+        releaseEvent.setButton(Qt::LeftButton);
+        releaseEvent.setButtons(Qt::NoButton);
+        releaseEvent.setScenePos(releasePos);
+        releaseEvent.setLastScenePos(releasePos);
+        releaseEvent.setButtonDownScenePos(Qt::LeftButton, pressPos);
+        mouseReleaseEvent(&releaseEvent);
+    }
+};
+
+} // namespace
 
 class TestDesignScene : public QObject {
     Q_OBJECT
@@ -101,6 +143,97 @@ private slots:
 
         QCOMPARE(scene.windowRect(), QRectF(0, 0, 480, 360));
         QCOMPARE(scene.windowMinimumSize(), QSizeF(480, 360));
+    }
+
+    void testWindowFrameRectKeepsChromeOutsideClientArea()
+    {
+        DesignScene scene;
+        scene.setWindowRect(QRectF(10, 20, 640, 480));
+
+        QCOMPARE(scene.windowRect(), QRectF(10, 20, 640, 480));
+        QCOMPARE(scene.windowFrameRect(), QRectF(10, -10, 640, 510));
+    }
+
+    void testMouseResizeRoundTripsThroughLayoutStore()
+    {
+        TestableDesignScene scene;
+        scene.setWindowRect(QRectF(0, 0, 640, 480));
+        scene.setWindowMinimumSize(QSizeF(480, 360));
+
+        QSignalSpy geometrySpy(&scene, &DesignScene::windowGeometryChanged);
+        scene.dragWindowResizeHandle(scene.windowFrameRect().bottomRight(),
+                                     scene.windowFrameRect().bottomRight() + QPointF(80, 60));
+
+        QCOMPARE(scene.windowRect(), QRectF(0, 0, 720, 540));
+        QCOMPARE(geometrySpy.count(), 1);
+
+        const UILayout layout = scene.toLayout("MouseResizeRoundTrip");
+        QTemporaryDir tmpDir;
+        QVERIFY(tmpDir.isValid());
+
+        UILayoutStore writer;
+        const QString path = tmpDir.path() + "/mouse_resize_round_trip.dqui";
+        QVERIFY(writer.saveLayoutFile(layout, path));
+
+        UILayoutStore reader;
+        QVERIFY(reader.loadLayoutFile(path));
+        const UILayout *loaded = reader.findLayout(layout.id);
+        QVERIFY(loaded != nullptr);
+        QCOMPARE(loaded->window.geometry, QRectF(0, 0, 720, 540));
+        QCOMPARE(loaded->window.properties.value("min_width").toInt(), 480);
+        QCOMPARE(loaded->window.properties.value("min_height").toInt(), 360);
+
+        DesignScene reopened;
+        reopened.loadFromLayout(*loaded);
+        QCOMPARE(reopened.windowRect(), QRectF(0, 0, 720, 540));
+        QCOMPARE(reopened.windowMinimumSize(), QSizeF(480, 360));
+    }
+
+    void testMouseResizeClampMatchesPropertyResizeAfterReload()
+    {
+        TestableDesignScene mouseScene;
+        mouseScene.setWindowRect(QRectF(0, 0, 640, 480));
+        mouseScene.setWindowMinimumSize(QSizeF(480, 360));
+
+        QSignalSpy geometrySpy(&mouseScene, &DesignScene::windowGeometryChanged);
+        mouseScene.dragWindowResizeHandle(mouseScene.windowFrameRect().bottomRight(),
+                                          mouseScene.windowFrameRect().bottomRight() - QPointF(400, 260));
+
+        QCOMPARE(mouseScene.windowRect(), QRectF(0, 0, 480, 360));
+        QCOMPARE(geometrySpy.count(), 1);
+
+        DesignScene propertyScene;
+        propertyScene.setWindowRect(QRectF(0, 0, 640, 480));
+        propertyScene.setWindowMinimumSize(QSizeF(480, 360));
+        propertyScene.setWindowRect(QRectF(0, 0, 240, 220));
+        QCOMPARE(propertyScene.windowRect(), QRectF(0, 0, 480, 360));
+
+        const UILayout mouseLayout = mouseScene.toLayout("MouseClamp");
+        const UILayout propertyLayout = propertyScene.toLayout("PropertyClamp");
+
+        QTemporaryDir tmpDir;
+        QVERIFY(tmpDir.isValid());
+
+        UILayoutStore store;
+        const QString mousePath = tmpDir.path() + "/mouse_clamp.dqui";
+        const QString propertyPath = tmpDir.path() + "/property_clamp.dqui";
+        QVERIFY(store.saveLayoutFile(mouseLayout, mousePath));
+        QVERIFY(store.saveLayoutFile(propertyLayout, propertyPath));
+
+        UILayoutStore reopenedStore;
+        QVERIFY(reopenedStore.loadLayoutFile(mousePath));
+        QVERIFY(reopenedStore.loadLayoutFile(propertyPath));
+
+        const UILayout *reopenedMouse = reopenedStore.findLayout(mouseLayout.id);
+        const UILayout *reopenedProperty = reopenedStore.findLayout(propertyLayout.id);
+        QVERIFY(reopenedMouse != nullptr);
+        QVERIFY(reopenedProperty != nullptr);
+
+        QCOMPARE(reopenedMouse->window.geometry, reopenedProperty->window.geometry);
+        QCOMPARE(reopenedMouse->window.properties.value("min_width").toInt(),
+                 reopenedProperty->window.properties.value("min_width").toInt());
+        QCOMPARE(reopenedMouse->window.properties.value("min_height").toInt(),
+                 reopenedProperty->window.properties.value("min_height").toInt());
     }
 
     void testClearScene()
