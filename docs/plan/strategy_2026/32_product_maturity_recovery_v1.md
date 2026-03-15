@@ -597,6 +597,25 @@ Execution-grade audit для Stage 4 зафиксирован в
   пользователь получает явный diagnostic с причиной и следующим действием;
 - ограничения `C ABI`-only и Linux-first явно видны в user-facing docs/flow.
 
+#### Current Stage 5 Status
+
+На срезе `2026-03-15` Stage 5 уже можно считать закрытой:
+
+- reproducible path `header + binary -> raw wrappers -> curated pack` закреплён
+  raw-baseline regression-ами и checked-in walkthrough-ами для
+  `mini_sensor_sdk` / `mini_checksum_sdk`;
+- checked-in example-проекты
+  `imported_pack_sensor_console` и `imported_pack_checksum_console`
+  проходят `pre-build -> build -> run` как regression reference;
+- `LibraryPackager` и `LibraryImportWizard` теперь жёстко валидируют v1 scope
+  до записи pack-а:
+  - Linux-first `C ABI` baseline;
+  - missing header/binary path;
+  - unsupported `C++` ABI;
+  - no half-written pack on rejected import;
+- user-facing docs/library контур теперь явно проговаривает ограничения adapter-а,
+  а не оставляет их как implicit engineering knowledge.
+
 ### Stage 6. Release Framing Re-Evaluation
 
 #### Problem

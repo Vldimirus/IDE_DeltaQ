@@ -108,6 +108,16 @@ SHUTDOWN=done
 - проект собирается без ручной доводки;
 - runtime output совпадает с ожидаемым.
 
+## V1 Limits
+
+Этот walkthrough фиксирует именно `v1` baseline, а не универсальный converter:
+
+- intake path считается Linux-first;
+- product claim распространяется на `C ABI` header + include/link metadata;
+- если header/binary path не найден или пользователь пытается импортировать `C++` ABI напрямую,
+  import должен завершиться явным diagnostic до записи pack-а;
+- сложные callbacks, arbitrary `DLL` и полноценный `C++` wrapper-generator остаются вне текущего product claim.
+
 ## Why This Example Matters
 
 Этот example показывает три принципа DeltaQ:

@@ -498,3 +498,13 @@ target_link_libraries(test_WrapperGenerator PRIVATE
 )
 set_target_properties(test_WrapperGenerator PROPERTIES AUTOMOC ON)
 add_test(NAME test_WrapperGenerator COMMAND test_WrapperGenerator)
+
+add_executable(test_LibraryImportWizard libProcessor/test_LibraryImportWizard.cpp)
+target_link_libraries(test_LibraryImportWizard PRIVATE
+    dq_lib_processor
+    dq_core
+    Qt6::Test
+    Qt6::Widgets
+)
+set_target_properties(test_LibraryImportWizard PROPERTIES AUTOMOC ON)
+add_test(NAME test_LibraryImportWizard COMMAND test_LibraryImportWizard)

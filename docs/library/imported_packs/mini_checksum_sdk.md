@@ -98,6 +98,15 @@ SHUTDOWN=done
 - проект собирается без ручной доводки;
 - runtime output совпадает с ожидаемым, включая deterministic checksum `7E11085F`.
 
+## V1 Limits
+
+Этот второй walkthrough разделяет те же честные границы `v1`:
+
+- intake path считается Linux-first;
+- supported baseline — `C ABI` header + include/link metadata;
+- missing headers, missing binary path и попытка прямого `C++` ABI import должны останавливаться explicit diagnostic-ом до записи pack-а;
+- сложные callbacks и non-Linux packaging cases остаются следующим слоем, а не claim-ом текущего adapter-а.
+
 ## Why This Example Matters
 
 Этот example показывает:

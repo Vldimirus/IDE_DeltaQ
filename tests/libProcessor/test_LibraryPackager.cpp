@@ -18,6 +18,12 @@ private slots:
     {
         QTemporaryDir tempDir;
         QVERIFY(tempDir.isValid());
+        QVERIFY(QDir().mkpath(tempDir.path() + "/vendor"));
+
+        QFile headerFile(tempDir.path() + "/vendor/sensor.h");
+        QVERIFY(headerFile.open(QIODevice::WriteOnly | QIODevice::Text));
+        headerFile.write("// fixture header\n");
+        headerFile.close();
 
         Module module = Module::create("sensor_read", "c");
         module.origin = "library";
@@ -33,7 +39,7 @@ private slots:
         spec.category = "sensors";
         spec.language = "c";
         spec.standard = "c17";
-        spec.headerPaths = {"/opt/vendor/sensor.h"};
+        spec.headerPaths = {tempDir.path() + "/vendor/sensor.h"};
         spec.linkLibraries = {"sensor_sdk"};
 
         const ImportedLibraryPackResult result =
@@ -55,7 +61,9 @@ private slots:
 
         const QJsonArray includes = obj["includes"].toArray();
         QCOMPARE(includes.size(), 1);
-        QCOMPARE(includes.first().toString(), QString("\"/opt/vendor/sensor.h\""));
+        QCOMPARE(includes.first().toString(),
+                 QString("\"%1/vendor/sensor.h\"")
+                     .arg(QDir::fromNativeSeparators(tempDir.path())));
 
         const QJsonObject metadata = obj["metadata"].toObject();
         QCOMPARE(metadata["deltaq.import.kind"].toString(), QString("library_pack_module"));
@@ -80,6 +88,7 @@ private slots:
         ImportedLibraryPackSpec spec;
         spec.packName = "Cpp SDK";
         spec.displayName = "Cpp SDK";
+        spec.headerPaths = {"camera_sdk.h"};
 
         WrapperCode wrapper;
         wrapper.className = "Camera";
@@ -93,6 +102,64 @@ private slots:
         QCOMPARE(result.writtenWrapperFiles.size(), 2);
         QVERIFY(QFile::exists(tempDir.path() + "/cpp_sdk/wrappers/camera.h"));
         QVERIFY(QFile::exists(tempDir.path() + "/cpp_sdk/wrappers/camera.cpp"));
+    }
+
+    void rejectsUnsupportedCppAbiWithoutWritingPack()
+    {
+        QTemporaryDir tempDir;
+        QVERIFY(tempDir.isValid());
+
+        Module module = Module::create("camera_open", "cpp");
+        module.origin = "library";
+        module.category = "camera";
+
+        ImportedLibraryPackSpec spec;
+        spec.packName = "Camera SDK";
+        spec.displayName = "Camera SDK";
+        spec.language = "cpp";
+        spec.standard = "c++20";
+        spec.headerPaths = {"/tmp/camera_sdk.hpp"};
+
+        const ImportedLibraryPackResult result =
+            LibraryPackager::writeImportedPack(tempDir.path(), spec, {module});
+
+        QVERIFY(!result.success());
+        QVERIFY2(result.errors.join("\n").contains("C ABI only"), qPrintable(result.errors.join(" | ")));
+        QVERIFY(!QFile::exists(tempDir.path() + "/camera_sdk/pack.json"));
+        QVERIFY(!QDir(tempDir.path() + "/camera_sdk").exists());
+    }
+
+    void rejectsMissingHeaderAndBinaryPathsWithoutWritingPack()
+    {
+        QTemporaryDir tempDir;
+        QVERIFY(tempDir.isValid());
+
+        Module module = Module::create("sensor_read", "c");
+        module.origin = "library";
+        module.category = "sensor_raw";
+        module.outputs = {{"result", "int", ""}};
+
+        const QString missingHeader = tempDir.path() + "/missing/mini_sensor_sdk.h";
+        const QString missingLibrary = tempDir.path() + "/missing/libmini_sensor_sdk.a";
+
+        ImportedLibraryPackSpec spec;
+        spec.packName = "Mini Sensor SDK Raw";
+        spec.displayName = "Mini Sensor SDK Raw";
+        spec.category = "sensor_raw";
+        spec.language = "c";
+        spec.standard = "c17";
+        spec.headerPaths = {missingHeader};
+        spec.linkLibraries = {missingLibrary};
+
+        const ImportedLibraryPackResult result =
+            LibraryPackager::writeImportedPack(tempDir.path(), spec, {module});
+
+        QVERIFY(!result.success());
+        const QString errors = result.errors.join("\n");
+        QVERIFY2(errors.contains("Header file"), qPrintable(errors));
+        QVERIFY2(errors.contains("Library artifact"), qPrintable(errors));
+        QVERIFY(!QFile::exists(tempDir.path() + "/mini_sensor_sdk_raw/pack.json"));
+        QVERIFY(!QDir(tempDir.path() + "/mini_sensor_sdk_raw").exists());
     }
 };
 

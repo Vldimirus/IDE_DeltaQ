@@ -5586,3 +5586,45 @@ fixture:
 - все planned Stage 4 useful categories теперь имеют checked-in initial baseline;
 - checklist `Core Module Library v1` можно переводить в закрытое состояние;
 - дальнейшие срезы вокруг core уже про consolidation/discoverability, а не про category gaps.
+
+### Шаг 110 — `Stage 5` доведён до честного Linux-first `C ABI` adapter flow
+
+**Фаза:** `Product Maturity Recovery / Stage 5`
+
+**Что сделано:**
+
+- `LibraryPackager` теперь валидирует import до записи pack-а:
+  - rejects unsupported `C++` ABI / non-`C` standard для `v1`;
+  - rejects missing header path и missing binary artifact path;
+  - rejects empty selection без generated modules/wrappers;
+- запись imported pack-а переведена на staging/activate path:
+  - failed import не оставляет half-written pack в `modulesRoot`;
+  - успешный rewrite существующего pack-а идёт через temporary staging directory;
+- `LibraryImportWizard` теперь явно проговаривает user-facing ограничения:
+  - Linux-first `C ABI` baseline;
+  - `C++/DLL` flows требуют thin adapter;
+  - failed validation не пишет pack и показывает explicit diagnostic;
+- docs/library и imported-pack walkthrough-ы синхронизированы с реальным состоянием:
+  - `docs/library/README.md`
+  - `docs/library/imported_packs/mini_sensor_sdk.md`
+  - `docs/library/imported_packs/mini_checksum_sdk.md`
+  - `resources/examples/imported_pack_sensor_sdk/README.md`
+  - `resources/examples/imported_pack_checksum_sdk/README.md`
+- checklist maturity-plan обновлён так, что `External Library Adapter v1`
+  больше не выглядит незакрытым despite existing checked-in proofs.
+
+**Проверка:**
+
+- `cmake --build build/qt-dev --target test_LibraryPackager test_LibraryImportWizard test_ImportedPackRawBaseline test_PreBuildProcessor --parallel`
+- `QT_QPA_PLATFORM=offscreen ./build/qt-dev/tests/test_LibraryPackager`
+- `QT_QPA_PLATFORM=offscreen ./build/qt-dev/tests/test_LibraryImportWizard`
+- `QT_QPA_PLATFORM=offscreen ./build/qt-dev/tests/test_ImportedPackRawBaseline`
+- `QT_QPA_PLATFORM=offscreen ./build/qt-dev/tests/test_PreBuildProcessor importedPackBuildRequirementsReachCMakeAndRuntime curatedImportedPackBuildsAndRunsMiniSensorFlow importedPackSensorConsoleExampleBuildsAndRunsEndToEnd importedPackChecksumConsoleExampleBuildsAndRunsEndToEnd`
+- `git diff --check -- ...`
+
+**Итог:**
+
+- Stage 5 теперь закрыт не только по technical capability, но и по product honesty:
+  user-facing flow прямо фиксирует Linux-first `C ABI` limits;
+- unsupported ABI и incomplete intake metadata больше не ведут к silent half-written pack;
+- следующий основной трек maturity recovery смещается на `Stage 6: Release Framing Re-Evaluation`.

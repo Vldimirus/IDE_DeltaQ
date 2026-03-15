@@ -137,10 +137,10 @@
   - `display name = Sensor Shutdown`
   - `role = curated_entry`
 
-## Stage 4 Verification
+## Current Verification
 
-На текущем этапе curated pack для `mini_sensor_sdk` подтверждается автоматическим
-integration test-ом, который делает полный путь:
+Сейчас curated pack для `mini_sensor_sdk` подтверждается и checked-in example-проектом,
+и автоматическим integration test-ом, который делает полный путь:
 
 `fixture SDK -> curated imported pack -> graph -> pre-build -> CMake -> build -> run`
 
@@ -162,7 +162,12 @@ integration test-ом, который делает полный путь:
 
 Важно:
 
-- curated pack пока создаётся внутри integration test-а и используется как
-  verified technical reference;
-- отдельный checked-in showcase project и walkthrough остаются следующим шагом
-  (`Stage 5`).
+- checked-in showcase project теперь лежит в
+  `resources/examples/imported_pack_sensor_console`;
+- путь `header + binary -> raw wrappers -> curated pack` закреплён отдельным
+  reproducible raw-baseline test-ом;
+- `v1` claim остаётся ограниченным:
+  - Linux-first intake;
+  - `C ABI` baseline;
+  - missing header/binary path или unsupported ABI должны завершаться explicit
+    diagnostic-ом до записи pack-а.

@@ -62,7 +62,7 @@ void LibraryImportWizard::setupPage1_SelectLibrary()
 {
     auto *page = new QWizardPage;
     page->setTitle(tr("Select Library"));
-    page->setSubTitle(tr("Choose header files, include paths, and compiler settings."));
+    page->setSubTitle(tr("Choose a Linux-first C ABI header, include paths, and link metadata. C++/DLL flows still need a thin adapter."));
 
     auto *layout = new QVBoxLayout(page);
 
@@ -363,7 +363,7 @@ void LibraryImportWizard::setupPage5_Generate()
 {
     auto *page = new QWizardPage;
     page->setTitle(tr("Import Complete"));
-    page->setSubTitle(tr("Modules have been generated and saved as an extension pack."));
+    page->setSubTitle(tr("The wizard writes a Linux-first C ABI pack only after validation passes, so unsupported ABI or missing artifacts do not leave a half-written pack."));
 
     auto *layout = new QVBoxLayout(page);
 
@@ -409,7 +409,8 @@ void LibraryImportWizard::setupPage5_Generate()
         m_progressBar->setValue(m_progressBar->maximum());
 
         if (!m_packResult.success()) {
-            m_resultLabel->setText(tr("Import failed:\n%1").arg(m_packResult.errors.join("\n")));
+            m_resultLabel->setText(tr("Import failed. No pack was written.\n%1")
+                                       .arg(m_packResult.errors.join("\n")));
             return;
         }
 
@@ -418,7 +419,7 @@ void LibraryImportWizard::setupPage5_Generate()
         if (m_registry)
             m_registry->loadGlobalModules(modulesRootDir);
 
-        QString message = tr("Imported %1 module(s) into pack '%2'.")
+        QString message = tr("Imported %1 module(s) into Linux-first C ABI pack '%2'.")
             .arg(m_packResult.writtenModuleFiles.size())
             .arg(spec.packName);
         message += tr("\nPack directory: %1").arg(m_packResult.packDir);

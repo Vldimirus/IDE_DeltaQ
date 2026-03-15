@@ -104,3 +104,12 @@
 - не ограничиваются hardware-like SDK;
 - подходят и для algorithmic / text-processing расширений;
 - действительно являются главным каналом роста экосистемы вне `core`.
+
+## V1 Limits
+
+Этот fixture-case тоже подчиняется тем же границам `Stage 5`:
+
+- intake path заявляется как Linux-first;
+- supported baseline — `C ABI` header + include/link metadata;
+- missing header/binary path или unsupported ABI должны останавливаться explicit
+  diagnostic-ом до записи imported pack-а.

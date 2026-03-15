@@ -278,10 +278,10 @@
 
 ### External Library Adapter v1
 
-- `[ ]` Есть Linux-first `C ABI` intake flow для внешней библиотеки
-- `[ ]` Есть reproducible path `header + binary -> raw wrappers -> curated pack`
-- `[ ]` Есть хотя бы один reference case `external library -> pack -> graph -> build/run`
-- `[ ]` Ограничения adapter-а описаны честно и user-visible
+- `[x]` Есть Linux-first `C ABI` intake flow для внешней библиотеки
+- `[x]` Есть reproducible path `header + binary -> raw wrappers -> curated pack`
+- `[x]` Есть хотя бы один reference case `external library -> pack -> graph -> build/run`
+- `[x]` Ограничения adapter-а описаны честно и user-visible
 
 ### Release Framing Re-Evaluation
 

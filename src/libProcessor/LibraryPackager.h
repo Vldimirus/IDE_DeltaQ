@@ -46,6 +46,10 @@ public:
                                                        const QVector<WrapperCode> &wrappers = {});
 
 private:
+    static QStringList validateImportedPackSpec(const ImportedLibraryPackSpec &spec,
+                                                const QVector<Module> &modules,
+                                                const QVector<WrapperCode> &wrappers);
+
     static Module prepareModuleForImportedPack(const Module &module,
                                                const ImportedLibraryPackSpec &spec,
                                                QStringList *warnings);

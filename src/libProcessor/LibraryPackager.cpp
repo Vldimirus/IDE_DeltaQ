@@ -1,6 +1,7 @@
 // Упаковка импортированной библиотеки в extension pack DeltaQ — реализация
 #include "LibraryPackager.h"
 
+#include <QDateTime>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -109,11 +110,95 @@ QJsonArray toJsonArray(const QStringList &values)
     return array;
 }
 
+bool looksLikeFilesystemPath(const QString &value)
+{
+    if (value.isEmpty())
+        return false;
+
+    const QFileInfo info(value);
+    return info.isAbsolute()
+        || value.contains('/')
+        || value.contains('\\')
+        || value.startsWith('.');
+}
+
+bool looksLikeBinaryArtifactPath(const QString &value)
+{
+    if (looksLikeFilesystemPath(value))
+        return true;
+
+    const QString lower = value.trimmed().toLower();
+    return lower.endsWith(".a")
+        || lower.endsWith(".so")
+        || lower.endsWith(".dylib")
+        || lower.endsWith(".dll")
+        || lower.endsWith(".lib");
+}
+
+QString makeStagingDirName(const QString &packName)
+{
+    return QString(".dq_import_%1_%2")
+        .arg(packName)
+        .arg(QString::number(QDateTime::currentMSecsSinceEpoch()));
+}
+
 } // namespace
 
 QString LibraryPackager::sanitizePackName(const QString &name)
 {
     return sanitizeSegment(name);
+}
+
+QStringList LibraryPackager::validateImportedPackSpec(const ImportedLibraryPackSpec &spec,
+                                                      const QVector<Module> &modules,
+                                                      const QVector<WrapperCode> &wrappers)
+{
+    QStringList errors;
+
+    const QString packName = sanitizePackName(spec.packName);
+    if (packName.isEmpty()) {
+        errors.append(QObject::tr("Pack name is empty. Next step: enter a stable pack name for the imported library."));
+    }
+
+    if (spec.language.trimmed() != "c") {
+        errors.append(QObject::tr("Imported pack v1 currently supports Linux-first C ABI only. Next step: expose a thin extern \"C\" adapter or import a C header instead of '%1'.")
+                          .arg(spec.language.trimmed().isEmpty() ? QObject::tr("an unspecified ABI")
+                                                                 : spec.language.trimmed()));
+    }
+
+    const QString standard = spec.standard.trimmed().toLower();
+    if (!standard.isEmpty() && (standard.startsWith("c++") || (!standard.startsWith("c11") && !standard.startsWith("c17")))) {
+        errors.append(QObject::tr("Standard '%1' is outside the v1 intake scope. Next step: switch to a C standard such as c11/c17 or wrap the library behind a C ABI facade.")
+                          .arg(spec.standard.trimmed()));
+    }
+
+    if (spec.headerPaths.isEmpty()) {
+        errors.append(QObject::tr("No header files were provided. Next step: choose at least one readable .h file for import."));
+    }
+
+    for (const auto &headerPath : spec.headerPaths) {
+        if (!looksLikeFilesystemPath(headerPath))
+            continue;
+        if (!QFileInfo::exists(headerPath)) {
+            errors.append(QObject::tr("Header file '%1' was not found. Next step: pick an existing header or use an include-style name together with include paths.")
+                              .arg(QDir::fromNativeSeparators(headerPath)));
+        }
+    }
+
+    for (const auto &libraryRef : spec.linkLibraries) {
+        if (!looksLikeBinaryArtifactPath(libraryRef))
+            continue;
+        if (!QFileInfo::exists(libraryRef)) {
+            errors.append(QObject::tr("Library artifact '%1' was not found. Next step: build/copy the .so/.a first or switch to a toolchain-resolved library name.")
+                              .arg(QDir::fromNativeSeparators(libraryRef)));
+        }
+    }
+
+    if (modules.isEmpty() && wrappers.isEmpty()) {
+        errors.append(QObject::tr("Nothing was selected for import. Next step: keep at least one generated module or wrapper before writing the pack."));
+    }
+
+    return errors;
 }
 
 Module LibraryPackager::prepareModuleForImportedPack(const Module &module,
@@ -178,16 +263,27 @@ ImportedLibraryPackResult LibraryPackager::writeImportedPack(const QString &modu
     ImportedLibraryPackResult result;
 
     const QString packName = sanitizePackName(spec.packName);
-    if (packName.isEmpty()) {
-        result.errors.append(QObject::tr("pack name is empty"));
+    result.errors = validateImportedPackSpec(spec, modules, wrappers);
+    if (!result.errors.isEmpty())
+        return result;
+
+    QDir rootDir(modulesRootDir);
+    if (!rootDir.exists() && !QDir().mkpath(modulesRootDir)) {
+        result.errors.append(QObject::tr("failed to create modules root '%1'").arg(modulesRootDir));
         return result;
     }
+    rootDir = QDir(modulesRootDir);
 
-    const QString packDir = QDir(modulesRootDir).filePath(packName);
+    const QString packDir = rootDir.filePath(packName);
     result.packDir = packDir;
 
-    if (!QDir().mkpath(packDir)) {
-        result.errors.append(QObject::tr("failed to create pack directory '%1'").arg(packDir));
+    QString stagingBaseName = makeStagingDirName(packName);
+    while (rootDir.exists(stagingBaseName))
+        stagingBaseName = makeStagingDirName(packName + "_retry");
+
+    const QString stagingDir = rootDir.filePath(stagingBaseName);
+    if (!QDir().mkpath(stagingDir)) {
+        result.errors.append(QObject::tr("failed to create staging directory '%1'").arg(stagingDir));
         return result;
     }
 
@@ -205,9 +301,10 @@ ImportedLibraryPackResult LibraryPackager::writeImportedPack(const QString &modu
     pack["defines"] = toJsonArray(spec.defines);
     pack["link_libraries"] = toJsonArray(spec.linkLibraries);
 
-    QFile packFile(packDir + "/pack.json");
+    QFile packFile(stagingDir + "/pack.json");
     if (!packFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
         result.errors.append(QObject::tr("failed to write pack.json for '%1'").arg(packName));
+        QDir(stagingDir).removeRecursively();
         return result;
     }
     packFile.write(QJsonDocument(pack).toJson(QJsonDocument::Indented));
@@ -216,10 +313,11 @@ ImportedLibraryPackResult LibraryPackager::writeImportedPack(const QString &modu
     for (const auto &module : modules) {
         Module prepared = prepareModuleForImportedPack(module, spec, &result.warnings);
 
-        const QString categoryDir = QDir(packDir).filePath(
+        const QString categoryDir = QDir(stagingDir).filePath(
             prepared.category.isEmpty() ? QString("imported") : prepared.category);
         if (!QDir().mkpath(categoryDir)) {
             result.errors.append(QObject::tr("failed to create category dir '%1'").arg(categoryDir));
+            QDir(stagingDir).removeRecursively();
             return result;
         }
 
@@ -227,6 +325,7 @@ ImportedLibraryPackResult LibraryPackager::writeImportedPack(const QString &modu
         QFile moduleFile(moduleFilePath);
         if (!moduleFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
             result.errors.append(QObject::tr("failed to write module file '%1'").arg(moduleFilePath));
+            QDir(stagingDir).removeRecursively();
             return result;
         }
         moduleFile.write(QJsonDocument(prepared.toJson()).toJson(QJsonDocument::Indented));
@@ -235,9 +334,10 @@ ImportedLibraryPackResult LibraryPackager::writeImportedPack(const QString &modu
     }
 
     if (!wrappers.isEmpty()) {
-        const QString wrappersDir = QDir(packDir).filePath("wrappers");
+        const QString wrappersDir = QDir(stagingDir).filePath("wrappers");
         if (!QDir().mkpath(wrappersDir)) {
             result.errors.append(QObject::tr("failed to create wrappers dir '%1'").arg(wrappersDir));
+            QDir(stagingDir).removeRecursively();
             return result;
         }
 
@@ -249,6 +349,7 @@ ImportedLibraryPackResult LibraryPackager::writeImportedPack(const QString &modu
             QFile headerFile(headerPath);
             if (!headerFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
                 result.errors.append(QObject::tr("failed to write wrapper header '%1'").arg(headerPath));
+                QDir(stagingDir).removeRecursively();
                 return result;
             }
             headerFile.write(wrapper.header.toUtf8());
@@ -257,6 +358,7 @@ ImportedLibraryPackResult LibraryPackager::writeImportedPack(const QString &modu
             QFile sourceFile(sourcePath);
             if (!sourceFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
                 result.errors.append(QObject::tr("failed to write wrapper source '%1'").arg(sourcePath));
+                QDir(stagingDir).removeRecursively();
                 return result;
             }
             sourceFile.write(wrapper.source.toUtf8());
@@ -265,6 +367,41 @@ ImportedLibraryPackResult LibraryPackager::writeImportedPack(const QString &modu
             result.writtenWrapperFiles.append(headerPath);
             result.writtenWrapperFiles.append(sourcePath);
         }
+    }
+
+    QString backupBaseName;
+    if (rootDir.exists(packName)) {
+        backupBaseName = QString(".dq_import_backup_%1_%2")
+            .arg(packName)
+            .arg(QString::number(QDateTime::currentMSecsSinceEpoch()));
+        while (rootDir.exists(backupBaseName))
+            backupBaseName.append("_retry");
+
+        if (!rootDir.rename(packName, backupBaseName)) {
+            result.errors.append(QObject::tr("failed to prepare existing pack '%1' for replacement").arg(packDir));
+            QDir(stagingDir).removeRecursively();
+            return result;
+        }
+    }
+
+    if (!rootDir.rename(stagingBaseName, packName)) {
+        if (!backupBaseName.isEmpty())
+            rootDir.rename(backupBaseName, packName);
+        result.errors.append(QObject::tr("failed to activate imported pack '%1'").arg(packDir));
+        QDir(stagingDir).removeRecursively();
+        return result;
+    }
+
+    if (!backupBaseName.isEmpty())
+        QDir(rootDir.filePath(backupBaseName)).removeRecursively();
+
+    for (QString &writtenModuleFile : result.writtenModuleFiles) {
+        const QString relativePath = QDir(stagingDir).relativeFilePath(writtenModuleFile);
+        writtenModuleFile = QDir(packDir).filePath(relativePath);
+    }
+    for (QString &writtenWrapperFile : result.writtenWrapperFiles) {
+        const QString relativePath = QDir(stagingDir).relativeFilePath(writtenWrapperFile);
+        writtenWrapperFile = QDir(packDir).filePath(relativePath);
     }
 
     return result;

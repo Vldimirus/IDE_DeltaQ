@@ -83,6 +83,12 @@
 - [imported_packs/mini_sensor_sdk.md](./imported_packs/mini_sensor_sdk.md) — первый полный curated imported-pack walkthrough
 - [imported_packs/mini_checksum_sdk.md](./imported_packs/mini_checksum_sdk.md) — второй imported-pack walkthrough для algorithmic/text-processing case
 
+Для `v1` imported pack path заявляется честно:
+
+- intake path Linux-first;
+- supported baseline — `C ABI` header + include/link metadata;
+- unsupported `C++` ABI, missing headers и missing binary path не должны оставлять half-written pack и должны заканчиваться явным diagnostic.
+
 ## Связанные example-проекты
 
 Если нужен shortest path от library docs к живому результату, сейчас есть такие reference flows:
